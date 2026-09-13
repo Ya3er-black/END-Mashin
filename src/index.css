@@ -1,0 +1,1330 @@
+@import "tailwindcss";
+
+/* Web Fonts - 100% Local (Zero CDN Dependency) */
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/vazirmatn-arabic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/vazirmatn-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/vazirmatn-latin-ext.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/static/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/static/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/static/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('./fonts/vazirmatn/static/Vazirmatn-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@variant dark (&:where(.dark, .dark *, :root:not(.light), body:not(.light)));
+
+/* IRANYekanX Local Font Definitions from ./Webfonts/woff2/ */
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-UltraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-DemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-ExtraBlack.woff2') format('woff2');
+  font-weight: 950;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('./Webfonts/woff2/IRANYekanX-Heavy.woff2') format('woff2');
+  font-weight: 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Shabnam Local Font Family */
+@font-face {
+  font-family: 'Shabnam';
+  src: url('./fonts/shabnam/Shabnam-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Shabnam';
+  src: url('./fonts/shabnam/Shabnam-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Shabnam';
+  src: url('./fonts/shabnam/Shabnam.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Shabnam';
+  src: url('./fonts/shabnam/Shabnam-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Shabnam';
+  src: url('./fonts/shabnam/Shabnam-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Sahel Local Font Family */
+@font-face {
+  font-family: 'Sahel';
+  src: url('./fonts/sahel/Sahel-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sahel';
+  src: url('./fonts/sahel/Sahel.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sahel';
+  src: url('./fonts/sahel/Sahel-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sahel';
+  src: url('./fonts/sahel/Sahel-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sahel';
+  src: url('./fonts/sahel/Sahel-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Samim Local Font Family */
+@font-face {
+  font-family: 'Samim';
+  src: url('./fonts/samim/Samim.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Samim';
+  src: url('./fonts/samim/Samim-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Samim';
+  src: url('./fonts/samim/Samim-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Dana Local Font Family */
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Hairline.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-UltraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-DemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-ExtraBlack.woff2') format('woff2');
+  font-weight: 950;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dana';
+  src: url('./fonts/dana/Dana-Heavy.woff2') format('woff2');
+  font-weight: 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Yekan Bakh Local Font Family */
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yekan Bakh';
+  src: url('./fonts/yekanbakh/YekanBakh-ExtraBlack.woff2') format('woff2');
+  font-weight: 950;
+  font-style: normal;
+  font-display: swap;
+}
+/* Alias for YekanBakh without space */
+@font-face {
+  font-family: 'YekanBakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'YekanBakh';
+  src: url('./fonts/yekanbakh/YekanBakh-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* IRANSans Local Font Family */
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb_UltraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb_Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb_Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb_Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSans';
+  src: url('./fonts/iransans/IRANSansWeb_Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+/* IRANSansFaNum Local Font Family */
+@font-face {
+  font-family: 'IRANSansFaNum';
+  src: url('./fonts/iransans/IRANSansWeb_FaNum.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSansFaNum';
+  src: url('./fonts/iransans/IRANSansWeb_Bold_FaNum.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSansFaNum';
+  src: url('./fonts/iransans/IRANSansWeb_Medium_FaNum.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANSansFaNum';
+  src: url('./fonts/iransans/IRANSansWeb_Light_FaNum.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Tanha, Gandom, Parastoo Local Fonts */
+@font-face {
+  font-family: 'Tanha';
+  src: url('./fonts/tanha/Tanha.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gandom';
+  src: url('./fonts/gandom/Gandom.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Parastoo';
+  src: url('./fonts/parastoo/Parastoo.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Parastoo';
+  src: url('./fonts/parastoo/Parastoo-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --app-font: "IRANYekanX", "Dana", "Yekan Bakh", "IRANSans", "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --app-radius: 4px;
+  --primary-50: #eef2ff;
+  --primary-100: #e0e7ff;
+  --primary-200: #c7d2fe;
+  --primary-300: #a5b4fc;
+  --primary-400: #818cf8;
+  --primary-500: #6366f1;
+  --primary-600: #4f46e5;
+  --primary-700: #4338ca;
+  --primary-800: #3730a3;
+  --primary-900: #312e81;
+  --primary-950: #1e1b4b;
+}
+
+@theme {
+  --font-sans: var(--app-font);
+  --font-mono: var(--app-font);
+  --radius-xs: var(--app-radius);
+  --radius-sm: var(--app-radius);
+  --radius-md: var(--app-radius);
+  --radius-lg: var(--app-radius);
+  --radius-xl: var(--app-radius);
+  --radius-2xl: var(--app-radius);
+  --radius-3xl: var(--app-radius);
+  --radius-full: 9999px;
+  --color-indigo-50: var(--primary-50);
+  --color-indigo-100: var(--primary-100);
+  --color-indigo-200: var(--primary-200);
+  --color-indigo-300: var(--primary-300);
+  --color-indigo-400: var(--primary-400);
+  --color-indigo-500: var(--primary-500);
+  --color-indigo-600: var(--primary-600);
+  --color-indigo-700: var(--primary-700);
+  --color-indigo-800: var(--primary-800);
+  --color-indigo-900: var(--primary-900);
+  --color-indigo-950: var(--primary-950);
+  --color-blue-50: var(--primary-50);
+  --color-blue-100: var(--primary-100);
+  --color-blue-200: var(--primary-200);
+  --color-blue-300: var(--primary-300);
+  --color-blue-400: var(--primary-400);
+  --color-blue-500: var(--primary-500);
+  --color-blue-600: var(--primary-600);
+  --color-blue-700: var(--primary-700);
+  --color-blue-800: var(--primary-800);
+  --color-blue-900: var(--primary-900);
+  --color-blue-950: var(--primary-950);
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+  --color-primary-900: var(--primary-900);
+  --color-primary-950: var(--primary-950);
+}
+
+*, ::before, ::after {
+  font-family: var(--app-font);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-synthesis: none;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.font-mono, code, pre, input, select, textarea, button {
+  font-family: var(--app-font) !important;
+  letter-spacing: -0.01em !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+/* ==========================================================================
+   THEME VARIABLES & COLOR PALETTES (Enhanced Crisp Contrast)
+   ========================================================================== */
+
+/* DARK THEME (Default) */
+:root, body.dark, html.dark {
+  --bg-main: #09090b;
+  --bg-card: #111114;
+  --bg-card-sub: #17171a;
+  --bg-header: #141417;
+  --bg-input: #18181c;
+  --bg-input-focus: #202025;
+  --bg-hover: #1c1c21;
+  --border-color: #27272a;
+  --border-subtle: #1f1f23;
+  --text-heading: #ffffff;
+  --text-main: #f1f5f9;      /* Ultra-clear Slate 100 */
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --modal-overlay: rgba(0, 0, 0, 0.78);
+  --shadow-sm: none;
+  --shadow-md: none;
+}
+
+/* LIGHT THEME (Clean, Crisp, High-Contrast Modern Slate Palette) */
+body.light, html.light, :root.light {
+  --bg-main: #f1f5f9;       /* Slate 100 canvas */
+  --bg-card: #ffffff;       /* Pure white card surfaces */
+  --bg-card-sub: #f8fafc;   /* Slate 50 sub-containers / row highlights */
+  --bg-header: #f8fafc;     /* Slate 50 headers */
+  --bg-input: #ffffff;      /* White input backgrounds */
+  --bg-input-focus: #ffffff;
+  --bg-hover: #f1f5f9;      /* Slate 100 row hover */
+  --border-color: #e2e8f0;   /* Slate 200 clean borders */
+  --border-subtle: #f1f5f9;
+  --text-heading: #09090b;   /* Slate 950 - high contrast deep dark */
+  --text-main: #1e293b;      /* Slate 800 - crystal clear body text */
+  --text-muted: #475569;     /* Slate 600 */
+  --text-subtle: #64748b;    /* Slate 500 */
+  --modal-overlay: rgba(15, 23, 42, 0.65);
+  --shadow-sm: none;
+  --shadow-md: none;
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+}
+
+/* ==========================================================================
+   FLAT DESIGN SYSTEM (Zero Shadows, Minimal Radius, Flat Controls)
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+button, input, select, textarea, .card, table, header, aside, dialog, div, span, nav, a {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Flatten shadow utility classes */
+.shadow, .shadow-xs, .shadow-2xs, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-inner,
+.drop-shadow-sm, .drop-shadow-md, .drop-shadow-lg, .drop-shadow-xl, .drop-shadow-2xl, .drop-shadow-none {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Flat button transitions without elevation */
+button {
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+button:hover, button:active, button:focus {
+  box-shadow: none !important;
+}
+
+/* Global corner radius across entire project, derived strictly from user settings */
+*, *::before, *::after {
+  --radius: var(--app-radius, 4px);
+}
+
+/* ۱. تمام دکمه‌ها بدون استثنا گردی گوشه خود را از تنظیمات کاربر (--app-radius) دریافت می‌کنند */
+button,
+[role="button"],
+.btn,
+.button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  border-radius: var(--app-radius, 4px) !important;
+}
+
+/* ۲. تمام کلاس‌های rounded، فیلدها، سلکت‌ها و کارت‌ها گردی گوشه را از --app-radius دریافت می‌کنند */
+[class*="rounded"]:not(.rounded-none):not(.avatar):not(.circle-avatar):not(.status-dot):not(.color-dot):not(.pill-toggle-knob):not(.circle-knob):not(.dot-indicator),
+.rounded,
+.rounded-xs,
+.rounded-2xs,
+.rounded-sm,
+.rounded-md,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+input,
+select,
+textarea,
+dialog,
+.card {
+  border-radius: var(--app-radius, 4px) !important;
+}
+
+/* ۳. نشانگرهای کاملاً دایره‌ای، آواتارها و نقاط رنگی ۵۰٪ باقی می‌مانند */
+.avatar,
+.circle-avatar,
+.status-dot,
+.color-dot,
+.dot-indicator,
+.pill-toggle-knob,
+.circle-knob {
+  border-radius: 50% !important;
+}
+
+/* ۴. چک‌باکس‌ها و نشانگرهای تیک */
+.check-indicator,
+.checkbox-indicator,
+.check-box,
+input[type="checkbox"] {
+  border-radius: min(var(--app-radius, 4px), 8px) !important;
+  transition: border-radius 0.15s ease-out;
+}
+
+/* ۵. سوئیچ‌های روشن/خاموش پیل (Track) */
+.pill-toggle {
+  border-radius: 9999px !important;
+}
+
+/* ۶. گوشه‌های صریحاً تیز */
+.rounded-none {
+  border-radius: 0 !important;
+}
+
+body {
+  font-family: var(--app-font);
+  font-weight: 400; /* Stepped up by 1 weight for clean, crisp body text */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-synthesis: none;
+  font-kerning: normal;
+  letter-spacing: -0.01em;
+  direction: rtl;
+  text-align: right;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  line-height: 1.65;
+}
+
+/* Persian Typography Optical Balance - Thick/bold fonts stepped back 1 weight for refined readability */
+.font-black, .font-heavy {
+  font-weight: 700 !important; /* Step back 1 weight (from 800/900 to Bold 700) */
+}
+
+.font-extrabold {
+  font-weight: 600 !important; /* Step back 1 weight (from 700/800 to DemiBold 600) */
+}
+
+.font-bold {
+  font-weight: 500 !important; /* Step back 1 weight (from 600/700 to Medium 500) */
+}
+
+.font-semibold {
+  font-weight: 500 !important; /* Medium 500 */
+}
+
+.font-medium {
+  font-weight: 400 !important; /* Regular/Medium transition */
+}
+
+.font-normal {
+  font-weight: 400 !important; /* Regular 400 */
+}
+
+.font-light {
+  font-weight: 300 !important; /* Light 300 */
+}
+
+.font-extralight {
+  font-weight: 200 !important; /* UltraLight 200 */
+}
+
+.font-thin {
+  font-weight: 100 !important; /* Thin 100 */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--app-font) !important;
+  font-weight: 500; /* Step back from 600 to clean, elegant Medium 500 */
+  letter-spacing: -0.015em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+strong, b {
+  font-weight: 500 !important;
+}
+
+th {
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+
+/* ==========================================================================
+   GLOBAL TABLE TYPOGRAPHY (Consistent font, weight & scale across all tables)
+   ========================================================================== */
+table,
+table thead,
+table tbody,
+table tfoot,
+table tr,
+table th,
+table td {
+  font-family: var(--app-font) !important;
+  font-size: 0.75rem !important; /* 12px (text-xs) */
+  line-height: 1.25rem;
+}
+
+table th {
+  font-family: var(--app-font) !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  letter-spacing: -0.01em;
+}
+
+table td {
+  font-family: var(--app-font) !important;
+  font-size: 0.75rem !important;
+}
+
+table th span,
+table th div,
+table td span:not([class*="text-[8px]"]):not([class*="text-[9px]"]),
+table td div {
+  font-family: inherit;
+}
+
+table .text-\[10px\],
+table .text-\[11px\] {
+  font-size: 0.75rem !important;
+}
+
+input, select, textarea, button {
+  font-weight: 400;
+}
+
+/* Hide scrollbars globally */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* ==========================================================================
+   DROPDOWN & FORM CONTROL BASE STYLES
+   ========================================================================== */
+
+select {
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: left 0.75rem center !important;
+  background-size: 1rem !important;
+  padding-left: 2.5rem !important;
+  padding-right: 1rem !important;
+  cursor: pointer !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease !important;
+}
+
+body.light select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+}
+
+/* ==========================================================================
+   LIGHT THEME COMPLETE ELEMENT MAPPINGS
+   ========================================================================== */
+
+/* 1. Surfaces & Layout Containers */
+body.light .bg-\[\#0a0a0b\],
+body.light .bg-\[\#0d0d0f\],
+body.light .bg-\[\#0f0f11\] {
+  background-color: var(--bg-main) !important;
+}
+
+body.light .bg-\[\#0a0a0b\]\/80,
+body.light .bg-\[\#0a0a0b\]\/90 {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+}
+
+body.light .bg-\[\#111113\],
+body.light .bg-\[\#121215\],
+body.light .bg-\[\#161618\],
+body.light .bg-\[\#161619\],
+body.light .bg-\[\#18181b\],
+body.light .bg-\[\#1c1c1e\],
+body.light .bg-\[\#1f1f23\],
+body.light .bg-\[\#222226\],
+body.light .bg-\[\#252528\] {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light .bg-\[\#151518\] {
+  background-color: var(--bg-card-sub) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light .bg-\[\#1a1a1c\],
+body.light .bg-\[\#19191c\] {
+  background-color: var(--bg-card-sub) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light .bg-\[\#1a1a1c\]\/40,
+body.light .bg-\[\#1a1a1c\]\/50,
+body.light .bg-\[\#161619\]\/50 {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+}
+
+/* 2. Table Headers and Highlights in Light Mode */
+body.light thead,
+body.light thead tr,
+body.light thead th {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+body.light .hover\:bg-\[\#1a1a1c\]\/40:hover,
+body.light .hover\:bg-\[\#1a1a1c\]:hover,
+body.light .hover\:bg-\[\#161619\]\/50:hover,
+body.light .hover\:bg-\[\#252528\]:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* 3. Borders & Dividers in Light Mode */
+body.light .border-\[\#2d2d30\],
+body.light .border-\[\#27272a\],
+body.light .border-\[\#3f3f46\],
+body.light .border-slate-800,
+body.light .border-slate-700,
+body.light .border-slate-700\/50 {
+  border-color: var(--border-color) !important;
+}
+
+body.light .divide-\[\#2d2d30\] > *,
+body.light .divide-\[\#2d2d30\]\/40 > *,
+body.light .divide-\[\#2d2d30\]\/50 > *,
+body.light .divide-\[\#2d2d30\]\/60 > *,
+body.light .divide-slate-800 > *,
+body.light .divide-slate-800\/40 > * {
+  border-color: var(--border-color) !important;
+}
+
+/* 4. Text Contrast in Light Mode */
+body.light .text-white {
+  color: #ffffff !important;
+}
+
+body.light .text-slate-100:not(.text-white),
+body.light .text-slate-200:not(.text-white) {
+  color: var(--text-heading) !important;
+}
+
+body.light .text-slate-300,
+body.light .text-\[\#e2e8f0\] {
+  color: var(--text-main) !important;
+}
+
+body.light .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+
+body.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+body.light .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+body.light .placeholder-slate-600::placeholder,
+body.light .placeholder-slate-500::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* 5. Form Inputs & Selects in Light Mode (Pure White Backgrounds) */
+body.light input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="file"]),
+body.light textarea,
+body.light select,
+body.light .form-input,
+body.light .form-select,
+body.light [role="combobox"],
+body.light .custom-select,
+body.light .bg-slate-50:is(input, textarea, select),
+body.light .bg-slate-100:is(input, textarea, select) {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light input::placeholder,
+body.light textarea::placeholder,
+body.light select::placeholder {
+  color: #94a3b8 !important;
+}
+
+body.light input:focus,
+body.light textarea:focus,
+body.light select:focus {
+  background-color: #ffffff !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+  outline: none !important;
+}
+
+body.light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* 6. Sidebar in Light Mode */
+body.light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+
+body.light aside > div:first-child {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light aside > div:last-child {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light aside nav button {
+  color: #64748b !important;
+}
+
+body.light aside nav button:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.light aside nav button.bg-indigo-600\/15,
+body.light aside nav button.bg-indigo-600\/20,
+body.light aside nav button.bg-indigo-600\/10 {
+  background-color: #eef2ff !important;
+  color: #4f46e5 !important;
+  border-color: #c7d2fe !important;
+}
+
+body.light aside .border-r {
+  border-color: #e2e8f0 !important;
+}
+
+/* 7. Header Navigation in Light Mode */
+body.light header {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+
+/* 8. Modals in Light Mode */
+body.light .fixed.inset-0.bg-black\/70,
+body.light .fixed.inset-0.bg-black\/80,
+body.light .fixed.inset-0.bg-black\/60 {
+  background-color: var(--modal-overlay) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+body.light .fixed.inset-0 > div.bg-\[\#111113\],
+body.light .fixed.inset-0 > div > div.bg-\[\#111113\],
+body.light .fixed.inset-0 > div.bg-white,
+body.light .fixed.inset-0 > div > div.bg-white {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+
+/* 9. Badges & Color Highlights in Light Mode */
+body.light .text-indigo-400,
+body.light .text-indigo-300 {
+  color: #4f46e5 !important;
+}
+body.light .bg-indigo-600\/10,
+body.light .bg-indigo-600\/15,
+body.light .bg-indigo-600\/20,
+body.light .bg-indigo-500\/10,
+body.light .bg-indigo-500\/20 {
+  background-color: #eef2ff !important;
+  border-color: #c7d2fe !important;
+}
+
+body.light .text-emerald-400,
+body.light .text-emerald-300 {
+  color: #059669 !important;
+}
+body.light .bg-emerald-500\/10,
+body.light .bg-emerald-600\/10,
+body.light .bg-emerald-500\/20 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+}
+
+body.light .text-rose-400,
+body.light .text-rose-300 {
+  color: #dc2626 !important;
+}
+body.light .bg-rose-500\/10,
+body.light .bg-rose-600\/10,
+body.light .bg-rose-500\/20 {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+}
+
+body.light .text-amber-400,
+body.light .text-amber-300,
+body.light .text-amber-200 {
+  color: #b45309 !important;
+}
+body.light .bg-amber-500\/10,
+body.light .bg-amber-600\/10,
+body.light .bg-amber-500\/20,
+body.light .bg-amber-500\/30 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+
+body.light .text-teal-400,
+body.light .text-teal-300 {
+  color: #0d9488 !important;
+}
+body.light .bg-teal-500\/10,
+body.light .bg-teal-600\/10,
+body.light .bg-teal-500\/20 {
+  background-color: #f0fdfa !important;
+  border-color: #99f6e4 !important;
+}
+
+body.light .text-purple-400,
+body.light .text-purple-300 {
+  color: #7c3aed !important;
+}
+body.light .bg-purple-500\/10,
+body.light .bg-purple-600\/10,
+body.light .bg-purple-500\/20 {
+  background-color: #f5f3ff !important;
+  border-color: #ddd6fe !important;
+}
+
+body.light .text-blue-400,
+body.light .text-blue-300 {
+  color: #2563eb !important;
+}
+body.light .bg-blue-500\/10,
+body.light .bg-blue-600\/10,
+body.light .bg-blue-500\/20 {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+/* 10. Secondary Buttons in Light Mode */
+body.light button.bg-\[\#1a1a1c\],
+body.light button.bg-\[\#111113\] {
+  background-color: #f8fafc !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light button.bg-\[\#1a1a1c\]:hover,
+body.light button.bg-\[\#111113\]:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Primary Action Buttons remain crisp vibrant indigo */
+body.light button.bg-indigo-600,
+body.light button.bg-indigo-500 {
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   GLOBAL TABLE TYPOGRAPHY
+   ========================================================================== */
+table {
+  font-family: var(--app-font) !important;
+  line-height: 1.25rem;
+}
+
+/* Table headers: 12px (text-xs), clean regular/medium weight (not bold/chunky) */
+table thead th,
+table th,
+th,
+table thead th button,
+table thead th span,
+table thead th div {
+  font-family: var(--app-font) !important;
+  font-size: 0.75rem !important; /* 12px / text-xs */
+  font-weight: 500 !important;   /* Clean medium weight, not bold */
+  line-height: 1.25rem !important;
+  letter-spacing: normal;
+}
+
+table thead th *,
+table th * {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Table rows underneath: one size smaller (11px), normal weight (not bold) */
+table tbody tr td,
+table tbody tr th {
+  font-family: var(--app-font) !important;
+  font-size: 11px !important;    /* One size smaller than headers (11px) */
+  font-weight: 400 !important;   /* Normal weight, not bold */
+  line-height: 1.25rem !important;
+}
+
+table tbody td span,
+table tbody td div,
+table tbody td p,
+table tbody td a {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Table cells with font-mono (numbers, codes) use clean regular weight */
+table td.font-mono,
+table th.font-mono {
+  font-family: var(--app-font) !important;
+  font-weight: 400 !important;
+}
+
+/* ==========================================================================
+   PRINT STYLES
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Hide all regular UI when printing */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Only make the printable invoice element and its contents visible */
+  #printable-service-invoice-area,
+  #printable-service-invoice-area *,
+  #printable-accounting-statement,
+  #printable-accounting-statement *,
+  #printable-kardex-area,
+  #printable-kardex-area *,
+  #printable-inventory-stock,
+  #printable-inventory-stock * {
+    visibility: visible !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #printable-service-invoice-area,
+  #printable-accounting-statement,
+  #printable-kardex-area,
+  #printable-inventory-stock {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    z-index: 99999999 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
