@@ -55,8 +55,8 @@ export default function SmsRemindersTab({
     return {
       daysThreshold: initialDays,
       autoSendEnabled: false,
-      checkBasedOn: 'last_inquiry_or_service',
-      smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین ثبت کارکرد، لطفاً کارکرد (کیلومتر) فعلی خودرو {vehicleName} ({plaque}) را به همین شماره پیامک فرمایید. واحد ترابری {company}',
+      checkBasedOn: 'last_service',
+      smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین سرویس دوره‌ای، لطفاً جهت بررسی وضعیت خودرو {vehicleName} ({plaque}) و اعلام کارکرد فعلی اقدام فرمایید. واحد ترابری {company}',
       preventDuplicateHours: 24,
       provider: 'sms.ir',
       lineNumber: '30002108035760',
@@ -490,7 +490,7 @@ export default function SmsRemindersTab({
         'نام راننده',
         'شماره تماس پیامک',
         'کارکرد فعلی (کیلومتر)',
-        'آخرین تاریخ مراجعه / ثبت',
+        'آخرین تاریخ سرویس دوره‌ای',
         'نوع آخرین ثبت',
         'روزهای سپری‌شده',
         'وضعیت پیامک',
@@ -581,7 +581,7 @@ export default function SmsRemindersTab({
               </span>
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-xs">
-              رانندگانی که بیش از <strong className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">{toPersianDigits(settings.daysThreshold)} روز</strong> از تاریخ آخرین مراجعه یا استعلام کارکردشان گذشته است در لیست زیر قرار می‌گیرند.
+              رانندگانی که بیش از <strong className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">{toPersianDigits(settings.daysThreshold)} روز</strong> از تاریخ آخرین سرویس دوره‌ای خودرویشان گذشته است در لیست زیر قرار می‌گیرند.
             </p>
           </div>
 
@@ -950,7 +950,7 @@ export default function SmsRemindersTab({
                       width="130px"
                     />
                     <TableColumnHeader
-                      title="آخرین تاریخ مراجعه"
+                      title="آخرین تاریخ سرویس دوره‌ای"
                       colKey="lastVisitDate"
                       sortKey={sortKey}
                       sortDirection={sortDirection}
@@ -1377,16 +1377,16 @@ export default function SmsRemindersTab({
                 {/* مبنای محاسبه روزها */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
-                    مبنای محاسبه تاریخ آخرین مراجعه:
+                    مبنای محاسبه روزهای تاخیر:
                   </label>
                   <select
                     value={tempSettings.checkBasedOn}
                     onChange={(e: any) => setTempSettings({ ...tempSettings, checkBasedOn: e.target.value })}
                     className="w-full h-[36px] bg-white dark:bg-[#161619] border border-slate-300 dark:border-[#2d2d30] rounded-md px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
-                    <option value="last_inquiry_or_service">جدیدترین تاریخ (استعلام یا سرویس)</option>
+                    <option value="last_service">فقط تاریخ آخرین سرویس دوره‌ای (پیش‌فرض)</option>
+                    <option value="last_inquiry_or_service">جدیدترین تاریخ (سرویس یا استعلام)</option>
                     <option value="last_inquiry">فقط تاریخ آخرین استعلام</option>
-                    <option value="last_service">فقط تاریخ آخرین سرویس</option>
                   </select>
                 </div>
               </div>

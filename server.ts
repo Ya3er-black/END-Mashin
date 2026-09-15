@@ -68,8 +68,8 @@ const defaultDb = {
   smsReminderSettings: {
     daysThreshold: 30,
     autoSendEnabled: false,
-    checkBasedOn: 'last_inquiry_or_service',
-    smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین ثبت کارکرد، لطفاً کارکرد (کیلومتر) فعلی خودرو {vehicleName} ({plaque}) را به همین شماره پیامک فرمایید. واحد ترابری {company}',
+    checkBasedOn: 'last_service',
+    smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین سرویس دوره‌ای، لطفاً جهت بررسی وضعیت خودرو {vehicleName} ({plaque}) و اعلام کارکرد فعلی اقدام فرمایید. واحد ترابری {company}',
     preventDuplicateHours: 24,
     provider: 'sms.ir',
     lineNumber: '30002108035760',
@@ -3520,8 +3520,8 @@ async function startServer() {
     const defaultSettings = {
       daysThreshold: 7,
       autoSendEnabled: false,
-      checkBasedOn: 'last_inquiry_or_service' as const,
-      smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین ثبت کارکرد، لطفاً کارکرد (کیلومتر) فعلی خودرو {vehicleName} ({plaque}) را به همین شماره پیامک فرمایید. واحد ترابری {company}',
+      checkBasedOn: 'last_service' as const,
+      smsTemplate: 'راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین سرویس دوره‌ای، لطفاً جهت بررسی وضعیت خودرو {vehicleName} ({plaque}) و اعلام کارکرد فعلی اقدام فرمایید. واحد ترابری {company}',
       preventDuplicateHours: 24,
       provider: 'کاوه نگار',
       lineNumber: '3000505',
@@ -3530,7 +3530,7 @@ async function startServer() {
     return db.smsReminderSettings ? { ...defaultSettings, ...db.smsReminderSettings } : defaultSettings;
   }
 
-  // تابع ساخت لیست خودروها و رانندگان نیازمند یادآوری پیامکی (بیش از X روز گذشته)
+  // تابع ساخت لیست خودروها و رانندگان نیازمند یادآوری پیامکی (مبنای تاخیر: آخرین تاریخ سرویس دوره‌ای)
   function getOverdueDriversList(db: any, customThreshold?: number) {
     const settings = getSmsSettings(db);
     const threshold = customThreshold !== undefined ? customThreshold : settings.daysThreshold;
@@ -3543,43 +3543,61 @@ async function startServer() {
     const result: any[] = [];
 
     vehicles.forEach((v: any) => {
-      // پیدا کردن آخرین استعلام تلفنی یا پیامکی
-      const vOdoLogs = odometerLogs.filter((o: any) => o.vehicleId === v.id);
-      vOdoLogs.sort((a: any, b: any) => new Date(b.createdAt || b.inquiryDate).getTime() - new Date(a.createdAt || a.inquiryDate).getTime());
-      const lastOdoLog = vOdoLogs[0];
-
-      // پیدا کردن آخرین سرویس دوره‌ای
-      const vServices = services.filter((s: any) => s.vehicleId === v.id);
-      vServices.sort((a: any, b: any) => new Date(b.createdAt || b.serviceDate).getTime() - new Date(a.createdAt || a.serviceDate).getTime());
+      // پیدا کردن کلیه سرویس‌های دوره‌ای این خودرو و مرتب‌سازی دقیق به ترتیب جدیدترین تاریخ شمسی
+      const vServices = (services || []).filter((s: any) => s.vehicleId === v.id);
+      vServices.sort((a: any, b: any) => {
+        const daysB = calculateJalaliDaysFromEpoch(b.serviceDate || '') || (b.createdAt ? new Date(b.createdAt).getTime() / (1000 * 86400) : 0);
+        const daysA = calculateJalaliDaysFromEpoch(a.serviceDate || '') || (a.createdAt ? new Date(a.createdAt).getTime() / (1000 * 86400) : 0);
+        return daysB - daysA;
+      });
       const lastService = vServices[0];
 
-      let lastVisitDate = '';
-      let lastVisitType: 'inquiry' | 'service' | 'none' = 'none';
+      // پیدا کردن آخرین استعلام تلفنی یا پیامکی (در صورت وجود)
+      const vOdoLogs = (odometerLogs || []).filter((o: any) => o.vehicleId === v.id);
+      vOdoLogs.sort((a: any, b: any) => {
+        const daysB = calculateJalaliDaysFromEpoch(b.inquiryDate || '') || (b.createdAt ? new Date(b.createdAt).getTime() / (1000 * 86400) : 0);
+        const daysA = calculateJalaliDaysFromEpoch(a.inquiryDate || '') || (a.createdAt ? new Date(a.createdAt).getTime() / (1000 * 86400) : 0);
+        return daysB - daysA;
+      });
+      const lastOdoLog = vOdoLogs[0];
 
-      if (settings.checkBasedOn === 'last_inquiry') {
-        if (lastOdoLog) {
+      let lastVisitDate = '';
+      let lastVisitType: 'service' | 'inquiry' | 'none' = 'none';
+
+      const checkMode = settings.checkBasedOn || 'last_service';
+
+      if (checkMode === 'last_service') {
+        // مبنا: آخرین تاریخ سرویس دوره‌ای
+        if (lastService && lastService.serviceDate) {
+          lastVisitDate = lastService.serviceDate;
+          lastVisitType = 'service';
+        } else if (lastOdoLog && lastOdoLog.inquiryDate) {
+          // در صورت عدم ثبت سرویس دوره‌ای، fallback به آخرین استعلام
           lastVisitDate = lastOdoLog.inquiryDate;
           lastVisitType = 'inquiry';
         }
-      } else if (settings.checkBasedOn === 'last_service') {
-        if (lastService) {
+      } else if (checkMode === 'last_inquiry') {
+        if (lastOdoLog && lastOdoLog.inquiryDate) {
+          lastVisitDate = lastOdoLog.inquiryDate;
+          lastVisitType = 'inquiry';
+        } else if (lastService && lastService.serviceDate) {
           lastVisitDate = lastService.serviceDate;
           lastVisitType = 'service';
         }
       } else {
-        // هرکدام که جدیدتر است
+        // هرکدام که جدیدتر است (در حالت انتخاب شده توسط کاربر)
         const odoDays = lastOdoLog ? getDaysPassedFromDate(lastOdoLog.inquiryDate) : 999;
         const srvDays = lastService ? getDaysPassedFromDate(lastService.serviceDate) : 999;
 
-        if (odoDays < srvDays && lastOdoLog) {
-          lastVisitDate = lastOdoLog.inquiryDate;
-          lastVisitType = 'inquiry';
-        } else if (lastService) {
+        if (srvDays <= odoDays && lastService) {
           lastVisitDate = lastService.serviceDate;
           lastVisitType = 'service';
         } else if (lastOdoLog) {
           lastVisitDate = lastOdoLog.inquiryDate;
           lastVisitType = 'inquiry';
+        } else if (lastService) {
+          lastVisitDate = lastService.serviceDate;
+          lastVisitType = 'service';
         }
       }
 

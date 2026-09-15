@@ -1552,8 +1552,8 @@
   "smsReminderSettings": {
     "daysThreshold": 30,
     "autoSendEnabled": false,
-    "checkBasedOn": "last_inquiry_or_service",
-    "smsTemplate": "راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین ثبت کارکرد، لطفاً کارکرد (کیلومتر) فعلی خودرو {vehicleName} ({plaque}) را به همین شماره پیامک فرمایید. واحد ترابری {company}",
+    "checkBasedOn": "last_service",
+    "smsTemplate": "راننده محترم {driverName}، با سلام؛ با توجه به گذشت {daysPassed} روز از آخرین سرویس دوره‌ای، لطفاً جهت بررسی وضعیت خودرو {vehicleName} ({plaque}) و اعلام کارکرد فعلی اقدام فرمایید. واحد ترابری {company}",
     "preventDuplicateHours": 24,
     "provider": "sms.ir",
     "lineNumber": "30002108035760",

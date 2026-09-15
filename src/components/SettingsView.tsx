@@ -960,9 +960,6 @@ export default function SettingsView({
                   <Palette className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   اطلاعات عمومی و شخصی‌سازی ظاهر سامانه
                 </h2>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold">
-                  <Check className="w-3 h-3" /> ذخیره پایدار در پایگاه داده حساب کاربری
-                </span>
               </div>
 
               {/* دکمه بازنشانی تنظیمات به پیش‌فرض */}
