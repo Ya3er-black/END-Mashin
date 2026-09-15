@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Wrench, Phone, X, Store, Trash2, List, Star, MapPin, FileSpreadsheet, Printer } from 'lucide-react';
 import { Mechanic, VehicleFailure, RepairWorkflow, SatisfactionLevel } from '../types';
-import { toPersianDigits } from '../utils/numberUtils';
+import { toPersianDigits, normalizePhone } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
 import { Pagination } from './Pagination';
 import { CustomSelect } from './CustomSelect';
@@ -226,6 +226,17 @@ export default function MechanicsView({
   const [shopName, setShopName] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
 
+  // بررسی بلادرنگ تکراری بودن شماره تماس تعمیرکار (منحصراً در بخش تعمیرکاران)
+  const duplicateMechanic = useMemo(() => {
+    const normCurrent = normalizePhone(phone);
+    if (!normCurrent || normCurrent.length < 7) return null;
+    return mechanics.find(m => {
+      if (editingMechanicId && m.id === editingMechanicId) return false;
+      const normM = normalizePhone(m.phone);
+      return normM && normM === normCurrent;
+    }) || null;
+  }, [phone, mechanics, editingMechanicId]);
+
   const [specialtiesList, setSpecialtiesList] = useState<string[]>(() => getStoredMechanicSpecialties());
   const [isAddSpecialtyModalOpen, setIsAddSpecialtyModalOpen] = useState(false);
 
@@ -292,6 +303,11 @@ export default function MechanicsView({
     e.preventDefault();
     if (!name.trim() || !phone.trim() || !shopName.trim()) {
       alert('لطفاً فیلدهای الزامی (نام، شماره تماس و محل استقرار) را پر کنید.');
+      return;
+    }
+
+    if (duplicateMechanic) {
+      alert(`این شماره تماس قبلاً برای تعمیرکار «${duplicateMechanic.name}» در بخش تعمیرکاران ثبت شده است.`);
       return;
     }
 
@@ -479,8 +495,17 @@ export default function MechanicsView({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="مثال: 09123456789"
-                  className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold text-right focus:outline-none focus:border-indigo-500 font-mono"
+                  className={`w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border ${
+                    duplicateMechanic ? 'border-rose-500 dark:border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-[#2d2d30] focus:border-indigo-500'
+                  } rounded-lg px-3 py-2.5 text-xs font-bold text-right focus:outline-none font-mono`}
                 />
+                {duplicateMechanic ? (
+                  <p className="text-[10px] text-rose-500 dark:text-rose-400 font-medium">
+                    این شماره تماس قبلاً برای «{duplicateMechanic.name}» در بخش تعمیرکاران ثبت شده است.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">شماره تماس در بخش تعمیرکاران نباید تکراری باشد.</p>
+                )}
               </div>
 
               {/* تخصص تعمیرکار */}

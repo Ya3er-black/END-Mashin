@@ -15,7 +15,7 @@ import { sortData, SortDirection } from '../utils/sortUtils';
 import { Pagination } from './Pagination';
 import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
-import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
+import { returnToOriginView, peekNavigationOrigin, openQuickEntityModal, QuickEntityType } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 
 interface VehiclesViewProps {
@@ -37,6 +37,9 @@ interface SearchableSelectProps {
   placeholder?: string;
   emptyOptionLabel?: string;
   className?: string;
+  onAddNew?: () => void;
+  addNewLabel?: string;
+  quickAddType?: QuickEntityType;
 }
 
 function SearchableSelect({
@@ -45,21 +48,26 @@ function SearchableSelect({
   options,
   placeholder = 'جستجو...',
   emptyOptionLabel = 'انتخاب کنید...',
-  className = ''
+  className = '',
+  onAddNew,
+  addNewLabel,
+  quickAddType
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; openUpward: boolean } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleToggle = () => {
     if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const openUpward = rect.bottom + 220 > window.innerHeight && rect.top > 220;
       setCoords({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-        width: rect.width
+        top: openUpward ? rect.top - 4 : rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 180),
+        openUpward
       });
     }
     setIsOpen(!isOpen);
@@ -67,7 +75,11 @@ function SearchableSelect({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(event.target as Node) &&
+        !(event.target as HTMLElement)?.closest?.('.searchable-select-menu')
+      ) {
         setIsOpen(false);
       }
     }
@@ -82,6 +94,27 @@ function SearchableSelect({
     o.label.toLowerCase().includes(search.toLowerCase()) ||
     (o.sublabel && o.sublabel.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const handleAdd = () => {
+    setIsOpen(false);
+    if (onAddNew) {
+      onAddNew();
+    } else if (quickAddType) {
+      openQuickEntityModal(quickAddType, (createdItem) => {
+        if (createdItem) {
+          if (quickAddType === 'company' && createdItem.name) {
+            onChange(createdItem.name);
+          } else if (quickAddType === 'driver' && createdItem.fullName) {
+            onChange(createdItem.fullName);
+          } else if (createdItem.name || createdItem.fullName) {
+            onChange(createdItem.name || createdItem.fullName);
+          }
+        }
+      });
+    }
+  };
+
+  const resolvedAddLabel = addNewLabel || (quickAddType === 'company' ? 'افزودن شرکت جدید...' : quickAddType === 'driver' ? 'افزودن راننده جدید...' : 'افزودن جدید...');
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -99,12 +132,13 @@ function SearchableSelect({
         <div 
           style={{
             position: 'fixed',
-            top: `${coords.top - window.scrollY}px`,
+            top: coords.openUpward ? undefined : `${coords.top}px`,
+            bottom: coords.openUpward ? `${Math.max(4, window.innerHeight - coords.top)}px` : undefined,
             left: `${coords.left}px`,
             width: `${coords.width}px`,
             zIndex: 99999
           }}
-          className="bg-white dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded-lg shadow-2xl overflow-hidden p-1.5 space-y-1.5"
+          className="searchable-select-menu bg-white dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded-lg shadow-2xl overflow-hidden p-1.5 space-y-1.5"
         >
           <div className="relative">
             <Search className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-2 top-2" />
@@ -158,7 +192,9 @@ function SearchableSelect({
                   >
                     <div className="truncate">
                       <div>{opt.label}</div>
-                      {opt.sublabel && <div className={`text-[9px] ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{opt.sublabel}</div>}
+                      {opt.sublabel && opt.sublabel !== 'راننده ناوگان' && opt.sublabel !== 'راننده' && (
+                        <div className={`text-[9px] ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{opt.sublabel}</div>
+                      )}
                     </div>
                     {isSelected && <Check className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />}
                   </button>
@@ -166,6 +202,19 @@ function SearchableSelect({
               })
             )}
           </div>
+
+          {(onAddNew || quickAddType) && (
+            <div className="pt-1.5 mt-1 border-t border-slate-200 dark:border-[#2d2d30]">
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="w-full flex items-center justify-center gap-1.5 py-1 px-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded transition-colors cursor-pointer border border-dashed border-indigo-200 dark:border-indigo-900/60"
+              >
+                <Plus className="w-3 h-3" />
+                <span>{resolvedAddLabel}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -292,12 +341,11 @@ export default function VehiclesView({
   const [sortKey, setSortKey] = useState<string>('code');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
-  // گزینه‌های رانندگان برگرفته مستقیم از لیست اشخاص و پرسنل تعریف شده (بدون شماره تماس طبق درخواست)
+  // گزینه‌های رانندگان برگرفته مستقیم از لیست اشخاص و پرسنل تعریف شده (بدون شماره تماس و بدون زیرنویس طبق درخواست)
   const driverOptions = useMemo(() => {
     return persons.map(p => ({
       value: p.fullName,
-      label: p.fullName,
-      sublabel: p.position && p.position !== 'راننده' ? p.position : undefined
+      label: p.fullName
     }));
   }, [persons]);
 
@@ -1092,6 +1140,19 @@ export default function VehiclesView({
                         placeholder="جستجوی شرکت..."
                         emptyOptionLabel="بدون شرکت"
                         options={companies.map(c => ({ value: c.name, label: c.name }))}
+                        quickAddType="company"
+                        addNewLabel="افزودن شرکت جدید..."
+                        onAddNew={() => {
+                          openQuickEntityModal('company', async (newComp) => {
+                            if (newComp?.name) {
+                              try {
+                                await onEditVehicle(v.id, { company: newComp.name });
+                              } catch (err) {
+                                alert('خطا در ثبت شرکت');
+                              }
+                            }
+                          });
+                        }}
                         onChange={async (newCompany) => {
                           try {
                             await onEditVehicle(v.id, { company: newCompany });
@@ -1109,6 +1170,22 @@ export default function VehiclesView({
                         placeholder="جستجوی راننده..."
                         emptyOptionLabel="بدون راننده"
                         options={driverOptions}
+                        quickAddType="driver"
+                        addNewLabel="افزودن راننده جدید..."
+                        onAddNew={() => {
+                          openQuickEntityModal('driver', async (newDriver) => {
+                            if (newDriver?.fullName) {
+                              try {
+                                await onEditVehicle(v.id, { 
+                                  driverName: newDriver.fullName, 
+                                  driverPhone: newDriver.phone || '-' 
+                                });
+                              } catch (err) {
+                                alert('خطا در ثبت راننده');
+                              }
+                            }
+                          });
+                        }}
                         onChange={async (selectedName) => {
                           const foundPerson = persons.find(p => p.fullName === selectedName);
                           const selectedPhone = foundPerson?.phone || '-';

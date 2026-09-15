@@ -5,7 +5,7 @@
       "username": "admin",
       "fullName": "مدیر سامانه",
       "role": "admin",
-      "phone": "09120000000",
+      "phone": "09173648806",
       "status": "active",
       "allowedViews": [
         "dashboard",
@@ -24,7 +24,8 @@
         "logs"
       ],
       "company": "",
-      "createdAt": "2026-09-11T13:50:04.165Z"
+      "createdAt": "2026-09-11T13:50:04.165Z",
+      "password": "123"
     }
   ],
   "persons": [
@@ -650,6 +651,33 @@
     }
   ],
   "activityLogs": [
+    {
+      "id": 56,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-15T09:04:42.063Z"
+    },
+    {
+      "id": 55,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-15T09:04:40.007Z"
+    },
+    {
+      "id": 54,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-15T09:04:37.786Z"
+    },
     {
       "id": 53,
       "userId": 1,

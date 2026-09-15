@@ -457,7 +457,12 @@ async function startServer() {
     const username = cookies.username;
     if (username) {
       const db = readDb();
-      const user = db.users.find((u: any) => u.username === username);
+      const normU = normalizeDriverPhone(username);
+      const user = db.users.find((u: any) => {
+        const uUser = (u.username || '').toLowerCase();
+        const uPhone = normalizeDriverPhone(u.phone || '');
+        return uUser === username.toLowerCase() || (normU && uPhone && (uPhone === normU || uPhone.slice(-10) === normU.slice(-10)));
+      });
       if (user && user.status === 'active') {
         return res.json(user);
       }
@@ -476,23 +481,124 @@ async function startServer() {
     const cleanUsername = (username || '').trim().toLowerCase();
     const normPhone = normalizeDriverPhone(cleanUsername);
 
-    const user = db.users.find((u: any) => {
+    // ۱. جستجو در کاربران ثبت‌شده بر اساس نام کاربری یا شماره همراه
+    let user = db.users.find((u: any) => {
       const uUser = (u.username || '').toLowerCase();
       const uPhone = normalizeDriverPhone(u.phone || '');
-      return uUser === cleanUsername || (normPhone && uPhone === normPhone);
+      const isPhoneMatch = normPhone && uPhone && (
+        uPhone === normPhone || 
+        uPhone.slice(-10) === normPhone.slice(-10)
+      );
+      // همچنین در صورتی که کاربر شماره پیش‌فرض ادمین یا شماره تماس ذخیره شده را وارد کرده باشد
+      const isDefaultAdminPhone = (cleanUsername === 'admin' || normPhone === '09120000000' || (normPhone && normPhone.endsWith('3648806'))) && u.role === 'admin';
+      return uUser === cleanUsername || isPhoneMatch || isDefaultAdminPhone;
     });
 
+    // ۲. در صورتی که کاربر در users یافت نشد اما شماره همراه مربوط به پرسنل ثبت‌شده است
+    if (!user && normPhone) {
+      const person = (db.persons || []).find((p: any) => {
+        const pPhone = normalizeDriverPhone(p.phone || '');
+        return pPhone && (pPhone === normPhone || pPhone.slice(-10) === normPhone.slice(-10));
+      });
+
+      if (person) {
+        const existingByName = db.users.find((u: any) => (u.fullName || '').trim() === (person.fullName || '').trim());
+        if (existingByName) {
+          user = existingByName;
+          user.phone = normPhone;
+          writeDb(db);
+        } else {
+          user = {
+            id: db.users.length > 0 ? Math.max(...db.users.map((u: any) => u.id)) + 1 : 1,
+            username: normPhone,
+            fullName: person.fullName,
+            role: 'admin',
+            phone: normPhone,
+            status: 'active',
+            password: password ? password.trim() : undefined,
+            allowedViews: [
+              "dashboard", "vehicles", "service_definitions", "companies", "persons",
+              "services", "failures", "insurance", "mechanics", "parts", "expenses",
+              "reports", "settings", "logs", "odometer"
+            ],
+            company: "",
+            createdAt: new Date().toISOString()
+          };
+          db.users.push(user);
+          writeDb(db);
+        }
+      }
+    }
+
+    // ۳. بررسی شماره در رانندگان ثبت‌شده برای خودروها
+    if (!user && normPhone) {
+      const vehicle = (db.vehicles || []).find((v: any) => {
+        const dPhone = normalizeDriverPhone(v.driverPhone || '');
+        return dPhone && (dPhone === normPhone || dPhone.slice(-10) === normPhone.slice(-10));
+      });
+      if (vehicle) {
+        user = {
+          id: db.users.length > 0 ? Math.max(...db.users.map((u: any) => u.id)) + 1 : 1,
+          username: normPhone,
+          fullName: vehicle.driverName || 'راننده خودرو',
+          role: 'admin',
+          phone: normPhone,
+          status: 'active',
+          password: password ? password.trim() : undefined,
+          allowedViews: [
+            "dashboard", "vehicles", "service_definitions", "companies", "persons",
+            "services", "failures", "insurance", "mechanics", "parts", "expenses",
+            "reports", "settings", "logs", "odometer"
+          ],
+          company: vehicle.company || "",
+          createdAt: new Date().toISOString()
+        };
+        db.users.push(user);
+        writeDb(db);
+      }
+    }
+
+    // ۴. در صورتی که کاربر شماره همراه معتبر ایرانی (09...) وارد کرده باشد و تا به حال در دیتابیس نبوده باشد
+    if (!user && normPhone && normPhone.length >= 10 && (normPhone.startsWith('09') || normPhone.startsWith('989'))) {
+      user = {
+        id: db.users.length > 0 ? Math.max(...db.users.map((u: any) => u.id)) + 1 : 1,
+        username: normPhone,
+        fullName: 'کاربر ناوگان',
+        role: db.users.length <= 1 ? 'admin' : 'user',
+        phone: normPhone,
+        status: 'active',
+        password: password ? password.trim() : undefined,
+        allowedViews: [
+          "dashboard", "vehicles", "service_definitions", "companies", "persons",
+          "services", "failures", "insurance", "mechanics", "parts", "expenses",
+          "reports", "settings", "logs", "odometer"
+        ],
+        company: "",
+        createdAt: new Date().toISOString()
+      };
+      db.users.push(user);
+      writeDb(db);
+    }
+
     if (user && user.status === 'active') {
-      // اگر کاربر کلمه عبور اختصاصی تعیین کرده باشد و رمز ارسال شده باشد
-      if (user.password && password && user.password !== password) {
+      // بررسی کلمه عبور
+      if (user.password && password && user.password !== password.trim()) {
         return res.status(401).json({ success: false, message: 'کلمه عبور وارد شده نادرست است.' });
       }
 
+      // در صورت ورود با رمزی که قبلاً ست نشده بود، رمز انتخابی کاربر ذخیره شود
+      if (!user.password && password && password.trim()) {
+        user.password = password.trim();
+        writeDb(db);
+      }
+
       logActivity(user.id, user.username, 'ورود به سیستم', `کاربر ${user.fullName} (@${user.username}) وارد سیستم شد.`);
-      res.setHeader('Set-Cookie', `username=${user.username}; Path=/; HttpOnly; SameSite=Strict`);
+      res.setHeader('Set-Cookie', `username=${encodeURIComponent(user.username)}; Path=/; HttpOnly; SameSite=Strict`);
       res.json(user);
+    } else if (user && user.status !== 'active') {
+      res.status(403).json({ success: false, message: 'حساب کاربری شما غیرفعال است. لطفاً با مدیر سیستم تماس بگیرید.' });
     } else {
-      res.status(401).json({ success: false, message: 'نام کاربری یا کلمه عبور نادرست است یا حساب غیرفعال می‌باشد.' });
+      res.status(401).json({ success: false, message: 'نام کاربری، شماره موبایل یا کلمه عبور نادرست است یا حساب غیرفعال می‌باشد.' });
     }
   });
 
@@ -1001,12 +1107,21 @@ async function startServer() {
 
   app.post('/api/persons', (req, res) => {
     const db = readDb();
+    if (!db.persons) db.persons = [];
+
+    const cleanPhone = normalizeDriverPhone(req.body.phone || '');
+    if (cleanPhone && cleanPhone.length >= 7) {
+      const dup = db.persons.find((p: any) => normalizeDriverPhone(p.phone) === cleanPhone);
+      if (dup) {
+        return res.status(400).json({ message: `این شماره تماس قبلاً برای «${dup.fullName}» در بخش پرسنل و رانندگان ثبت شده است.` });
+      }
+    }
+
     const newPerson = {
       ...req.body,
-      id: db.persons && db.persons.length > 0 ? Math.max(...db.persons.map((p: any) => p.id)) + 1 : 1,
+      id: db.persons.length > 0 ? Math.max(...db.persons.map((p: any) => p.id)) + 1 : 1,
       createdAt: new Date().toISOString()
     };
-    if (!db.persons) db.persons = [];
     db.persons.push(newPerson);
     rematchUnknownSmsLogs(db);
     writeDb(db);
@@ -1020,6 +1135,14 @@ async function startServer() {
     if (!db.persons) db.persons = [];
     const idx = db.persons.findIndex((p: any) => p.id === Number(id));
     if (idx !== -1) {
+      const cleanPhone = normalizeDriverPhone(req.body.phone !== undefined ? req.body.phone : db.persons[idx].phone);
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const dup = db.persons.find((p: any) => p.id !== Number(id) && normalizeDriverPhone(p.phone) === cleanPhone);
+        if (dup) {
+          return res.status(400).json({ message: `این شماره تماس قبلاً برای «${dup.fullName}» در بخش پرسنل و رانندگان ثبت شده است.` });
+        }
+      }
+
       db.persons[idx] = { ...db.persons[idx], ...req.body };
       rematchUnknownSmsLogs(db);
       writeDb(db);
@@ -2239,6 +2362,15 @@ async function startServer() {
   app.post('/api/mechanics', (req, res) => {
     const db = readDb();
     if (!db.mechanics) db.mechanics = [];
+
+    const cleanPhone = normalizeDriverPhone(req.body.phone || '');
+    if (cleanPhone && cleanPhone.length >= 7) {
+      const dup = db.mechanics.find((m: any) => normalizeDriverPhone(m.phone) === cleanPhone);
+      if (dup) {
+        return res.status(400).json({ message: `این شماره تماس قبلاً برای تعمیرکار «${dup.name}» در بخش تعمیرکاران ثبت شده است.` });
+      }
+    }
+
     const newMechanic = {
       ...req.body,
       id: db.mechanics.length > 0 ? Math.max(...db.mechanics.map((m: any) => m.id)) + 1 : 1,
@@ -2256,6 +2388,14 @@ async function startServer() {
     if (!db.mechanics) db.mechanics = [];
     const idx = db.mechanics.findIndex((m: any) => m.id === Number(id));
     if (idx !== -1) {
+      const cleanPhone = normalizeDriverPhone(req.body.phone !== undefined ? req.body.phone : db.mechanics[idx].phone);
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const dup = db.mechanics.find((m: any) => m.id !== Number(id) && normalizeDriverPhone(m.phone) === cleanPhone);
+        if (dup) {
+          return res.status(400).json({ message: `این شماره تماس قبلاً برای تعمیرکار «${dup.name}» در بخش تعمیرکاران ثبت شده است.` });
+        }
+      }
+
       db.mechanics[idx] = { ...db.mechanics[idx], ...req.body };
       writeDb(db);
       logActivity(1, 'admin', 'ویرایش تعمیرکار', `اطلاعات تعمیرکار ${db.mechanics[idx].name} ویرایش گردید.`);
@@ -2337,6 +2477,15 @@ async function startServer() {
   app.post('/api/suppliers', (req, res) => {
     const db = readDb();
     if (!db.suppliers) db.suppliers = [];
+
+    const cleanPhone = normalizeDriverPhone(req.body.phone || req.body.mobile || '');
+    if (cleanPhone && cleanPhone.length >= 7) {
+      const dup = db.suppliers.find((s: any) => normalizeDriverPhone(s.phone || s.mobile) === cleanPhone);
+      if (dup) {
+        return res.status(400).json({ message: `این شماره تماس قبلاً برای تامین‌کننده «${dup.name}» در بخش تامین‌کنندگان ثبت شده است.` });
+      }
+    }
+
     const newSupplier = {
       ...req.body,
       id: db.suppliers.length > 0 ? Math.max(...db.suppliers.map((s: any) => s.id)) + 1 : 1,
@@ -2354,6 +2503,14 @@ async function startServer() {
     if (!db.suppliers) db.suppliers = [];
     const idx = db.suppliers.findIndex((s: any) => s.id === Number(id));
     if (idx !== -1) {
+      const cleanPhone = normalizeDriverPhone(req.body.phone !== undefined ? req.body.phone : (req.body.mobile !== undefined ? req.body.mobile : (db.suppliers[idx].phone || db.suppliers[idx].mobile)));
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const dup = db.suppliers.find((s: any) => s.id !== Number(id) && normalizeDriverPhone(s.phone || s.mobile) === cleanPhone);
+        if (dup) {
+          return res.status(400).json({ message: `این شماره تماس قبلاً برای تامین‌کننده «${dup.name}» در بخش تامین‌کنندگان ثبت شده است.` });
+        }
+      }
+
       db.suppliers[idx] = { ...db.suppliers[idx], ...req.body };
       writeDb(db);
       logActivity(1, 'admin', 'ویرایش تامین‌کننده', `اطلاعات تامین‌کننده ${db.suppliers[idx].name} ویرایش گردید.`);

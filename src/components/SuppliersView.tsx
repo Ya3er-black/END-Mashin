@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Store, X, Trash2, List, MapPin, FileSpreadsheet, Printer } from 'lucide-react';
 import { Supplier } from '../types';
-import { toPersianDigits } from '../utils/numberUtils';
+import { toPersianDigits, normalizePhone } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
 import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
@@ -129,6 +129,17 @@ export default function SuppliersView({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
 
+  // بررسی بلادرنگ تکراری بودن شماره تماس در تامین‌کنندگان (منحصراً در بخش تامین‌کنندگان)
+  const duplicateSupplier = useMemo(() => {
+    const normCurrent = normalizePhone(phone);
+    if (!normCurrent || normCurrent.length < 7) return null;
+    return suppliers.find(s => {
+      if (editingSupplierId && s.id === editingSupplierId) return false;
+      const normS = normalizePhone(s.phone || s.mobile);
+      return normS && normS === normCurrent;
+    }) || null;
+  }, [phone, suppliers, editingSupplierId]);
+
   const [isNavigatedFromOrigin, setIsNavigatedFromOrigin] = useState(false);
 
   const handleOpenCreateForm = () => {
@@ -182,6 +193,11 @@ export default function SuppliersView({
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
       alert('لطفاً فیلدهای الزامی (نام تامین‌کننده و شماره تماس) را پر کنید.');
+      return;
+    }
+
+    if (duplicateSupplier) {
+      alert(`این شماره تماس قبلاً برای تامین‌کننده «${duplicateSupplier.name}» در بخش تامین‌کنندگان ثبت شده است.`);
       return;
     }
 
@@ -358,8 +374,17 @@ export default function SuppliersView({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="مثال: 02133991122 یا 09121112233"
-                  className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none focus:border-indigo-500 font-mono"
+                  className={`w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border ${
+                    duplicateSupplier ? 'border-rose-500 dark:border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-[#2d2d30] focus:border-indigo-500'
+                  } rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none font-mono`}
                 />
+                {duplicateSupplier ? (
+                  <p className="text-[10px] text-rose-500 dark:text-rose-400 font-medium">
+                    این شماره تماس قبلاً برای تامین‌کننده «{duplicateSupplier.name}» در بخش تامین‌کنندگان ثبت شده است.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">شماره در بخش تامین‌کنندگان نباید تکراری باشد.</p>
+                )}
               </div>
 
               {/* آدرس */}

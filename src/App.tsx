@@ -701,24 +701,25 @@ export default function App() {
   }, [parts, visibleInsurances, visibleFailures, visibleVehicles, visibleServices, visibleWorkflows, visibleOdometerLogs, serviceDefinitions, currentUser]);
 
   // متدهای احراز هویت
-  const handleLogin = async (username: string, password?: string): Promise<boolean> => {
+  const handleLogin = async (username: string, password?: string): Promise<boolean | { success: boolean; message?: string }> => {
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      if (res.ok) {
-        const user = await res.json();
-        setCurrentUser(user);
-        applyUserPreferences(user);
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && (data.id || data.username)) {
+        setCurrentUser(data);
+        applyUserPreferences(data);
         setActiveView('dashboard');
         return true;
       }
+      return { success: false, message: data?.message || 'نام کاربری، شماره موبایل یا کلمه عبور اشتباه است.' };
     } catch (err) {
       console.error(err);
+      return { success: false, message: 'خطا در برقراری ارتباط با سرور سامانه.' };
     }
-    return false;
   };
 
   const handleLogout = async () => {
@@ -1647,6 +1648,8 @@ export default function App() {
         onClose={() => setQuickEntityModalType(null)}
         companies={companies}
         persons={persons}
+        mechanics={mechanics}
+        suppliers={suppliers}
         serviceDefinitions={serviceDefinitions}
         onAddVehicle={handleAddVehicle}
         onAddPerson={handleAddPerson}

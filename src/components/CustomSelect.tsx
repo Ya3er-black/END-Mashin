@@ -58,8 +58,21 @@ export function CustomSelect({
     ? () => {
         setIsOpen(false);
         openQuickEntityModal(quickAddType, (createdItem) => {
-          if (createdItem && createdItem.id !== undefined && onChange) {
-            onChange(String(createdItem.id));
+          if (createdItem && onChange) {
+            if (quickAddType === 'company' && createdItem.name) {
+              onChange(createdItem.name);
+            } else if (quickAddType === 'driver' && createdItem.fullName) {
+              onChange(createdItem.fullName);
+            } else if (createdItem.id !== undefined) {
+              const hasNumeric = options.some(o => o.value === createdItem.id || o.value === String(createdItem.id));
+              if (hasNumeric) {
+                onChange(createdItem.id);
+              } else if (createdItem.name || createdItem.fullName || createdItem.title) {
+                onChange(createdItem.name || createdItem.fullName || createdItem.title);
+              } else {
+                onChange(String(createdItem.id));
+              }
+            }
           }
         });
       }
@@ -253,7 +266,7 @@ export function CustomSelect({
                 >
                   <div className="flex flex-col truncate text-right flex-1 min-w-0">
                     <span className="truncate text-right">{opt.label}</span>
-                    {opt.subLabel && (
+                    {opt.subLabel && opt.subLabel !== 'راننده ناوگان' && opt.subLabel !== 'راننده' && (
                       <span className={`text-[10px] truncate text-right ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400'}`}>{opt.subLabel}</span>
                     )}
                   </div>

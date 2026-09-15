@@ -46,6 +46,8 @@ interface ServiceRowItem {
   serviceType: string;
   nextKm?: number;
   nextDate?: string;
+  calcBasis?: string;
+  visitNumber?: number;
   partSource?: 'warehouse' | 'supplier' | 'none';
   partId?: number;
   partName: string;
@@ -639,11 +641,15 @@ export default function ServicesView({
     };
   }, [vehicleId, services, editingSession]);
 
-  // حداقل کیلومتر مجاز: دقیقاً برابر با کیلومتر دوره قبل که پذیرش شده است (بدون کم یا زیاد)
+  // حداقل کیلومتر مجاز: برابر با کیلومتر دوره قبل که پذیرش شده، یا در نوبت اول برابر با کیلومتر اولیه تعریف خودرو
   const previousKm = useMemo(() => {
-    if (!vehicleId || !lastReceptionInfo) return 0;
-    return lastReceptionInfo.lastKm || 0;
-  }, [vehicleId, lastReceptionInfo]);
+    if (!vehicleId) return 0;
+    if (lastReceptionInfo && lastReceptionInfo.lastKm > 0) {
+      return lastReceptionInfo.lastKm;
+    }
+    const selectedVeh = vehicles.find(v => v.id === Number(vehicleId));
+    return Number(selectedVeh?.currentKm) || 0;
+  }, [vehicleId, lastReceptionInfo, vehicles]);
 
   // آخرین تاریخ پذیرش قبلی خودرو
   const previousServiceDate = useMemo(() => {
@@ -671,6 +677,125 @@ export default function ServicesView({
   const isFirstTimeReceptionVehicle = useMemo(() => {
     return !lastReceptionInfo;
   }, [lastReceptionInfo]);
+
+  // تحلیل جامع وضعیت نوبت مراجعه خودرو و فواصل کارکرد مراجعات قبلی
+  const vehicleVisitInfo = useMemo(() => {
+    if (!vehicleId) return null;
+    const vNum = Number(vehicleId);
+    if (!vNum) return null;
+    const selectedVeh = vehicles.find(v => v.id === vNum);
+    if (!selectedVeh) return null;
+
+    // مراجعات قبلی ثبت شده در سیستم برای این خودرو
+    const pastServices = services.filter(s => 
+      Number(s.vehicleId) === vNum && 
+      (!editingSession || !editingSession.items.some(it => it.id === s.id))
+    );
+
+    // گروه‌بندی نوبت‌های پذیرش قبلی بر اساس تاریخ و کیلومتر
+    const sessionMap = new Map<string, { km: number; date: string; stdDate: string }>();
+    pastServices.forEach(s => {
+      const km = Number(s.currentKm) || 0;
+      const d = s.serviceDate || '';
+      if (km > 0 && d) {
+        const std = toJalaliStandardString(d);
+        const key = `${std}_${km}`;
+        if (!sessionMap.has(key)) {
+          sessionMap.set(key, { km, date: d, stdDate: std });
+        }
+      }
+    });
+
+    const pastSessions = Array.from(sessionMap.values()).sort((a, b) => {
+      if (a.km !== b.km) return a.km - b.km;
+      return a.stdDate.localeCompare(b.stdDate);
+    });
+
+    const initialVehKm = Number(selectedVeh.currentKm) || 0;
+    const activeKm = Number(currentKm) || 0;
+    const activeDate = serviceDate || getCurrentJalaliDate();
+
+    // تشکیل زنجیره مراجعات قبلی همراه با نوبت جاری
+    const currentPoint = (activeKm > 0 && activeDate) ? [{ km: activeKm, date: activeDate, stdDate: toJalaliStandardString(activeDate) }] : [];
+    const fullChain = [...pastSessions, ...currentPoint];
+
+    // محاسبه فواصل بین مراجعات متوالی
+    interface VisitInterval {
+      fromVisit: number;
+      toVisit: number;
+      fromDate: string;
+      toDate: string;
+      distance: number;
+      days: number;
+      dailyMileage: number;
+    }
+    const intervals: VisitInterval[] = [];
+    for (let i = 1; i < fullChain.length; i++) {
+      const prev = fullChain[i - 1];
+      const curr = fullChain[i];
+      const distance = curr.km - prev.km;
+      let days = jalaliDayDifference(prev.date, curr.date);
+      if (days <= 0 && distance > 0) days = 1;
+      if (distance > 0 && days > 0) {
+        const dailyMileage = distance / days;
+        if (dailyMileage >= 0.5 && dailyMileage <= 2000) {
+          intervals.push({
+            fromVisit: i,
+            toVisit: i + 1,
+            fromDate: prev.date,
+            toDate: curr.date,
+            distance,
+            days,
+            dailyMileage
+          });
+        }
+      }
+    }
+
+    const visitNumber = pastSessions.length + 1; // ۱ برای نوبت اول، ۲ برای نوبت دوم، ۳ برای نوبت سوم...
+    const sumDaily = intervals.reduce((acc, curr) => acc + curr.dailyMileage, 0);
+    const averageDaily = intervals.length > 0 ? sumDaily / intervals.length : 0;
+
+    let explanation = '';
+    let badgeText = '';
+
+    if (visitNumber === 1) {
+      badgeText = 'نوبت اول مراجعه';
+      const diffKm = activeKm > initialVehKm ? activeKm - initialVehKm : 0;
+      explanation = `نوبت اول مراجعه خودرو (کارکرد در زمان تعریف: ${toPersianDigits(formatNumber(initialVehKm))} ک‌م | کارکرد فعلی: ${toPersianDigits(formatNumber(activeKm))} ک‌م${diffKm > 0 ? ` | پیمایش: ${toPersianDigits(formatNumber(diffKm))} ک‌م` : ''}) — اقلام و قطعات نیازمند تعویض بر اساس دوره مصرف محاسبه و نمایش داده شده‌اند.`;
+    } else if (visitNumber === 2) {
+      badgeText = 'نوبت دوم مراجعه';
+      if (intervals.length >= 1) {
+        const inv = intervals[0];
+        explanation = `نوبت دوم مراجعه خودرو — محاسبه تاریخ سررسید بعدی بر اساس فاصله مراجعه اول تا دوم (${toPersianDigits(inv.days)} روز، ${toPersianDigits(formatNumber(inv.distance))} ک‌م ⬅️ روزی ${toPersianDigits(Math.round(inv.dailyMileage))} کیلومتر)`;
+      } else {
+        explanation = `نوبت دوم مراجعه خودرو — محاسبه تاریخ سررسید بعدی با ثبت فاصله کیلومتر و تاریخ بین مراجعه اول و دوم انجام می‌شود.`;
+      }
+    } else if (visitNumber === 3) {
+      badgeText = 'نوبت سوم مراجعه';
+      if (intervals.length >= 2) {
+        const inv1 = intervals[0];
+        const inv2 = intervals[1];
+        explanation = `نوبت سوم مراجعه خودرو — محاسبه تاریخ سررسید بر اساس میانگین ۲ دوره قبلی: دوره ۱ (${toPersianDigits(inv1.days)} روز، روزی ${toPersianDigits(Math.round(inv1.dailyMileage))} ک‌م) + دوره ۲ (${toPersianDigits(inv2.days)} روز، روزی ${toPersianDigits(Math.round(inv2.dailyMileage))} ک‌م) ⬅️ میانگین کارکرد: ${toPersianDigits(Math.round(averageDaily))} کیلومتر در روز`;
+      } else {
+        explanation = `نوبت سوم مراجعه خودرو — محاسبه تاریخ سررسید بعدی بر اساس میانگین کارکرد مراجعات قبلی (${toPersianDigits(Math.round(averageDaily))} کیلومتر در روز)`;
+      }
+    } else {
+      badgeText = `نوبت ${toPersianDigits(visitNumber)} مراجعه`;
+      explanation = `نوبت ${toPersianDigits(visitNumber)} مراجعه خودرو — محاسبه تاریخ سررسید بر اساس میانگین کارکرد در ${toPersianDigits(intervals.length)} دوره قبلی (روزی ${toPersianDigits(Math.round(averageDaily))} کیلومتر)`;
+    }
+
+    return {
+      visitNumber,
+      pastSessionsCount: pastSessions.length,
+      initialVehKm,
+      activeKm,
+      intervals,
+      averageDaily,
+      explanation,
+      badgeText
+    };
+  }, [vehicleId, services, editingSession, currentKm, serviceDate, vehicles]);
 
   // استخراج وضعیت مدارک قانونی خودرو (بیمه شخص ثالث، بیمه بدنه، معاینه فنی) در بالای فرم پذیرش
   const vehicleInsuranceSummary = useMemo(() => {
@@ -818,11 +943,15 @@ export default function ServicesView({
       allFailures: failures,
       allVehicles: vehicles,
       editingSessionItems: editingSession ? editingSession.items : undefined
-    }) : { hasHistory: false, nextDate: '' };
+    }) : { hasHistory: false, nextDate: '', dailyMileage: null, estimatedDays: null, basis: '', sampleCount: 0, visitNumber: 1 };
 
     return {
       nextKm: calculatedNextKm,
-      nextDate: recCalc.hasHistory && recCalc.nextDate ? recCalc.nextDate : ''
+      nextDate: recCalc.hasHistory && recCalc.nextDate ? recCalc.nextDate : '',
+      hasHistory: recCalc.hasHistory,
+      basis: recCalc.basis,
+      visitNumber: recCalc.visitNumber,
+      dailyMileage: recCalc.dailyMileage
     };
   };
 
@@ -1774,30 +1903,48 @@ export default function ServicesView({
     if (!selectedVeh) return [];
 
     const previousReceptionKm = lastReceptionInfo?.lastKm || 0;
+    const initialVehKm = Number(selectedVeh.currentKm) || 0;
+    const isFirstVisit = isFirstTimeReceptionVehicle || !lastReceptionInfo || previousReceptionKm <= 0;
+    const baselineKm = (!isFirstVisit && previousReceptionKm > 0) ? previousReceptionKm : initialVehKm;
 
-    // ۱. اگر خودرو برای بار اول مراجعه می‌کند یا هیچ سابقه سرویس قبلی ندارد:
-    // طبق دستور صریح: چون مشخص نیست قبلاً کی سرویس رفته، هیچ سرویسی به صورت پیشنهادی ارائه نمی‌شود
-    if (isFirstTimeReceptionVehicle || !lastReceptionInfo || previousReceptionKm <= 0) {
-      return [];
-    }
-
-    // ۲. اگر دفعه اولش نیست، از آخرین کیلومتری که سری قبل آمده برای سرویس و مراجعات قبلی تحلیل انجام می‌شود
     return serviceDefinitions.map(def => {
-      const lastEvent = findLastServiceOrRepairEvent(
-        vId,
-        def,
-        services,
-        failures,
-        workflows,
-        parts
-      );
-
-      // مبنای محاسبه: آخرین باری که این خدمت در سیستم ثبت شده، یا در صورت عدم ثبت مجزا، آخرین کیلومتری که سری قبل خودرو آمده برای سرویس
-      const lastKm = Number(lastEvent.lastServicedKm) > 0 ? Number(lastEvent.lastServicedKm) : Number(previousReceptionKm);
       const intervalKm = Number(def.intervalKm) || 5000;
-      const targetKm = lastKm + intervalKm;
-      const remainingKm = targetKm - currentKilometer;
       const warningKm = Number(def.warningKm) || 500;
+
+      let lastKm = 0;
+      let targetKm = 0;
+      let lastEvent = {
+        lastServicedKm: null as number | null,
+        lastServicedDate: null as string | null,
+        isFromRepair: false,
+        sourceLabel: '',
+        details: ''
+      };
+
+      if (!isFirstVisit) {
+        lastEvent = findLastServiceOrRepairEvent(
+          vId,
+          def,
+          services,
+          failures,
+          workflows,
+          parts
+        );
+        lastKm = Number(lastEvent.lastServicedKm) > 0 ? Number(lastEvent.lastServicedKm) : Number(previousReceptionKm);
+        targetKm = lastKm + intervalKm;
+      } else {
+        // نوبت اول مراجعه خودرو:
+        // اگر کارکرد اولیه در تعریف خودرو ۱۰۰ هزار باشد و الان ۱۰۵ هزار شده، قطعات نیازمند تعویض (مانند روغن با دوره ۵۰۰۰) نمایش داده می‌شوند
+        lastKm = baselineKm;
+        if (baselineKm > 0 && currentKilometer >= baselineKm) {
+          targetKm = baselineKm + intervalKm;
+        } else {
+          const cycles = Math.max(1, Math.floor(currentKilometer / intervalKm));
+          targetKm = cycles * intervalKm;
+        }
+      }
+
+      const remainingKm = targetKm - currentKilometer;
       const warningStartKm = targetKm - warningKm;
 
       let status: 'overdue' | 'warning' | 'ok' = 'ok';
@@ -1811,7 +1958,7 @@ export default function ServicesView({
       const isDueInThisPeriod = targetKm <= currentKilometer;
       const isWarningInThisPeriod = currentKilometer >= warningStartKm && currentKilometer < targetKm;
 
-      // محاسبه موعد مراجعه بعدی بر اساس میانگین بازه دوره‌های قبلی خودرو
+      // محاسبه موعد مراجعه بعدی بر اساس فواصل مراجعات
       const recCalc = calculateReceptionNextService({
         vehicleId: vId,
         serviceType: def.serviceType,
@@ -1834,7 +1981,7 @@ export default function ServicesView({
         status,
         isDueInThisPeriod,
         isWarningInThisPeriod,
-        previousReceptionKm,
+        previousReceptionKm: baselineKm,
         isFromRepair: lastEvent.isFromRepair,
         sourceLabel: lastEvent.sourceLabel,
         details: lastEvent.details,
@@ -1843,7 +1990,8 @@ export default function ServicesView({
         nextVisitDate: recCalc.nextDate || '',
         dailyMileage: recCalc.dailyMileage,
         estimatedDays: recCalc.estimatedDays,
-        basis: recCalc.basis
+        basis: recCalc.basis,
+        visitNumber: recCalc.visitNumber
       };
     });
   };
@@ -2545,7 +2693,7 @@ export default function ServicesView({
                   <div className="flex items-center gap-1.5 pt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
                     <span>
-                      خطا: کیلومتر فعلی ({formatNumber(currentKm)}) نمی‌تواند کمتر از دوره قبل پذیرش ({formatNumber(previousKm)}) باشد!
+                      خطا: کیلومتر فعلی ({formatNumber(currentKm)}) نمی‌تواند کمتر از {lastReceptionInfo ? 'دوره قبل پذیرش' : 'کارکرد اولیه تعریف خودرو'} ({formatNumber(previousKm)}) باشد!
                     </span>
                   </div>
                 )}
@@ -2782,6 +2930,7 @@ export default function ServicesView({
                 </button>
               </div>
 
+
               {/* نوار پیشنهادات هوشمند سریع در صورت وجود سررسید یا اخطار در بازه کیلومتر وارد شده */}
               {vehicleId && currentKm > 0 && isReceptionStyle && (() => {
                 const dueRecs = getDueRecommendations(vehicleId, currentKm).filter(
@@ -2800,7 +2949,11 @@ export default function ServicesView({
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-1.5 text-[11px] text-amber-950 dark:text-amber-200 font-bold">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>سرویس‌های سررسید شده دوره (کارکرد: {toPersianDigits(formatNumber(currentKm))} کیلومتر):</span>
+                        <span>
+                          {vehicleVisitInfo?.visitNumber === 1
+                            ? `اقلام و خدمات نیازمند تعویض بر اساس دوره مصرف (کارکرد فعلی: ${toPersianDigits(formatNumber(currentKm))} کیلومتر):`
+                            : `سرویس‌های سررسید شده دوره (کارکرد: ${toPersianDigits(formatNumber(currentKm))} کیلومتر):`}
+                        </span>
                         <div className="flex items-center gap-1 mr-1">
                           {overdueCount > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-[10px] font-bold font-mono">
@@ -2968,7 +3121,7 @@ export default function ServicesView({
                                     onChange={e => {
                                       handleUpdateServiceRow(row.id, 'nextDate', toEnglishDigits(e.target.value).trim());
                                     }}
-                                    placeholder="—"
+                                    placeholder={vehicleVisitInfo?.visitNumber === 1 ? 'دستی یا نوبت ۲' : '—'}
                                     className={`w-full h-6 px-2 rounded border font-mono text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors ${
                                       row.nextDate 
                                         ? 'border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 font-bold'
@@ -2976,8 +3129,8 @@ export default function ServicesView({
                                     }`}
                                     title={
                                       row.nextDate 
-                                        ? `تاریخ سررسید بعدی: ${toPersianDigits(row.nextDate)} (قابل ویرایش دستی)`
-                                        : 'در صورت تمایل تاریخ سررسید بعدی را دستی وارد نمایید'
+                                        ? `تاریخ سررسید بعدی: ${toPersianDigits(row.nextDate)} ${row.calcBasis ? `(${row.calcBasis})` : ''} - قابل ویرایش دستی`
+                                        : (vehicleVisitInfo?.visitNumber === 1 ? 'نوبت اول: می‌توانید تاریخ را دستی وارد کنید یا در نوبت دوم با ثبت اولین فاصله مراجعات به صورت خودکار محاسبه خواهد شد' : 'در صورت تمایل تاریخ سررسید بعدی را دستی وارد نمایید')
                                     }
                                   />
                                 </td>

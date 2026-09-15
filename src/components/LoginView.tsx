@@ -14,13 +14,14 @@ import {
   Moon, 
   KeyRound, 
   Car, 
-  Cog
+  Cog,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ForgotPasswordModal from './ForgotPasswordModal';
 
 interface LoginViewProps {
-  onLogin: (username: string, password?: string) => Promise<boolean>;
+  onLogin: (username: string, password?: string) => Promise<boolean | { success: boolean; message?: string }>;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
@@ -204,7 +205,7 @@ export default function LoginView({ onLogin, theme, onToggleTheme }: LoginViewPr
 
   const handleLoginSubmit = async (targetUser: string, targetPass?: string) => {
     if (!targetUser.trim()) {
-      setErrorMsg('لطفاً نام کاربری را وارد فرمایید.');
+      setErrorMsg('لطفاً نام کاربری یا شماره موبایل را وارد فرمایید.');
       return;
     }
     const currentPass = targetPass !== undefined ? targetPass : password;
@@ -215,9 +216,13 @@ export default function LoginView({ onLogin, theme, onToggleTheme }: LoginViewPr
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const ok = await onLogin(targetUser.trim(), currentPass);
-      if (!ok) {
-        setErrorMsg('نام کاربری یا کلمه عبور اشتباه است یا دسترسی غیرفعال می‌باشد.');
+      const res = await onLogin(targetUser.trim(), currentPass);
+      if (typeof res === 'object' && res !== null) {
+        if (!res.success) {
+          setErrorMsg(res.message || 'نام کاربری، شماره موبایل یا کلمه عبور اشتباه است یا دسترسی غیرفعال می‌باشد.');
+        }
+      } else if (!res) {
+        setErrorMsg('نام کاربری، شماره موبایل یا کلمه عبور اشتباه است یا دسترسی غیرفعال می‌باشد.');
       }
     } catch {
       setErrorMsg('خطا در برقراری ارتباط با پایگاه داده سامانه.');
@@ -317,47 +322,42 @@ export default function LoginView({ onLogin, theme, onToggleTheme }: LoginViewPr
             }} 
             className="space-y-4"
           >
-            {/* فیلد نام کاربری */}
+            {/* فیلد نام کاربری یا شماره موبایل */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                نام کاربری یا کدملی
+                نام کاربری یا شماره موبایل
               </label>
               <div className="relative group">
-                <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors" />
+                {/^[0-9+۰-۹]/.test(username.trim()) ? (
+                  <Smartphone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-600 dark:text-indigo-400 transition-colors" />
+                ) : (
+                  <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors" />
+                )}
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="مثال: admin"
+                  placeholder="نام کاربری یا شماره خود را وارد کنید"
                   autoComplete="username"
-                  className="w-full pr-10 pl-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-mono text-left bg-white dark:bg-[#13141c] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 dark:focus:border-indigo-500 transition-all shadow-2xs"
+                  className="w-full pr-10 pl-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-mono text-left placeholder:text-right bg-white dark:bg-[#13141c] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 dark:focus:border-indigo-500 transition-all shadow-2xs"
                 />
               </div>
             </div>
 
-            {/* فیلد کلمه عبور */}
+            {/* فیلد رمز عبور */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  کلمه عبور
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsForgotModalOpen(true)}
-                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer transition-colors"
-                >
-                  فراموشی کلمه عبور؟
-                </button>
-              </div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                رمز عبور
+              </label>
               <div className="relative group">
                 <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="رمز عبور خود را وارد کنید"
                   autoComplete="current-password"
-                  className="w-full pr-10 pl-11 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-mono text-left bg-white dark:bg-[#13141c] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 dark:focus:border-indigo-500 transition-all shadow-2xs"
+                  className="w-full pr-10 pl-11 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-mono text-left placeholder:text-right bg-white dark:bg-[#13141c] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 dark:focus:border-indigo-500 transition-all shadow-2xs"
                 />
                 <button
                   type="button"
@@ -366,6 +366,17 @@ export default function LoginView({ onLogin, theme, onToggleTheme }: LoginViewPr
                   title={showPassword ? 'مخفی‌سازی رمز' : 'نمایش رمز'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* دکمه فراموشی رمز عبور دقیقاً زیر فیلد کلمه عبور */}
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotModalOpen(true)}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer transition-colors"
+                >
+                  فراموشی رمز عبور؟
                 </button>
               </div>
             </div>

@@ -7,9 +7,9 @@ import {
   QuickEntityType, 
   notifyEntityCreated 
 } from '../utils/navigation';
-import { Company, Person, ServiceDefinition } from '../types';
+import { Company, Person, ServiceDefinition, Mechanic, Supplier } from '../types';
 import { CustomSelect } from './CustomSelect';
-import { formatNumber, parsePersianNumber, toPersianDigits } from '../utils/numberUtils';
+import { formatNumber, parsePersianNumber, toPersianDigits, normalizePhone } from '../utils/numberUtils';
 import { AddMechanicSpecialtyModal } from './AddMechanicSpecialtyModal';
 import { getStoredMechanicSpecialties, subscribeMechanicSpecialties } from '../utils/mechanicSpecialties';
 
@@ -20,6 +20,8 @@ interface GlobalEntityDefinitionModalProps {
   companies: Company[];
   persons: Person[];
   serviceDefinitions: ServiceDefinition[];
+  mechanics?: Mechanic[];
+  suppliers?: Supplier[];
   onAddVehicle: (v: any) => Promise<any>;
   onAddPerson: (p: any) => Promise<any>;
   onAddSupplier: (s: any) => Promise<any>;
@@ -42,11 +44,6 @@ const MECHANIC_SPECIALTIES = [
   'سرویس‌های دوره‌ای و تعویض روغنی'
 ];
 
-function normalizePhone(phoneStr: string | undefined): string {
-  if (!phoneStr) return '';
-  return phoneStr.replace(/[^\d]/g, '');
-}
-
 export default function GlobalEntityDefinitionModal({
   isOpen,
   entityType,
@@ -54,6 +51,8 @@ export default function GlobalEntityDefinitionModal({
   companies,
   persons,
   serviceDefinitions: _serviceDefinitions,
+  mechanics = [],
+  suppliers = [],
   onAddVehicle,
   onAddPerson,
   onAddSupplier,
@@ -117,13 +116,29 @@ export default function GlobalEntityDefinitionModal({
   const [partMinQty, setPartMinQty] = useState<number | ''>(5);
   const [partLocation, setPartLocation] = useState('');
 
-  // بررسی شماره تلفن تکراری در رانندگان (مشابه PersonsView)
+  // بررسی شماره تلفن تکراری در رانندگان (منحصراً در بخش رانندگان و پرسنل)
   const duplicatePerson = useMemo(() => {
     if (entityType !== 'driver') return null;
     const normCurrent = normalizePhone(pPhone);
     if (!normCurrent || normCurrent.length < 7) return null;
     return persons.find(p => normalizePhone(p.phone) === normCurrent) || null;
   }, [entityType, pPhone, persons]);
+
+  // بررسی شماره تلفن تکراری در تعمیرکاران (منحصراً در بخش تعمیرکاران)
+  const duplicateMechanic = useMemo(() => {
+    if (entityType !== 'mechanic') return null;
+    const normCurrent = normalizePhone(mPhone);
+    if (!normCurrent || normCurrent.length < 7) return null;
+    return (mechanics || []).find(m => normalizePhone(m.phone) === normCurrent) || null;
+  }, [entityType, mPhone, mechanics]);
+
+  // بررسی شماره تلفن تکراری در تامین‌کنندگان (منحصراً در بخش تامین‌کنندگان)
+  const duplicateSupplier = useMemo(() => {
+    if (entityType !== 'supplier') return null;
+    const normCurrent = normalizePhone(sPhone);
+    if (!normCurrent || normCurrent.length < 7) return null;
+    return (suppliers || []).find(s => normalizePhone(s.phone || s.mobile) === normCurrent) || null;
+  }, [entityType, sPhone, suppliers]);
 
   // ریست فرم در زمان باز شدن
   useEffect(() => {
@@ -228,7 +243,7 @@ export default function GlobalEntityDefinitionModal({
           throw new Error('لطفاً نام راننده را وارد کنید.');
         }
         if (duplicatePerson) {
-          throw new Error(`این شماره تماس قبلاً برای «${duplicatePerson.fullName}» ثبت شده است.`);
+          throw new Error(`این شماره تماس قبلاً برای «${duplicatePerson.fullName}» در بخش رانندگان ثبت شده است.`);
         }
 
         const newPerson = {
@@ -244,6 +259,9 @@ export default function GlobalEntityDefinitionModal({
         if (!sName.trim() || !sPhone.trim()) {
           throw new Error('لطفاً فیلدهای الزامی (نام تامین‌کننده و شماره تماس) را پر کنید.');
         }
+        if (duplicateSupplier) {
+          throw new Error(`این شماره تماس قبلاً برای تامین‌کننده «${duplicateSupplier.name}» در بخش تامین‌کنندگان ثبت شده است.`);
+        }
 
         const newSupplier = {
           name: sName.trim(),
@@ -256,6 +274,9 @@ export default function GlobalEntityDefinitionModal({
       } else if (entityType === 'mechanic') {
         if (!mName.trim() || !mPhone.trim() || !mShopName.trim()) {
           throw new Error('لطفاً نام، شماره تماس و آدرس تعمیرکار را تکمیل کنید.');
+        }
+        if (duplicateMechanic) {
+          throw new Error(`این شماره تماس قبلاً برای تعمیرکار «${duplicateMechanic.name}» در بخش تعمیرکاران ثبت شده است.`);
         }
 
         const newMechanic = {
@@ -695,8 +716,17 @@ export default function GlobalEntityDefinitionModal({
                   value={sPhone}
                   onChange={(e) => setSPhone(e.target.value)}
                   placeholder="مثال: 02133991122 یا 09121112233"
-                  className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none focus:border-indigo-500 font-mono"
+                  className={`w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border ${
+                    duplicateSupplier ? 'border-rose-500 dark:border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-[#2d2d30] focus:border-indigo-500'
+                  } rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none font-mono`}
                 />
+                {duplicateSupplier ? (
+                  <p className="text-[10px] text-rose-500 dark:text-rose-400 font-medium">
+                    شماره تکراری است و متعلق به «{duplicateSupplier.name}» در این بخش می‌باشد.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">شماره در بخش تامین‌کنندگان نباید تکراری باشد.</p>
+                )}
               </div>
 
               <div className="space-y-1 sm:col-span-2">
@@ -741,8 +771,17 @@ export default function GlobalEntityDefinitionModal({
                   value={mPhone}
                   onChange={(e) => setMPhone(e.target.value)}
                   placeholder="مثال: 09123456789"
-                  className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none focus:border-indigo-500 font-mono"
+                  className={`w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border ${
+                    duplicateMechanic ? 'border-rose-500 dark:border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-[#2d2d30] focus:border-indigo-500'
+                  } rounded-lg px-3 py-2.5 text-xs font-bold text-left focus:outline-none font-mono`}
                 />
+                {duplicateMechanic ? (
+                  <p className="text-[10px] text-rose-500 dark:text-rose-400 font-medium">
+                    شماره تکراری است و متعلق به «{duplicateMechanic.name}» در این بخش می‌باشد.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">شماره در بخش تعمیرکاران نباید تکراری باشد.</p>
+                )}
               </div>
 
               <div className="space-y-1">

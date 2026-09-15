@@ -170,3 +170,21 @@ export function numberToPersianWords(num: number | string | undefined | null): s
   return resultParts.join(' و ');
 }
 
+/**
+ * نرمال‌سازی شماره تماس و تلفن همراه به ارقام انگلیسی و فرمت استاندارد 09xxxxxxxxx
+ */
+export function normalizePhone(phone: any): string {
+  if (!phone) return '';
+  let p = String(phone).trim()
+    .replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+    .replace(/[٠-٩]/g, (d: string) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[^0-9+]/g, '');
+
+  if (p.startsWith('+98')) p = '0' + p.substring(3);
+  else if (p.startsWith('0098')) p = '0' + p.substring(4);
+  else if (p.startsWith('98')) p = '0' + p.substring(2);
+  else if (!p.startsWith('0') && p.length === 10) p = '0' + p;
+
+  return p;
+}
+

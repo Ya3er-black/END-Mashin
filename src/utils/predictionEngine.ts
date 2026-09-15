@@ -6,6 +6,7 @@
 import { PeriodicService, ServiceDefinition, Vehicle, OdometerLog, VehicleFailure } from '../types';
 import { jalaliDayDifference, addDaysToJalaliDate, getCurrentJalaliDate } from './date';
 import { doesItemMatchService, findLastServiceOrRepairEvent } from './serviceMatching';
+import { toPersianDigits, formatNumber } from './numberUtils';
 
 /**
  * ساختار خروجی پیش‌بینی موعد سرویس در بخش پذیرش خودرو (بخش اول)
@@ -14,10 +15,17 @@ export interface ReceptionPredictionResult {
   hasHistory: boolean;
   nextDate: string; // در صورت عدم وجود سابقه کافی حتماً خالی است
   nextKm: number;
-  dailyMileage: number | null; // میانگین پیمایش روزانه وزنی
+  dailyMileage: number | null; // میانگین پیمایش روزانه
   estimatedDays: number | null;
   basis: string;
   sampleCount: number;
+  visitNumber?: number; // نوبت مراجعه خودرو: ۱ یا ۲ یا ۳ یا بیشتر
+  intervalsBreakdown?: {
+    intervalIndex: number;
+    days: number;
+    distance: number;
+    dailyMileage: number;
+  }[];
 }
 
 /**
@@ -169,7 +177,7 @@ export function calculateReceptionNextService(params: {
     }
   });
 
-  // اگر هیچ سابقه گذشته‌ای وجود ندارد (این مراجعه، بار اول اول خودرو است) -> تاریخ پیشنهادی خالی می‌ماند
+  // اگر هیچ سابقه گذشته‌ای وجود ندارد (این مراجعه، بار اول خودرو است) -> تاریخ پیشنهادی خالی می‌ماند و فقط اقلام نیازمند تعویض تعیین می‌شوند
   if (uniquePastVisits.length === 0) {
     return {
       hasHistory: false,
@@ -177,8 +185,9 @@ export function calculateReceptionNextService(params: {
       nextKm,
       dailyMileage: null,
       estimatedDays: null,
-      basis: 'خودرو فاقد سابقه مراجعه قبلی است',
-      sampleCount: 0
+      basis: 'نوبت اول مراجعه خودرو (محاسبه تاریخ سررسید از نوبت دوم با ثبت اولین فاصله مراجعات فعال می‌شود)',
+      sampleCount: 0,
+      visitNumber: 1
     };
   }
 
@@ -193,6 +202,7 @@ export function calculateReceptionNextService(params: {
 
   // ۴. محاسبه فواصل بین دفعات مراجعه متوالی خودرو
   interface IntervalStat {
+    intervalIndex: number;
     distance: number;
     days: number;
     dailyMileage: number;
@@ -214,7 +224,12 @@ export function calculateReceptionNextService(params: {
       const dailyMileage = distance / days;
       // بررسی بازه منطقی پیمایش خودرو
       if (dailyMileage >= 0.5 && dailyMileage <= 2000) {
-        intervals.push({ distance, days, dailyMileage });
+        intervals.push({
+          intervalIndex: i,
+          distance,
+          days,
+          dailyMileage
+        });
       }
     }
   }
@@ -228,30 +243,39 @@ export function calculateReceptionNextService(params: {
       dailyMileage: null,
       estimatedDays: null,
       basis: 'فاصله کارکرد معتبری بین مراجعات محاسبه نشد',
-      sampleCount: 0
+      sampleCount: 0,
+      visitNumber: uniquePastVisits.length + 1
     };
   }
 
-  // ۵. محاسبه میانگین کارکرد روزانه از تعداد دفعاتی که خودرو آمده است
-  // الف) مجموع کل کیلومتر طی شده در فواصل تقسیم بر مجموع کل روزها
-  const totalDistance = intervals.reduce((acc, curr) => acc + curr.distance, 0);
-  const totalDays = intervals.reduce((acc, curr) => acc + curr.days, 0);
-  const overallAverageRate = totalDays > 0 ? (totalDistance / totalDays) : 0;
+  // ۵. محاسبه تاریخ سررسید بعدی دقیقاً بر اساس دستور کاربر:
+  // - نوبت ۲ (تک فاصله بین مراجعه اول و دوم): بر اساس فاصله مراجعه اول و دوم و روزی چند کیلومتر رفته
+  // - نوبت ۳ (دو فاصله): بر اساس میانگین کارکرد ۲ مراجعه قبلی (مثلاً ۳۰ روز دوره قبل + ۲۰ روز دوره جدید)
+  // - نوبت ۴ به بعد: میانگین کارکرد کل دوره‌های قبلی
+  let effectiveDailyMileage = 0;
+  let basis = '';
+  const currentVisitNumber = visitsChain.length;
 
-  // ب) میانگین وزنی فواصل (فواصل اخیر بیشترین ضریب و اهمیت را دارند)
-  let totalWeightedMileage = 0;
-  let totalWeights = 0;
-  intervals.forEach((interval, idx) => {
-    const weight = idx + 1;
-    totalWeightedMileage += interval.dailyMileage * weight;
-    totalWeights += weight;
-  });
-  const weightedDailyMileage = totalWeights > 0 ? (totalWeightedMileage / totalWeights) : overallAverageRate;
-
-  // تلفیق بهینه: برای تک‌فاصله (دفعه دوم) دقیقاً برابر با همان بازه است، برای چند نوبت ترکیبی هوشمند
-  const effectiveDailyMileage = intervals.length === 1 
-    ? intervals[0].dailyMileage 
-    : (weightedDailyMileage * 0.7 + overallAverageRate * 0.3);
+  if (intervals.length === 1) {
+    // مراجعه نوبت دوم: صرفاً فاصله بین مراجعه اول و دوم ملاک است
+    const inv = intervals[0];
+    effectiveDailyMileage = inv.dailyMileage;
+    const roundedDaily = Math.round(effectiveDailyMileage);
+    basis = `بر اساس فاصله مراجعه اول تا دوم (${toPersianDigits(inv.days)} روز، ${toPersianDigits(formatNumber(inv.distance))} ک‌م ⬅️ روزی ${toPersianDigits(roundedDaily)} کیلومتر)`;
+  } else if (intervals.length === 2) {
+    // مراجعه نوبت سوم: میانگین کارکرد روزانه دو دوره مراجعه قبلی
+    const inv1 = intervals[0];
+    const inv2 = intervals[1];
+    effectiveDailyMileage = (inv1.dailyMileage + inv2.dailyMileage) / 2;
+    const roundedDaily = Math.round(effectiveDailyMileage);
+    basis = `بر اساس میانگین ۲ دوره قبلی: دوره ۱ (${toPersianDigits(inv1.days)} روز، روزی ${toPersianDigits(Math.round(inv1.dailyMileage))} ک‌م) + دوره ۲ (${toPersianDigits(inv2.days)} روز، روزی ${toPersianDigits(Math.round(inv2.dailyMileage))} ک‌م) ⬅️ میانگین: ${toPersianDigits(roundedDaily)} کیلومتر در روز`;
+  } else {
+    // مراجعات نوبت چهارم و بعد: میانگین کارکرد روزانه تمام دوره‌های گذشته
+    const sumDailyMileage = intervals.reduce((acc, curr) => acc + curr.dailyMileage, 0);
+    effectiveDailyMileage = sumDailyMileage / intervals.length;
+    const roundedDaily = Math.round(effectiveDailyMileage);
+    basis = `بر اساس میانگین کارکرد در ${toPersianDigits(intervals.length)} دوره مراجعه قبلی (روزی ${toPersianDigits(roundedDaily)} کیلومتر)`;
+  }
 
   if (effectiveDailyMileage <= 0 || !isFinite(effectiveDailyMileage)) {
     return {
@@ -261,7 +285,8 @@ export function calculateReceptionNextService(params: {
       dailyMileage: null,
       estimatedDays: null,
       basis: 'داده‌های کارکرد تاریخی ناکافی',
-      sampleCount: intervals.length
+      sampleCount: intervals.length,
+      visitNumber: currentVisitNumber
     };
   }
 
@@ -269,16 +294,21 @@ export function calculateReceptionNextService(params: {
   const estimatedDays = Math.max(1, Math.round(effectiveInterval / effectiveDailyMileage));
   const nextDate = addDaysToJalaliDate(currentServiceDate, estimatedDays);
 
-  const totalVisitsCount = visitsChain.length;
-
   return {
     hasHistory: true,
     nextDate,
     nextKm,
     dailyMileage: Math.round(effectiveDailyMileage * 10) / 10,
     estimatedDays,
-    basis: `محاسبه بر اساس میانگین کارکرد در ${totalVisitsCount} نوبت مراجعه خودرو (${Math.round(effectiveDailyMileage)} کیلومتر در روز)`,
-    sampleCount: intervals.length
+    basis,
+    sampleCount: intervals.length,
+    visitNumber: currentVisitNumber,
+    intervalsBreakdown: intervals.map(inv => ({
+      intervalIndex: inv.intervalIndex,
+      days: inv.days,
+      distance: inv.distance,
+      dailyMileage: Math.round(inv.dailyMileage * 10) / 10
+    }))
   };
 }
 
