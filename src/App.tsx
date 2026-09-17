@@ -34,6 +34,7 @@ import MechanicsView from './components/MechanicsView';
 import CompaniesView from './components/CompaniesView';
 import SuppliersView from './components/SuppliersView';
 import OdometerTrackingView from './components/OdometerTrackingView';
+import DefinitionsExcelImportView from './components/DefinitionsExcelImportView';
 import GearLoading from './components/GearLoading';
 import GlobalEntityDefinitionModal from './components/GlobalEntityDefinitionModal';
 import { setCurrentActiveView, QuickEntityType } from './utils/navigation';
@@ -562,6 +563,19 @@ export default function App() {
   useEffect(() => {
     setCurrentActiveView(activeView);
   }, [activeView]);
+
+  // مدیریت موفقیت در ایمپورت گروهی تعاریف از اکسل
+  const handleBulkImportSuccess = useCallback((summary: any, data: any) => {
+    if (data) {
+      if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
+      if (Array.isArray(data.persons)) setPersons(data.persons);
+      if (Array.isArray(data.companies)) setCompanies(data.companies);
+      if (Array.isArray(data.serviceDefinitions)) setServiceDefinitions(data.serviceDefinitions);
+      if (Array.isArray(data.mechanics)) setMechanics(data.mechanics);
+      if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
+    }
+    fetchAllData();
+  }, [fetchAllData]);
 
   // فیلتر سطح شرکت (اگر کاربر به شرکت خاصی منتسب باشد یا ادمین شرکتی را انتخاب کند)
   const userAssignedCompany = currentUser?.company?.trim() || '';
@@ -1449,6 +1463,7 @@ export default function App() {
               onAddVehicle={handleAddVehicle}
               onEditVehicle={handleUpdateVehicle}
               onDeleteVehicle={handleDeleteVehicle}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1458,6 +1473,14 @@ export default function App() {
               onAddDefinition={handleAddServiceDefinition}
               onEditDefinition={handleEditServiceDefinition}
               onDeleteDefinition={handleDeleteServiceDefinition}
+              onBulkImportSuccess={handleBulkImportSuccess}
+            />
+          )}
+
+          {activeView === 'definitions_excel_import' && (
+            <DefinitionsExcelImportView
+              onNavigate={handleNavigate}
+              onSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1541,6 +1564,7 @@ export default function App() {
               onAddMechanic={handleAddMechanic}
               onEditMechanic={handleEditMechanic}
               onDeleteMechanic={handleDeleteMechanic}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1564,6 +1588,7 @@ export default function App() {
               onAddCompany={handleAddCompany}
               onEditCompany={handleEditCompany}
               onDeleteCompany={handleDeleteCompany}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1573,6 +1598,7 @@ export default function App() {
               onAddSupplier={handleAddSupplier}
               onEditSupplier={handleEditSupplier}
               onDeleteSupplier={handleDeleteSupplier}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1582,6 +1608,7 @@ export default function App() {
               onAddPerson={handleAddPerson}
               onEditPerson={handleEditPerson}
               onDeletePerson={handleDeletePerson}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 

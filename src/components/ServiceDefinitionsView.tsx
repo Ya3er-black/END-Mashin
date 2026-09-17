@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Wrench, Edit2, Trash2, X, AlertTriangle, Clock, List,
-  ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Printer
+  ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Printer, Upload
 } from 'lucide-react';
 import { ServiceDefinition } from '../types';
 import { toPersianDigits, formatNumber, parsePersianNumber } from '../utils/numberUtils';
@@ -15,25 +15,29 @@ import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 
 interface ServiceDefinitionsViewProps {
   serviceDefinitions: ServiceDefinition[];
   onAddDefinition: (definition: Omit<ServiceDefinition, 'id' | 'createdAt'>) => Promise<void>;
   onEditDefinition: (id: number, definition: Partial<ServiceDefinition>) => Promise<void>;
   onDeleteDefinition: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 export default function ServiceDefinitionsView({
   serviceDefinitions,
   onAddDefinition,
   onEditDefinition,
-  onDeleteDefinition
+  onDeleteDefinition,
+  onBulkImportSuccess
 }: ServiceDefinitionsViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string>('serviceType');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // فیلترهای سبک اکسل ستون‌ها
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
@@ -437,6 +441,16 @@ export default function ServiceDefinitionsView({
           )}
         </div>
 
+        {/* دکمه ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ورود خدمات دوره‌ای"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -591,6 +605,14 @@ export default function ServiceDefinitionsView({
           onClose={() => setFilterMenu(null)}
         />
       )}
+
+      {/* پنجره پاپ‌آپ ورود تعاریف سرویس از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="service_definitions"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+      />
     </div>
   );
 }

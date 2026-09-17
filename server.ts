@@ -2614,6 +2614,344 @@ async function startServer() {
     next();
   });
 
+  // ماژول ورود دسته‌جمعی و تعریف خودکار از طریق فایل اکسل
+  app.post('/api/definitions/bulk-import', (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.vehicles) db.vehicles = [];
+      if (!db.persons) db.persons = [];
+      if (!db.companies) db.companies = [];
+      if (!db.serviceDefinitions) db.serviceDefinitions = [];
+      if (!db.mechanics) db.mechanics = [];
+      if (!db.suppliers) db.suppliers = [];
+
+      const { entityType, items = [], multiData, options = {} } = req.body;
+      const updateDuplicates = options.updateDuplicates !== false;
+
+      const summary: Record<string, { imported: number; updated: number; skipped: number; total: number }> = {
+        vehicles: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        persons: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        companies: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        service_definitions: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        mechanics: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        suppliers: { imported: 0, updated: 0, skipped: 0, total: 0 }
+      };
+
+      // تابع پردازش خودروها
+      const processVehicles = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          if (!item.name && !item.plaque && !item.code) return;
+          summary.vehicles.total++;
+
+          const existingIdx = db.vehicles.findIndex((v: any) => 
+            (item.code && String(v.code).trim() === String(item.code).trim()) ||
+            (item.plaque && String(v.plaque).trim() === String(item.plaque).trim())
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.vehicles[existingIdx] = {
+                ...db.vehicles[existingIdx],
+                ...item,
+                id: db.vehicles[existingIdx].id
+              };
+              summary.vehicles.updated++;
+            } else {
+              summary.vehicles.skipped++;
+            }
+          } else {
+            const nextId = db.vehicles.length > 0 ? Math.max(...db.vehicles.map((v: any) => Number(v.id) || 0)) + 1 : 1;
+            const newV = {
+              code: item.code || `V-${nextId}`,
+              company: item.company || 'ثبت نشده',
+              project: item.project || '-',
+              department: item.department || '-',
+              location: item.location || '-',
+              driverName: item.driverName || 'ثبت نشده',
+              driverPhone: item.driverPhone || '',
+              plaque: item.plaque || 'ثبت نشده',
+              name: item.name || 'خودرو بدون نام',
+              brand: item.brand || '',
+              model: item.model || '',
+              productionYear: Number(item.productionYear) || 1400,
+              color: item.color || '',
+              engineNumber: item.engineNumber || '',
+              chassisNumber: item.chassisNumber || '',
+              vin: item.vin || '',
+              status: item.status || 'active',
+              currentKm: Number(item.currentKm) || 0,
+              ...item,
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.vehicles.push(newV);
+            summary.vehicles.imported++;
+          }
+        });
+      };
+
+      // تابع پردازش رانندگان / پرسنل
+      const processPersons = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          if (!item.fullName && !item.name) return;
+          summary.persons.total++;
+          const fullName = (item.fullName || item.name || '').trim();
+          const nationalCode = (item.nationalCode || '').trim();
+          const cleanPhone = normalizeDriverPhone(item.phone || '');
+
+          const existingIdx = db.persons.findIndex((p: any) => 
+            (nationalCode && String(p.nationalCode).trim() === nationalCode) ||
+            (p.fullName && p.fullName.trim() === fullName)
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.persons[existingIdx] = {
+                ...db.persons[existingIdx],
+                ...item,
+                fullName,
+                phone: cleanPhone || db.persons[existingIdx].phone,
+                id: db.persons[existingIdx].id
+              };
+              summary.persons.updated++;
+            } else {
+              summary.persons.skipped++;
+            }
+          } else {
+            const nextId = db.persons.length > 0 ? Math.max(...db.persons.map((p: any) => Number(p.id) || 0)) + 1 : 1;
+            const newP = {
+              fullName,
+              position: item.position || 'راننده',
+              phone: cleanPhone || '',
+              nationalCode: nationalCode || '',
+              status: item.status || 'active',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.persons.push(newP);
+            summary.persons.imported++;
+          }
+        });
+      };
+
+      // تابع پردازش شرکت‌ها
+      const processCompanies = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          if (!item.name) return;
+          summary.companies.total++;
+          const name = String(item.name).trim();
+          const code = (item.code || '').trim();
+
+          const existingIdx = db.companies.findIndex((c: any) => 
+            (name && c.name.trim() === name) ||
+            (code && String(c.code).trim() === code)
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.companies[existingIdx] = {
+                ...db.companies[existingIdx],
+                ...item,
+                name,
+                id: db.companies[existingIdx].id
+              };
+              summary.companies.updated++;
+            } else {
+              summary.companies.skipped++;
+            }
+          } else {
+            const nextId = db.companies.length > 0 ? Math.max(...db.companies.map((c: any) => Number(c.id) || 0)) + 1 : 1;
+            const newC = {
+              name,
+              code: code || `C-${nextId}`,
+              managerName: item.managerName || '',
+              phone: item.phone || '',
+              address: item.address || '',
+              status: item.status || 'active',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.companies.push(newC);
+            summary.companies.imported++;
+          }
+        });
+      };
+
+      // تابع پردازش تعاریف سرویس‌ها
+      const processServiceDefinitions = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          const serviceType = (item.serviceType || item.title || item.name || '').trim();
+          if (!serviceType) return;
+          summary.service_definitions.total++;
+
+          const existingIdx = db.serviceDefinitions.findIndex((s: any) => 
+            s.serviceType && s.serviceType.trim() === serviceType
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.serviceDefinitions[existingIdx] = {
+                ...db.serviceDefinitions[existingIdx],
+                ...item,
+                serviceType,
+                intervalKm: Number(item.intervalKm) || db.serviceDefinitions[existingIdx].intervalKm || 5000,
+                warningKm: Number(item.warningKm) || db.serviceDefinitions[existingIdx].warningKm || 500,
+                id: db.serviceDefinitions[existingIdx].id
+              };
+              summary.service_definitions.updated++;
+            } else {
+              summary.service_definitions.skipped++;
+            }
+          } else {
+            const nextId = db.serviceDefinitions.length > 0 ? Math.max(...db.serviceDefinitions.map((s: any) => Number(s.id) || 0)) + 1 : 1;
+            const newS = {
+              serviceType,
+              intervalKm: Number(item.intervalKm) || 5000,
+              warningKm: Number(item.warningKm) || 500,
+              notes: item.notes || '',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.serviceDefinitions.push(newS);
+            summary.service_definitions.imported++;
+          }
+        });
+      };
+
+      // تابع پردازش تعمیرکاران
+      const processMechanics = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          const name = (item.name || '').trim();
+          if (!name) return;
+          summary.mechanics.total++;
+
+          const existingIdx = db.mechanics.findIndex((m: any) => 
+            m.name && m.name.trim() === name
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.mechanics[existingIdx] = {
+                ...db.mechanics[existingIdx],
+                ...item,
+                name,
+                id: db.mechanics[existingIdx].id
+              };
+              summary.mechanics.updated++;
+            } else {
+              summary.mechanics.skipped++;
+            }
+          } else {
+            const nextId = db.mechanics.length > 0 ? Math.max(...db.mechanics.map((m: any) => Number(m.id) || 0)) + 1 : 1;
+            const newM = {
+              name,
+              phone: item.phone || '',
+              specialty: item.specialty || 'مکانیک عمومی',
+              shopName: item.shopName || '',
+              status: item.status || 'active',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.mechanics.push(newM);
+            summary.mechanics.imported++;
+          }
+        });
+      };
+
+      // تابع پردازش تامین‌کنندگان
+      const processSuppliers = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          const name = (item.name || '').trim();
+          if (!name) return;
+          summary.suppliers.total++;
+
+          const existingIdx = db.suppliers.findIndex((s: any) => 
+            s.name && s.name.trim() === name
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.suppliers[existingIdx] = {
+                ...db.suppliers[existingIdx],
+                ...item,
+                name,
+                id: db.suppliers[existingIdx].id
+              };
+              summary.suppliers.updated++;
+            } else {
+              summary.suppliers.skipped++;
+            }
+          } else {
+            const nextId = db.suppliers.length > 0 ? Math.max(...db.suppliers.map((s: any) => Number(s.id) || 0)) + 1 : 1;
+            const newS = {
+              name,
+              code: item.code || `S-${nextId}`,
+              contactPerson: item.contactPerson || '',
+              phone: item.phone || '',
+              mobile: item.mobile || '',
+              category: item.category || 'قطعات یدکی',
+              address: item.address || '',
+              status: item.status || 'active',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.suppliers.push(newS);
+            summary.suppliers.imported++;
+          }
+        });
+      };
+
+      // بررسی نوع و هدایت
+      if (multiData) {
+        if (multiData.vehicles) processVehicles(multiData.vehicles);
+        if (multiData.persons) processPersons(multiData.persons);
+        if (multiData.companies) processCompanies(multiData.companies);
+        if (multiData.service_definitions) processServiceDefinitions(multiData.service_definitions);
+        if (multiData.mechanics) processMechanics(multiData.mechanics);
+        if (multiData.suppliers) processSuppliers(multiData.suppliers);
+      } else {
+        if (entityType === 'vehicles') processVehicles(items);
+        else if (entityType === 'persons') processPersons(items);
+        else if (entityType === 'companies') processCompanies(items);
+        else if (entityType === 'service_definitions') processServiceDefinitions(items);
+        else if (entityType === 'mechanics') processMechanics(items);
+        else if (entityType === 'suppliers') processSuppliers(items);
+      }
+
+      rematchUnknownSmsLogs(db);
+      writeDb(db);
+      
+      const totalImported = Object.values(summary).reduce((acc, s) => acc + s.imported, 0);
+      const totalUpdated = Object.values(summary).reduce((acc, s) => acc + s.updated, 0);
+
+      logActivity(1, 'admin', 'ورود اکسل تعاریف پایه', `ورود دسته‌جمعی تعاریف با اکسل انجام شد: ${totalImported} رکورد جدید، ${totalUpdated} رکورد به‌روزرسانی.`);
+
+      res.json({
+        success: true,
+        summary,
+        totalImported,
+        totalUpdated,
+        data: {
+          vehicles: db.vehicles,
+          persons: db.persons,
+          companies: db.companies,
+          serviceDefinitions: db.serviceDefinitions,
+          mechanics: db.mechanics,
+          suppliers: db.suppliers
+        }
+      });
+    } catch (err: any) {
+      console.error('Error in bulk import:', err);
+      res.status(500).json({ message: 'خطا در ثبت تعاریف از اکسل: ' + (err?.message || 'خطای ناشناخته') });
+    }
+  });
+
   // CRUD for Odometer Inquiry Logs
   app.get('/api/odometer-logs', (req, res) => {
     const db = readDb();

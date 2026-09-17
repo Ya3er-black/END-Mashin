@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, FileText, 
   Check, X, Truck, ChevronDown, History, Clock, ArrowLeftRight,
-  ArrowUpDown, ArrowUp, ArrowDown, Filter, List, FileSpreadsheet, Printer
+  ArrowUpDown, ArrowUp, ArrowDown, Filter, List, FileSpreadsheet, Printer, Upload
 } from 'lucide-react';
 import { Vehicle, VehicleStatus, User as SystemUser, Company, VehicleHistoryEntry, Person } from '../types';
 import { toPersianDigits, toJalaliDate, parsePersianNumber, formatNumber } from '../utils/numberUtils';
@@ -17,6 +17,7 @@ import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { returnToOriginView, peekNavigationOrigin, openQuickEntityModal, QuickEntityType } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 
 interface VehiclesViewProps {
   vehicles: Vehicle[];
@@ -28,6 +29,7 @@ interface VehiclesViewProps {
   onAddVehicle: (vehicle: Omit<Vehicle, 'id' | 'createdAt'>) => Promise<void>;
   onEditVehicle: (id: number, vehicle: Partial<Vehicle>) => Promise<void>;
   onDeleteVehicle: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 interface SearchableSelectProps {
@@ -334,12 +336,14 @@ export default function VehiclesView({
   currentUser,
   onAddVehicle,
   onEditVehicle,
-  onDeleteVehicle
+  onDeleteVehicle,
+  onBulkImportSuccess
 }: VehiclesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortKey, setSortKey] = useState<string>('code');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
   // گزینه‌های رانندگان برگرفته مستقیم از لیست اشخاص و پرسنل تعریف شده (بدون شماره تماس و بدون زیرنویس طبق درخواست)
   const driverOptions = useMemo(() => {
@@ -972,6 +976,16 @@ export default function VehiclesView({
           )}
         </div>
 
+        {/* دکمه ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ورود اطلاعات خودروها"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -1449,6 +1463,14 @@ export default function VehiclesView({
         onSelectAll={handleSelectAllInColumn}
         onDeselectAll={handleDeselectAllInColumn}
         onSelectOnly={handleSelectOnlyValue}
+      />
+
+      {/* پنجره پاپ‌آپ ورود تعاریف خودرو از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="vehicles"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
       />
     </div>
   );

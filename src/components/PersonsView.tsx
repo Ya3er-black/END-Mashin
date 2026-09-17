@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, User, Phone, CheckCircle, XCircle, X, Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, List, FileSpreadsheet, Printer } from 'lucide-react';
+import { Plus, Search, User, Phone, CheckCircle, XCircle, X, Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, List, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Person } from '../types';
 import { toPersianDigits } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
@@ -12,6 +12,7 @@ import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 
 function normalizePhone(phone: any): string {
   if (!phone) return '';
@@ -33,19 +34,22 @@ interface PersonsViewProps {
   onAddPerson: (person: Omit<Person, 'id' | 'createdAt'>) => Promise<void>;
   onEditPerson: (id: number, person: Partial<Person>) => Promise<void>;
   onDeletePerson?: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 export default function PersonsView({
   persons,
   onAddPerson,
   onEditPerson,
-  onDeletePerson
+  onDeletePerson,
+  onBulkImportSuccess
 }: PersonsViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string>('fullName');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -458,6 +462,16 @@ export default function PersonsView({
           )}
         </div>
 
+        {/* دکمه ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ورود اطلاعات رانندگان و پرسنل"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -587,6 +601,14 @@ export default function PersonsView({
           onClose={() => setFilterMenu(null)}
         />
       )}
+
+      {/* پنجره پاپ‌آپ ورود اشخاص و رانندگان از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="persons"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+      />
     </div>
   );
 }

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Store, X, Trash2, List, MapPin, FileSpreadsheet, Printer } from 'lucide-react';
+import { Plus, Search, Store, X, Trash2, List, MapPin, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Supplier } from '../types';
 import { toPersianDigits, normalizePhone } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
@@ -12,25 +12,29 @@ import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 
 interface SuppliersViewProps {
   suppliers: Supplier[];
   onAddSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<void>;
   onEditSupplier: (id: number, supplier: Partial<Supplier>) => Promise<void>;
   onDeleteSupplier: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 export default function SuppliersView({
   suppliers,
   onAddSupplier,
   onEditSupplier,
-  onDeleteSupplier
+  onDeleteSupplier,
+  onBulkImportSuccess
 }: SuppliersViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<number | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // فیلترهای سبک اکسل ستون‌ها
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
@@ -471,6 +475,16 @@ export default function SuppliersView({
           )}
         </div>
 
+        {/* دکمه ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ورود اطلاعات تامین‌کنندگان"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -610,6 +624,14 @@ export default function SuppliersView({
           onClose={() => setFilterMenu(null)}
         />
       )}
+
+      {/* پنجره پاپ‌آپ ورود تعاریف تامین‌کنندگان از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="suppliers"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+      />
     </div>
   );
 }

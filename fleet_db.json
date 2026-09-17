@@ -652,6 +652,24 @@
   ],
   "activityLogs": [
     {
+      "id": 58,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود اکسل تعاریف پایه",
+      "actionDetails": "ورود دسته‌جمعی تعاریف با اکسل انجام شد: 1 رکورد جدید، 0 رکورد به‌روزرسانی.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-17T09:11:30.239Z"
+    },
+    {
+      "id": 57,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-17T08:59:30.895Z"
+    },
+    {
       "id": 56,
       "userId": 1,
       "username": "admin",

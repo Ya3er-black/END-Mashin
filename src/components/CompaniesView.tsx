@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Building2, Phone, CheckCircle, XCircle, X, Edit2, Trash2, MapPin, User, ArrowUpDown, ArrowUp, ArrowDown, List, FileSpreadsheet, Printer } from 'lucide-react';
+import { Plus, Search, Building2, Phone, CheckCircle, XCircle, X, Edit2, Trash2, MapPin, User, ArrowUpDown, ArrowUp, ArrowDown, List, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Company } from '../types';
 import { toPersianDigits } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
@@ -13,19 +13,22 @@ import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 
 interface CompaniesViewProps {
   companies: Company[];
   onAddCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<void>;
   onEditCompany: (id: number, company: Partial<Company>) => Promise<void>;
   onDeleteCompany: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 export default function CompaniesView({
   companies,
   onAddCompany,
   onEditCompany,
-  onDeleteCompany
+  onDeleteCompany,
+  onBulkImportSuccess
 }: CompaniesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -33,6 +36,7 @@ export default function CompaniesView({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -448,6 +452,16 @@ export default function CompaniesView({
           )}
         </div>
 
+        {/* دکمه ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ورود اطلاعات شرکت‌ها"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -597,6 +611,14 @@ export default function CompaniesView({
           onClose={() => setFilterMenu(null)}
         />
       )}
+
+      {/* پنجره پاپ‌آپ ورود شرکت‌ها از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="companies"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+      />
     </div>
   );
 }

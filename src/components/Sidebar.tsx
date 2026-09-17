@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Truck, Wrench, ShieldAlert, Package, 
   Wallet, Users, Terminal, FileText, LogOut, Shield, ArrowLeftRight, UserCog,
   ChevronDown, ClipboardList, Building2, Car, Settings, BarChart4, Building, DollarSign,
-  Sun, Moon, PhoneCall, Store, Pin, X
+  Sun, Moon, PhoneCall, Store, Pin, X, FileSpreadsheet
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 
@@ -46,7 +46,7 @@ export default function Sidebar({
 }: SidebarProps) {
   
   const receptionIds = ['services', 'failures', 'insurance'];
-  const definitionIds = ['vehicles', 'service_definitions', 'companies', 'persons', 'mechanics', 'suppliers'];
+  const definitionIds = ['vehicles', 'service_definitions', 'companies', 'persons', 'mechanics', 'suppliers', 'definitions_excel_import'];
   const reportIds = ['reports', 'reports_comprehensive', 'reports_analytics', 'reports_drivers', 'reports_failures', 'reports_companies', 'reports_services', 'reports_insurance'];
 
   // مدیریت باز و بسته شدن هوشمند سایدبار با هاور موس
@@ -129,6 +129,9 @@ export default function Sidebar({
 
   const hasAccess = (itemId: string) => {
     if (currentUser.role === 'admin') return true;
+    if (itemId === 'definitions_excel_import') {
+      return definitionIds.some(id => id !== 'definitions_excel_import' && currentUser.allowedViews?.includes(id));
+    }
     if (itemId === 'accounting' || itemId === 'expenses') {
       return (currentUser.allowedViews?.includes('accounting') || currentUser.allowedViews?.includes('expenses')) || false;
     }
@@ -159,6 +162,7 @@ export default function Sidebar({
     { id: 'persons', label: 'تعریف رانندگان', icon: Users },
     { id: 'mechanics', label: 'تعریف تعمیرکاران', icon: Wrench },
     { id: 'suppliers', label: 'تعریف تامین‌کنندگان', icon: Store },
+    { id: 'definitions_excel_import', label: 'ورود تعاریف از اکسل', icon: FileSpreadsheet, badge: 'اکسل' },
   ];
 
   // ۴. منوهای عملیاتی: استعلام کارکرد، حسابداری و مالی، انبارداری و قطعات
@@ -573,6 +577,11 @@ export default function Sidebar({
                           }`}>
                             {subItem.label}
                           </span>
+                          {(subItem as any).badge && (
+                            <span className="mr-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              {(subItem as any).badge}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
