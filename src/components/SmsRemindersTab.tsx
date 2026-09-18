@@ -985,14 +985,12 @@ export default function SmsRemindersTab({
                       className="font-medium text-xs text-slate-600 dark:text-slate-400"
                       width="140px"
                     />
-                    <th className="py-2 px-3 text-center w-28 text-xs font-medium">پیش‌نمایش پیامک</th>
-                    <th className="py-2 px-3 text-center w-28 text-xs font-medium">عملیات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-[#242428]">
                   {sortedOverdueDrivers.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
+                      <td colSpan={9} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
                         {overdueDrivers.length === 0 
                           ? `عالی است! هیچ خودرویی بیش از ${toPersianDigits(settings.daysThreshold)} روز تاخیر در ثبت کارکرد ندارد.`
                           : 'هیچ راننده‌ای با فیلتر جستجو یا فیلترهای انتخابی ستون‌ها یافت نشد.'}
@@ -1006,7 +1004,7 @@ export default function SmsRemindersTab({
                       return (
                         <tr 
                           key={item.vehicleId} 
-                          className={`hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px] ${
+                          className={`group relative hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px] ${
                             isSelected ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''
                           }`}
                         >
@@ -1062,7 +1060,7 @@ export default function SmsRemindersTab({
                               {toPersianDigits(item.daysPassed)} روز گذشته
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-center">
+                          <td className="py-2 px-3 text-center relative">
                             {item.smsAlreadySentRecently ? (
                               <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 inline-flex items-center gap-1" title="طی ۲۴ ساعت گذشته پیامک ارسال شده است">
                                 <Check className="w-3 h-3" />
@@ -1077,34 +1075,33 @@ export default function SmsRemindersTab({
                                 آماده ارسال
                               </span>
                             )}
-                          </td>
-                          {/* پیش‌نمایش به صورت دکمه */}
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewItem(item)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 dark:bg-[#18181b] dark:hover:bg-indigo-950/40 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 rounded-md border border-slate-200 dark:border-[#2d2d30] text-[11px] font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
-                              title="مشاهده پیش‌نمایش کامل پیامک و مشخصات راننده"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 transition-transform group-hover:scale-110" />
-                              <span>پیش‌نمایش</span>
-                            </button>
-                          </td>
-                          {/* دکمه عملیات */}
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleSendSingleSms(item.vehicleId)}
-                              disabled={sendingSms || !hasValidPhone}
-                              className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1 mx-auto cursor-pointer shadow-2xs ${
-                                item.smsAlreadySentRecently
-                                  ? 'bg-amber-50 dark:bg-[#1e1e24] hover:bg-amber-100 dark:hover:bg-[#282830] text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
-                                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                              } disabled:opacity-40 disabled:cursor-not-allowed`}
-                            >
-                              <Send className="w-3 h-3" />
-                              <span>{item.smsAlreadySentRecently ? 'ارسال مجدد' : 'ارسال پیامک'}</span>
-                            </button>
+
+                            {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                            <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewItem(item)}
+                                className="px-2 py-1 bg-white hover:bg-indigo-50 dark:bg-[#18181b] dark:hover:bg-indigo-950/40 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 rounded-md border border-slate-200 dark:border-[#2d2d30] text-[10px] font-medium inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                                title="مشاهده پیش‌نمایش کامل پیامک و مشخصات راننده"
+                              >
+                                <Eye className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                <span>پیش‌نمایش</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSendSingleSms(item.vehicleId)}
+                                disabled={sendingSms || !hasValidPhone}
+                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap ${
+                                  item.smsAlreadySentRecently
+                                    ? 'bg-amber-50 dark:bg-[#1e1e24] hover:bg-amber-100 dark:hover:bg-[#282830] text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
+                                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>{item.smsAlreadySentRecently ? 'ارسال مجدد' : 'ارسال'}</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1149,19 +1146,18 @@ export default function SmsRemindersTab({
                   <th className="py-2 px-3 text-xs font-medium">متن ارسالی پیامک</th>
                   <th className="py-2 px-3 text-center text-xs font-medium">حالت ارسال</th>
                   <th className="py-2 px-3 text-center text-xs font-medium">وضعیت تحویل</th>
-                  <th className="py-2 px-3 text-center w-16 text-xs font-medium">عملیات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-[#242428]">
                 {outboundLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
+                    <td colSpan={9} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
                       تاکنون هیچ پیامک یادآوری ارسال نشده است.
                     </td>
                   </tr>
                 ) : (
                   outboundLogs.map((log, idx) => (
-                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px]">
+                    <tr key={log.id} className="group relative hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px]">
                       <td className="py-2 px-2.5 text-center text-slate-500 dark:text-slate-400 text-[11px]">
                         {toPersianDigits(idx + 1)}
                       </td>
@@ -1200,20 +1196,22 @@ export default function SmsRemindersTab({
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-2 px-3 text-center relative">
                         <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
                           موفق
                         </span>
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteOutboundLog(log.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                          title="حذف لاگ"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+
+                        {/* دکمه حذف شناور در هاور */}
+                        <div className="absolute inset-y-0 left-0 pl-2.5 pr-10 flex items-center bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteOutboundLog(log.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer bg-white dark:bg-[#1e1e24] rounded border border-slate-200 dark:border-[#2d2d30] shadow-2xs"
+                            title="حذف لاگ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

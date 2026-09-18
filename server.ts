@@ -101,11 +101,11 @@ function readDb() {
       parsed.mechanics = defaultDb.mechanics;
       changed = true;
     }
-    if (!parsed.companies || parsed.companies.length < defaultDb.companies.length) {
+    if (!parsed.companies) {
       parsed.companies = defaultDb.companies;
       changed = true;
     }
-    if (!parsed.suppliers || parsed.suppliers.length < defaultDb.suppliers.length) {
+    if (!parsed.suppliers) {
       parsed.suppliers = defaultDb.suppliers;
       changed = true;
     }

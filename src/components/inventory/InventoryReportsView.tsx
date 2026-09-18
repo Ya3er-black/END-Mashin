@@ -431,13 +431,12 @@ export const InventoryReportsView: React.FC<InventoryReportsViewProps> = ({
                 <th className="py-2 px-3 text-center text-xs font-medium w-28">آخرین نرخ خرید</th>
                 <th className="py-2 px-3 text-center text-xs font-medium w-28">بودجه برآوردی</th>
                 <th className="py-2 px-3 text-center text-xs font-medium w-20">وضعیت</th>
-                <th className="py-2 px-3 text-center w-24 text-xs font-medium">عملیات خرید</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-[#2d2d30]/60">
               {criticalAndLowParts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-emerald-600 dark:text-emerald-400 text-xs">
+                  <td colSpan={9} className="text-center py-8 text-emerald-600 dark:text-emerald-400 text-xs">
                     <div className="flex items-center justify-center gap-1.5 font-bold">
                       <CheckCircle2 className="w-4 h-4" />
                       وضعیت انبار عالی است. هیچ کالایی دچار کسری یا اتمام موجودی نمی‌باشد.
@@ -454,7 +453,7 @@ export const InventoryReportsView: React.FC<InventoryReportsViewProps> = ({
                   return (
                     <tr 
                       key={p.id} 
-                      className="h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
+                      className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
                     >
                       <td className="py-1 px-3 text-center text-slate-500 dark:text-slate-400 font-mono text-[11px] align-middle">
                         {toPersianDigits(idx + 1)}
@@ -482,7 +481,7 @@ export const InventoryReportsView: React.FC<InventoryReportsViewProps> = ({
                       <td className="py-1 px-3 text-center font-mono text-slate-800 dark:text-slate-200 font-medium text-[11px] whitespace-nowrap align-middle">
                         {formatPrice(estBudget)}
                       </td>
-                      <td className="py-1 px-3 text-center align-middle whitespace-nowrap">
+                      <td className="py-1 px-3 text-center align-middle whitespace-nowrap relative">
                         {p.quantity === 0 ? (
                           <span className="px-1.5 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded font-bold text-[10px]">
                             اتمام
@@ -492,16 +491,19 @@ export const InventoryReportsView: React.FC<InventoryReportsViewProps> = ({
                             کسری
                           </span>
                         )}
-                      </td>
-                      <td className="py-1 px-3 text-center align-middle whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => onOpenStockIn(p)}
-                          className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 rounded text-[10px] font-bold transition-all cursor-pointer inline-flex items-center gap-0.5 shadow-2xs"
-                        >
-                          <ArrowDownLeft className="w-2.5 h-2.5 text-emerald-600" />
-                          <span>خرید</span>
-                        </button>
+
+                        {/* دکمه عملیات شناور فقط هنگام بردن ماوس روی ردیف */}
+                        <div className="absolute inset-y-0 left-0 pl-2.5 pr-10 flex items-center bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                          <button
+                            type="button"
+                            onClick={() => onOpenStockIn(p)}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
+                            title="ثبت ورود و خرید کالا"
+                          >
+                            <ArrowDownLeft className="w-2.5 h-2.5" />
+                            <span>خرید</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

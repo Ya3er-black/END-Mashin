@@ -13,6 +13,7 @@ import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFil
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 
 function normalizePhone(phone: any): string {
   if (!phone) return '';
@@ -49,6 +50,8 @@ export default function PersonsView({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
+  const [deleteConfirmPerson, setDeleteConfirmPerson] = useState<Person | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -200,11 +203,19 @@ export default function PersonsView({
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (p: Person) => {
-    if (confirm(`آیا از حذف راننده ${p.fullName} اطمینان دارید؟`)) {
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmPerson) return;
+    setIsDeleting(true);
+    try {
       if (onDeletePerson) {
-        await onDeletePerson(p.id);
+        await onDeletePerson(deleteConfirmPerson.id);
       }
+      setDeleteConfirmPerson(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'خطا در حذف راننده');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -396,20 +407,38 @@ export default function PersonsView({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
-              <button
-                type="button"
-                onClick={handleCloseOrReturn}
-                className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
-              >
-                {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
-              >
-                {editingPersonId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت راننده و بازگشت' : 'ثبت راننده')}
-              </button>
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
+              {editingPersonId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentP = persons.find(p => p.id === editingPersonId);
+                    if (currentP) {
+                      setIsFormOpen(false);
+                      setDeleteConfirmPerson(currentP);
+                    }
+                  }}
+                  className="px-3 py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-bold rounded-md transition-colors border border-rose-200 dark:border-rose-900/50 text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف این راننده</span>
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseOrReturn}
+                  className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+                >
+                  {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                >
+                  {editingPersonId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت راننده و بازگشت' : 'ثبت راننده')}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -531,13 +560,12 @@ export default function PersonsView({
                   onOpenFilter={handleOpenFilterMenu}
                   className="w-44"
                 />
-                <th className="py-2 px-3 text-center w-24 text-xs font-medium">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
               {paginatedPersons.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-8 text-slate-500 text-[11px]">
+                  <td colSpan={3} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ راننده‌ای یافت نشد.
                   </td>
                 </tr>
@@ -547,7 +575,7 @@ export default function PersonsView({
                     key={p.id} 
                     onClick={() => handleOpenEditForm(p)}
                     title="برای ویرایش اطلاعات راننده کلیک کنید"
-                    className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
+                    className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                   >
                     <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
                       {toPersianDigits((currentPage - 1) * pageSize + idx + 1)}
@@ -555,16 +583,16 @@ export default function PersonsView({
                     <td className="py-1.5 px-3 text-slate-900 dark:text-white">
                       {p.fullName}
                     </td>
-                    <td className="py-1.5 px-3 text-slate-600 dark:text-slate-300 text-[11px]">
-                      {p.phone ? toPersianDigits(p.phone) : 'ثبت نشده'}
-                    </td>
-                    <td className="py-1.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="py-1.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] relative">
+                      <span>{p.phone ? toPersianDigits(p.phone) : 'ثبت نشده'}</span>
+
+                      {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                      <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(p);
+                            setDeleteConfirmPerson(p);
                           }}
                           className="p-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
                           title="حذف"
@@ -608,6 +636,19 @@ export default function PersonsView({
         initialType="persons"
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={onBulkImportSuccess}
+      />
+
+      {/* مدال تایید حذف راننده */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmPerson !== null}
+        title="حذف راننده"
+        subtitle={deleteConfirmPerson ? deleteConfirmPerson.fullName : ''}
+        message={deleteConfirmPerson ? `آیا از حذف راننده «${deleteConfirmPerson.fullName}» اطمینان دارید؟` : ''}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => {
+          if (!isDeleting) setDeleteConfirmPerson(null);
+        }}
       />
     </div>
   );

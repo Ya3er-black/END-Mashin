@@ -18,6 +18,7 @@ import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFil
 import { returnToOriginView, peekNavigationOrigin, openQuickEntityModal, QuickEntityType } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 
 interface VehiclesViewProps {
   vehicles: Vehicle[];
@@ -360,6 +361,8 @@ export default function VehiclesView({
   // کادرهای فرم ایجاد و ویرایش
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
+  const [deleteConfirmVehicle, setDeleteConfirmVehicle] = useState<Vehicle | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -704,9 +707,17 @@ export default function VehiclesView({
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('آیا از حذف این خودرو به همراه تمام سوابق آن اطمینان دارید؟')) {
-      await onDeleteVehicle(id);
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmVehicle) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteVehicle(deleteConfirmVehicle.id);
+      setDeleteConfirmVehicle(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'خطا در حذف خودرو');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -901,20 +912,38 @@ export default function VehiclesView({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
-              <button 
-                type="button" 
-                onClick={handleCloseOrReturn}
-                className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
-              >
-                {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
-              </button>
-              <button 
-                type="submit" 
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
-              >
-                {editingVehicleId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت خودرو و بازگشت' : 'ثبت خودرو')}
-              </button>
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
+              {editingVehicleId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentV = vehicles.find(veh => veh.id === editingVehicleId);
+                    if (currentV) {
+                      setIsFormOpen(false);
+                      setDeleteConfirmVehicle(currentV);
+                    }
+                  }}
+                  className="px-3 py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-bold rounded-md transition-colors border border-rose-200 dark:border-rose-900/50 text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف این خودرو</span>
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={handleCloseOrReturn}
+                  className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+                >
+                  {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                >
+                  {editingVehicleId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت خودرو و بازگشت' : 'ثبت خودرو')}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -1089,16 +1118,14 @@ export default function VehiclesView({
                   onSort={handleSort}
                   isFiltered={!!columnFilters['driverName']}
                   onOpenFilter={handleOpenFilterMenu}
-                  width="160px"
+                  width="180px"
                 />
-
-                <th className="py-2 px-3 text-center w-24 text-xs font-medium">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
               {paginatedVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-slate-500 text-[11px]">
+                  <td colSpan={7} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ خودرویی یافت نشد.
                   </td>
                 </tr>
@@ -1108,7 +1135,7 @@ export default function VehiclesView({
                     key={v.id} 
                     onClick={() => handleOpenEditForm(v)}
                     title="برای ویرایش مشخصات خودرو کلیک کنید"
-                    className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer select-none text-[11px]"
+                    className="group hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer select-none text-[11px]"
                   >
                     {/* ردیف */}
                     <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
@@ -1177,56 +1204,64 @@ export default function VehiclesView({
                       />
                     </td>
 
-                    {/* انتخاب راننده */}
-                    <td className="py-1 px-2.5" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-                      <SearchableSelect
-                        value={v.driverName || ''}
-                        placeholder="جستجوی راننده..."
-                        emptyOptionLabel="بدون راننده"
-                        options={driverOptions}
-                        quickAddType="driver"
-                        addNewLabel="افزودن راننده جدید..."
-                        onAddNew={() => {
-                          openQuickEntityModal('driver', async (newDriver) => {
-                            if (newDriver?.fullName) {
-                              try {
-                                await onEditVehicle(v.id, { 
-                                  driverName: newDriver.fullName, 
-                                  driverPhone: newDriver.phone || '-' 
-                                });
-                              } catch (err) {
-                                alert('خطا در ثبت راننده');
+                    {/* انتخاب راننده و دکمه‌های عملیات شناور */}
+                    <td className="py-1 px-2.5 relative" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                      <div className="w-full">
+                        <SearchableSelect
+                          value={v.driverName || ''}
+                          placeholder="جستجوی راننده..."
+                          emptyOptionLabel="بدون راننده"
+                          options={driverOptions}
+                          quickAddType="driver"
+                          addNewLabel="افزودن راننده جدید..."
+                          onAddNew={() => {
+                            openQuickEntityModal('driver', async (newDriver) => {
+                              if (newDriver?.fullName) {
+                                try {
+                                  await onEditVehicle(v.id, { 
+                                    driverName: newDriver.fullName, 
+                                    driverPhone: newDriver.phone || '-' 
+                                  });
+                                } catch (err) {
+                                  alert('خطا در ثبت راننده');
+                                }
                               }
-                            }
-                          });
-                        }}
-                        onChange={async (selectedName) => {
-                          const foundPerson = persons.find(p => p.fullName === selectedName);
-                          const selectedPhone = foundPerson?.phone || '-';
-                          try {
-                            await onEditVehicle(v.id, { 
-                              driverName: selectedName || 'ثبت نشده', 
-                              driverPhone: selectedPhone 
                             });
-                          } catch (err) {
-                            alert('خطا در ثبت راننده');
-                          }
-                        }}
-                      />
-                    </td>
+                          }}
+                          onChange={async (selectedName) => {
+                            const foundPerson = persons.find(p => p.fullName === selectedName);
+                            const selectedPhone = foundPerson?.phone || '-';
+                            try {
+                              await onEditVehicle(v.id, { 
+                                driverName: selectedName || 'ثبت نشده', 
+                                driverPhone: selectedPhone 
+                              });
+                            } catch (err) {
+                              alert('خطا در ثبت راننده');
+                            }
+                          }}
+                        />
+                      </div>
 
-                    {/* عملیات */}
-                    <td className="py-1.5 px-2.5 text-center" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1">
+                      {/* طیف هم‌رنگ ردیف هاور - تمام ارتفاع ستون و چسبیده به انتهای سمت چپ ردیف */}
+                      <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                         <button 
-                          onClick={() => setHistoryModalVehicle(v)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryModalVehicle(v);
+                          }}
                           title="سوابق تغییرات"
                           className="p-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-amber-100 dark:hover:bg-amber-600/20 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
                         >
                           <History className="w-3 h-3" />
                         </button>
                         <button 
-                          onClick={() => handleDelete(v.id)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmVehicle(v);
+                          }}
                           title="حذف"
                           className="p-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
                         >
@@ -1471,6 +1506,19 @@ export default function VehiclesView({
         initialType="vehicles"
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={onBulkImportSuccess}
+      />
+
+      {/* مدال تایید حذف خودرو */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmVehicle !== null}
+        title="حذف خودرو از ناوگان"
+        subtitle={deleteConfirmVehicle ? `${deleteConfirmVehicle.name} (${deleteConfirmVehicle.plaque})` : ''}
+        message={deleteConfirmVehicle ? `آیا از حذف خودرو «${deleteConfirmVehicle.name}» با پلاک «${deleteConfirmVehicle.plaque}» و کد «${deleteConfirmVehicle.code}» به همراه تمام سوابق آن اطمینان دارید؟ این عملیات غیرقابل بازگشت است.` : ''}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => {
+          if (!isDeleting) setDeleteConfirmVehicle(null);
+        }}
       />
     </div>
   );

@@ -3826,14 +3826,12 @@ export default function ServicesView({
                         width="140px"
                       />
                     )}
-
-                    <th className="py-2 px-3 text-center w-36 text-xs font-medium">عملیات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                   {paginatedSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={activeTab === 'completed' ? 7 : 6} className="text-center py-8 text-slate-500 text-[11px]">
+                      <td colSpan={activeTab === 'completed' ? 6 : 5} className="text-center py-8 text-slate-500 text-[11px]">
                         {activeTab === 'in_progress' 
                           ? 'هیچ سرویسی در حال حاضر در وضعیت در حال ارائه سرویس وجود ندارد.'
                           : 'هیچ پرونده سرویس تکمیلی منطبق با فیلتر یافت نشد.'}
@@ -3849,7 +3847,7 @@ export default function ServicesView({
                           key={session.id} 
                           onClick={() => handleOpenEditSession(session)}
                           title="برای مشاهده و ویرایش این پرونده سرویس کلیک کنید"
-                          className="h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
+                          className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                         >
                           <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle">
                             {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
@@ -3872,7 +3870,7 @@ export default function ServicesView({
                               </span>
                             </div>
                           </td>
-                          <td className="py-1 px-3 whitespace-nowrap align-middle">
+                          <td className={`py-1 px-3 whitespace-nowrap align-middle ${activeTab === 'in_progress' ? 'relative' : ''}`}>
                             <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200">
                               <span className="text-slate-900 dark:text-white text-[11px]">
                                 {session.currentKm ? formatNumber(session.currentKm) : '۰'}
@@ -3881,25 +3879,10 @@ export default function ServicesView({
                                 کیلومتر
                               </span>
                             </div>
-                          </td>
-                          {activeTab === 'completed' && (
-                            <td className="py-1 px-3 align-middle">
-                              <div className="text-[11px]">
-                                <div className="text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
-                                  {Number(session.totalCost) > 0 ? (
-                                    <>
-                                      {formatPrice(session.totalCost)} <span className="text-[9px] font-normal text-slate-500">ریال</span>
-                                    </>
-                                  ) : (
-                                    'بدون هزینه'
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          )}
-                          <td className="py-1 px-3 text-center align-middle">
-                            <div className="flex items-center justify-center gap-1">
-                              {activeTab === 'in_progress' ? (
+
+                            {/* دکمه‌های عملیات شناور در وضعیت در حال ارائه سرویس */}
+                            {activeTab === 'in_progress' && (
+                              <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -3912,7 +3895,39 @@ export default function ServicesView({
                                   <Receipt className="w-3 h-3" />
                                   <span>ثبت فاکتور</span>
                                 </button>
-                              ) : (
+
+                                {onDeleteService && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      requestDeleteSession(session);
+                                    }}
+                                    title="حذف پرونده"
+                                    className="w-[22px] h-[22px] flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          {activeTab === 'completed' && (
+                            <td className="py-1 px-3 align-middle relative">
+                              <div className="text-[11px]">
+                                <div className="text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
+                                  {Number(session.totalCost) > 0 ? (
+                                    <>
+                                      {formatPrice(session.totalCost)} <span className="text-[9px] font-normal text-slate-500">ریال</span>
+                                    </>
+                                  ) : (
+                                    'بدون هزینه'
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* دکمه‌های عملیات شناور در وضعیت تکمیل شده */}
+                              <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -3924,23 +3939,23 @@ export default function ServicesView({
                                 >
                                   <Eye className="w-3 h-3" />
                                 </button>
-                              )}
 
-                              {onDeleteService && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    requestDeleteSession(session);
-                                  }}
-                                  title="حذف پرونده"
-                                  className="w-[22px] h-[22px] flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                                {onDeleteService && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      requestDeleteSession(session);
+                                    }}
+                                    title="حذف پرونده"
+                                    className="w-[22px] h-[22px] flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })

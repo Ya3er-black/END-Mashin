@@ -2777,14 +2777,12 @@ export default function FailuresView({
                     width="140px"
                   />
                 )}
-
-                <th className="py-2 px-3 text-center w-36 text-xs font-medium">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
               {paginatedFailures.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-slate-500 text-[11px]">
+                  <td colSpan={5} className="text-center py-8 text-slate-500 text-[11px]">
                     {activeTab === 'in_repair' ? 'هیچ خودرویی در حال حاضر در حال تعمیر نیست.' : 'هیچ خودرویی در بخش آماده شده ثبت نشده است.'}
                   </td>
                 </tr>
@@ -2802,7 +2800,7 @@ export default function FailuresView({
                     <tr 
                       key={f.id} 
                       onClick={() => handleOpenEditModal(f)}
-                      className="h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
+                      className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                       title="برای مشاهده و ویرایش این پرونده کلیک کنید"
                     >
                       <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle">
@@ -2826,7 +2824,7 @@ export default function FailuresView({
                         </div>
                       </td>
                       
-                      <td className="py-1 px-3 align-middle">
+                      <td className="py-1 px-3 align-middle relative">
                         {activeTab === 'in_repair' ? (
                           getPriorityBadge(f.priority)
                         ) : (
@@ -2842,9 +2840,9 @@ export default function FailuresView({
                             </div>
                           </div>
                         )}
-                      </td>
-                      <td className="py-1 px-3 text-center align-middle">
-                        <div className="flex items-center justify-center gap-1">
+
+                        {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                        <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                           {activeTab === 'in_repair' ? (
                             <button
                               type="button"

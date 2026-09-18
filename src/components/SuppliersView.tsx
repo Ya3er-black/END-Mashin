@@ -13,6 +13,7 @@ import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFil
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 
 interface SuppliersViewProps {
   suppliers: Supplier[];
@@ -34,6 +35,8 @@ export default function SuppliersView({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<number | null>(null);
+  const [deleteConfirmSupplier, setDeleteConfirmSupplier] = useState<Supplier | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // فیلترهای سبک اکسل ستون‌ها
@@ -182,14 +185,17 @@ export default function SuppliersView({
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (id: number, supplierName: string) => {
-    if (confirm(`آیا از حذف تامین‌کننده [${supplierName}] اطمینان دارید؟`)) {
-      try {
-        await onDeleteSupplier(id);
-      } catch (err) {
-        console.error(err);
-        alert('خطا در حذف تامین‌کننده');
-      }
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmSupplier) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteSupplier(deleteConfirmSupplier.id);
+      setDeleteConfirmSupplier(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'خطا در حذف تامین‌کننده');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -406,20 +412,38 @@ export default function SuppliersView({
             </div>
 
             {/* دکمه‌های فرم */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
-              <button
-                type="button"
-                onClick={handleCloseOrReturn}
-                className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
-              >
-                {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
-              >
-                {editingSupplierId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تامین‌کننده و بازگشت' : 'ذخیره اطلاعات تامین‌کننده')}
-              </button>
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
+              {editingSupplierId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentS = suppliers.find(sup => sup.id === editingSupplierId);
+                    if (currentS) {
+                      setIsFormOpen(false);
+                      setDeleteConfirmSupplier(currentS);
+                    }
+                  }}
+                  className="px-3 py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-bold rounded-md transition-colors border border-rose-200 dark:border-rose-900/50 text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف این تامین‌کننده</span>
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseOrReturn}
+                  className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+                >
+                  {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                >
+                  {editingSupplierId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تامین‌کننده و بازگشت' : 'ذخیره اطلاعات تامین‌کننده')}
+                </button>
+              </div>
             </div>
 
           </form>
@@ -551,13 +575,12 @@ export default function SuppliersView({
                   isFiltered={!!columnFilters['phone']}
                   onOpenFilter={handleOpenFilterMenu}
                 />
-                <th className="py-2 px-3 text-center text-xs font-medium">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
               {paginatedSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-500 text-[11px]">
+                  <td colSpan={4} className="py-8 text-center text-slate-500 text-[11px]">
                     هیچ تامین‌کننده‌ای با شرایط مورد نظر یافت نشد.
                   </td>
                 </tr>
@@ -567,7 +590,7 @@ export default function SuppliersView({
                     key={s.id} 
                     onClick={() => handleOpenEditForm(s)}
                     title="برای ویرایش مشخصات تامین‌کننده کلیک کنید"
-                    className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
+                    className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                   >
                     <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
                       {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
@@ -578,16 +601,16 @@ export default function SuppliersView({
                     <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
                       <span>{s.address || 'ثبت نشده'}</span>
                     </td>
-                    <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
-                      {toPersianDigits(s.phone || s.mobile || '-')}
-                    </td>
-                    <td className="py-1.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] relative">
+                      <span>{toPersianDigits(s.phone || s.mobile || '-')}</span>
+
+                      {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                      <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(s.id, s.name);
+                            setDeleteConfirmSupplier(s);
                           }}
                           className="p-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
                           title="حذف"
@@ -631,6 +654,19 @@ export default function SuppliersView({
         initialType="suppliers"
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={onBulkImportSuccess}
+      />
+
+      {/* مدال تایید حذف تامین‌کننده */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmSupplier !== null}
+        title="حذف تامین‌کننده"
+        subtitle={deleteConfirmSupplier ? deleteConfirmSupplier.name : ''}
+        message={deleteConfirmSupplier ? `آیا از حذف تامین‌کننده «${deleteConfirmSupplier.name}» اطمینان دارید؟` : ''}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => {
+          if (!isDeleting) setDeleteConfirmSupplier(null);
+        }}
       />
     </div>
   );

@@ -1169,12 +1169,11 @@ export default function DashboardView({
                       <th className="pb-2 font-bold">راننده</th>
                       <th className="pb-2 font-bold">وضعیت ناوگان</th>
                       <th className="pb-2 font-bold">کارکرد کیلومتر</th>
-                      <th className="pb-2 font-bold text-left">عملیات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-[#202024]">
                     {watchlistVehicles.map(veh => (
-                      <tr key={veh.id} className="hover:bg-slate-50 dark:hover:bg-[#161619] transition-colors">
+                      <tr key={veh.id} className="group relative hover:bg-slate-50 dark:hover:bg-[#161619] transition-colors">
                         <td className="py-2.5 font-extrabold text-slate-900 dark:text-white">
                           {veh.name}
                         </td>
@@ -1195,16 +1194,18 @@ export default function DashboardView({
                             {veh.status === 'active' ? 'آماده به‌کار' : veh.status === 'in_repair' ? 'در تعمیرگاه' : 'متوقف'}
                           </span>
                         </td>
-                        <td className="py-2.5 font-mono text-slate-700 dark:text-slate-300">
+                        <td className="py-2.5 font-mono text-slate-700 dark:text-slate-300 relative">
                           {veh.currentKm ? `${formatNumber(veh.currentKm)} km` : '—'}
-                        </td>
-                        <td className="py-2.5 text-left">
-                          <button
-                            onClick={() => onNavigate('vehicles')}
-                            className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                          >
-                            مشاهده پرونده
-                          </button>
+
+                          {/* دکمه شناور در هاور ردیف */}
+                          <div className="absolute inset-y-0 left-0 pl-2.5 pr-12 flex items-center bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161619] dark:via-[#161619] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                            <button
+                              onClick={() => onNavigate('vehicles')}
+                              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap bg-white dark:bg-[#202024] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30] shadow-2xs"
+                            >
+                              مشاهده پرونده
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

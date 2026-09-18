@@ -16,6 +16,7 @@ import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFil
 import { returnToOriginView, peekNavigationOrigin } from '../utils/navigation';
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 
 interface ServiceDefinitionsViewProps {
   serviceDefinitions: ServiceDefinition[];
@@ -38,6 +39,8 @@ export default function ServiceDefinitionsView({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<ServiceDefinition | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // فیلترهای سبک اکسل ستون‌ها
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
@@ -208,13 +211,17 @@ export default function ServiceDefinitionsView({
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('آیا از حذف این عنوان خدمت اطمینان دارید؟')) {
-      try {
-        await onDeleteDefinition(id);
-      } catch (err: any) {
-        alert(err?.message || 'خطا در حذف تعریف خدمت.');
-      }
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmItem) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteDefinition(deleteConfirmItem.id);
+      setDeleteConfirmItem(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'خطا در حذف تعریف خدمت.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -374,20 +381,38 @@ export default function ServiceDefinitionsView({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
-              <button
-                type="button"
-                onClick={handleCloseOrReturn}
-                className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
-              >
-                {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
-              >
-                {editingId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت خدمت و بازگشت' : 'ذخیره خدمت')}
-              </button>
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentItem = serviceDefinitions.find(s => s.id === editingId);
+                    if (currentItem) {
+                      setIsModalOpen(false);
+                      setDeleteConfirmItem(currentItem);
+                    }
+                  }}
+                  className="px-3 py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-bold rounded-md transition-colors border border-rose-200 dark:border-rose-900/50 text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف این خدمت</span>
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseOrReturn}
+                  className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+                >
+                  {(isNavigatedFromOrigin || peekNavigationOrigin()) ? 'انصراف و بازگشت' : 'انصراف'}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                >
+                  {editingId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت خدمت و بازگشت' : 'ذخیره خدمت')}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -514,13 +539,12 @@ export default function ServiceDefinitionsView({
                   isFiltered={!!columnFilters['warningKm']}
                   onOpenFilter={handleOpenFilterMenu}
                 />
-                <th className="py-2 px-3 w-24 text-center text-xs font-medium">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
               {paginatedDefinitions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-slate-500 text-[11px]">
+                  <td colSpan={4} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ آیتم خدمتی یافت نشد.
                   </td>
                 </tr>
@@ -530,7 +554,7 @@ export default function ServiceDefinitionsView({
                     key={def.id} 
                     onClick={() => handleOpenEditModal(def)}
                     title="برای ویرایش این خدمت کلیک کنید"
-                    className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
+                    className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                   >
                     
                     {/* ردیف */}
@@ -554,20 +578,18 @@ export default function ServiceDefinitionsView({
                     </td>
 
                     {/* بازه اخطار */}
-                    <td className="py-1.5 px-3 text-[11px]">
+                    <td className="py-1.5 px-3 text-[11px] relative">
                       <div className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
                         <span>{formatNumber(def.warningKm)} کیلومتر قبل</span>
                       </div>
-                    </td>
 
-                    {/* عملیات */}
-                    <td className="py-1.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                      <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(def.id);
+                            setDeleteConfirmItem(def);
                           }}
                           title="حذف"
                           className="p-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-100 dark:hover:bg-rose-600/20 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
@@ -576,7 +598,6 @@ export default function ServiceDefinitionsView({
                         </button>
                       </div>
                     </td>
-
                   </tr>
                 ))
               )}
@@ -612,6 +633,19 @@ export default function ServiceDefinitionsView({
         initialType="service_definitions"
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={onBulkImportSuccess}
+      />
+
+      {/* مدال تایید حذف تعریف خدمت */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmItem !== null}
+        title="حذف عنوان خدمت"
+        subtitle={deleteConfirmItem ? deleteConfirmItem.serviceType : ''}
+        message={deleteConfirmItem ? `آیا از حذف تعریف خدمت «${deleteConfirmItem.serviceType}» (با دوره ${formatNumber(deleteConfirmItem.intervalKm)} کیلومتر) اطمینان دارید؟` : ''}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => {
+          if (!isDeleting) setDeleteConfirmItem(null);
+        }}
       />
     </div>
   );

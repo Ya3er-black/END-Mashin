@@ -1639,14 +1639,12 @@ export default function OdometerTrackingView({
                           className="min-w-[110px]"
                           align="center"
                         />
-
-                        <th className="py-2 px-3 text-center w-24 text-xs font-medium">عملیات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                       {paginatedMatrixList.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="py-8 text-center text-slate-500 text-[11px]">
+                          <td colSpan={8} className="py-8 text-center text-slate-500 text-[11px]">
                             هیچ خدمتی مطابق فیلترهای انتخابی یافت نشد.
                           </td>
                         </tr>
@@ -1660,7 +1658,7 @@ export default function OdometerTrackingView({
                           return (
                             <tr 
                               key={item.definitionId} 
-                              className={`hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px] ${
+                              className={`group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px] ${
                                 isOverdue ? 'bg-rose-50/50 dark:bg-rose-500/5' : isWarning ? 'bg-amber-50/50 dark:bg-amber-500/5' : ''
                               }`}
                             >
@@ -1791,20 +1789,22 @@ export default function OdometerTrackingView({
                                     {toPersianDigits(item.daysRemaining)} روز
                                   </span>
                                 )}
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (onNavigateToServices) {
-                                      onNavigateToServices(currentSelectedVehicle.id, item.serviceType);
-                                    }
-                                  }}
-                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
-                                  title="ثبت پذیرش و سرویس برای این قطعه"
-                                >
-                                  ثبت سرویس
-                                </button>
+
+                                {/* دکمه عملیات شناور در هاور ردیف */}
+                                <div className="absolute inset-y-0 left-0 pl-2.5 pr-12 flex items-center bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (onNavigateToServices) {
+                                        onNavigateToServices(currentSelectedVehicle.id, item.serviceType);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+                                    title="ثبت پذیرش و سرویس برای این قطعه"
+                                  >
+                                    ثبت سرویس
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1957,8 +1957,6 @@ export default function OdometerTrackingView({
                           className="min-w-[125px]"
                           align="center"
                         />
-
-                        <th className="py-2 px-3 text-center min-w-[130px] text-xs font-medium">عملیات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#202024]">
@@ -1969,7 +1967,7 @@ export default function OdometerTrackingView({
                         return (
                           <tr
                             key={item.id}
-                            className={`transition-colors duration-150 text-[11px] ${
+                            className={`group relative transition-colors duration-150 text-[11px] ${
                               isOverdue
                                 ? 'bg-rose-50/30 dark:bg-rose-950/15 hover:bg-rose-50/60 dark:hover:bg-rose-950/30'
                                 : 'bg-amber-50/20 dark:bg-amber-950/10 hover:bg-amber-50/50 dark:hover:bg-amber-950/20'
@@ -2014,7 +2012,7 @@ export default function OdometerTrackingView({
                               {item.targetDueKm ? `${formatNumber(item.targetDueKm)} کیلومتر` : '---'}
                             </td>
 
-                            <td className="py-2 px-3 text-center whitespace-nowrap text-[11px]">
+                            <td className="py-2 px-3 text-center whitespace-nowrap text-[11px] relative">
                               {isOverdue ? (
                                 <span className="text-rose-600 dark:text-rose-400">
                                   {formatNumber(Math.abs(item.remainingKm))} کیلومتر گذشته
@@ -2024,15 +2022,18 @@ export default function OdometerTrackingView({
                                   {formatNumber(item.remainingKm)} کیلومتر مانده
                                 </span>
                               )}
-                            </td>
 
-                            <td className="py-2 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
+                              {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                              <div className={`absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1.5 bg-gradient-to-r ${
+                                isOverdue 
+                                  ? 'from-rose-50 via-rose-50 dark:from-[#251518] dark:via-[#251518]' 
+                                  : 'from-amber-50 via-amber-50 dark:from-[#251f15] dark:via-[#251f15]'
+                              } via-70% to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto`}>
                                 {onNavigateToServices && (
                                   <button
                                     type="button"
                                     onClick={() => onNavigateToServices(item.vehicleId, item.serviceType)}
-                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
                                     title="ثبت سرویس دوره‌ای برای این قطعه"
                                   >
                                     <span>ثبت سرویس</span>
@@ -2046,7 +2047,7 @@ export default function OdometerTrackingView({
                                     setVehicleFilter(item.vehicleId.toString());
                                     setActiveTab('matrix');
                                   }}
-                                  className="px-2 py-1 bg-slate-100 dark:bg-[#1e1e22] hover:bg-slate-200 dark:hover:bg-[#28282c] text-slate-700 dark:text-slate-300 rounded text-[10px] flex items-center gap-1 transition-colors cursor-pointer border border-slate-200 dark:border-[#2d2d30]"
+                                  className="px-2 py-1 bg-white dark:bg-[#1e1e22] hover:bg-slate-100 dark:hover:bg-[#28282c] text-slate-700 dark:text-slate-300 rounded text-[10px] flex items-center gap-1 transition-colors cursor-pointer border border-slate-200 dark:border-[#2d2d30] shadow-2xs whitespace-nowrap"
                                   title="مشاهده در ماتریس پایش قطعات خودرو"
                                 >
                                   <span>پایش</span>
@@ -2169,14 +2170,12 @@ export default function OdometerTrackingView({
                       isFiltered={!!fleetColumnFilters['lastInquiryDate']}
                       onOpenFilter={handleOpenFleetFilterMenu}
                     />
-
-                    <th className="py-2 px-3 text-center w-36 text-xs font-medium">عملیات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                   {paginatedFleetList.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-500 text-[11px]">
+                      <td colSpan={8} className="py-8 text-center text-slate-500 text-[11px]">
                         هیچ خودرویی با این مشخصات در ناوگان یافت نشد.
                       </td>
                     </tr>
@@ -2185,7 +2184,7 @@ export default function OdometerTrackingView({
                       return (
                         <tr
                           key={v.id}
-                          className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
+                          className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
                         >
                           <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
                             {toPersianDigits((fleetPage - 1) * fleetPageSize + index + 1)}
@@ -2227,26 +2226,24 @@ export default function OdometerTrackingView({
                               </span>
                             </div>
                           </td>
-                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] relative">
                             {v.latestLog ? toPersianDigits(v.latestLog.inquiryDate) : 'بدون سابقه'}
-                          </td>
-                          <td className="py-1.5 px-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {/* دکمه ثبت استعلام */}
+
+                            {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                            <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                               <button
                                 type="button"
                                 onClick={() => handleOpenAddModal(v.id)}
-                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
                                 title="ثبت استعلام کارکرد جدید"
                               >
                                 ثبت استعلام
                               </button>
 
-                              {/* مربع سبز یا قرمز روشن با زدن روی آن جزئیات سرویس مشخص می‌شود */}
                               <button
                                 type="button"
                                 onClick={() => setSelectedFleetVehicleForDetails(v)}
-                                className={`w-6 h-6 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 ${
+                                className={`w-5 h-5 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 ${
                                   v.needsService
                                     ? 'bg-rose-500 hover:bg-rose-600 border border-rose-400 dark:border-rose-500/50 ring-2 ring-rose-300/60 dark:ring-rose-900/60'
                                     : 'bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 dark:border-emerald-500/50 ring-2 ring-emerald-300/60 dark:ring-emerald-900/60'
@@ -2258,9 +2255,9 @@ export default function OdometerTrackingView({
                                 }
                               >
                                 {v.needsService ? (
-                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <AlertTriangle className="w-3 h-3" />
                                 ) : (
-                                  <Check className="w-3.5 h-3.5" />
+                                  <Check className="w-3 h-3" />
                                 )}
                               </button>
                             </div>
@@ -2638,13 +2635,12 @@ export default function OdometerTrackingView({
                     <th className="py-2.5 px-3 text-center text-xs font-medium">کیلومتر استخراجی</th>
                     <th className="py-2.5 px-3 text-center text-xs font-medium">وضعیت پردازش</th>
                     <th className="py-2.5 px-3 text-xs font-medium">پیام پاسخ سامانه</th>
-                    <th className="py-2.5 px-3 text-center w-16 text-xs font-medium">عملیات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-[#2d2d30]/60">
                   {filteredSmsLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
+                      <td colSpan={9} className="py-8 text-center text-slate-500 dark:text-slate-400 text-[11px]">
                         {smsLogs.length === 0 
                           ? 'تاکنون پیامکی از رانندگان دریافت نشده است. می‌توانید با شبیه‌ساز بالا یا ارسال پیامک واقعی، عملکرد سیستم را آزمایش کنید.'
                           : 'هیچ پیامکی با فیلتر انتخابی یافت نشد.'}
@@ -2652,7 +2648,7 @@ export default function OdometerTrackingView({
                     </tr>
                   ) : (
                     filteredSmsLogs.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px]">
+                      <tr key={item.id} className="group relative hover:bg-slate-50 dark:hover:bg-[#161618] transition-colors text-[11px]">
                         <td className="py-2.5 px-3 text-center text-slate-500 dark:text-slate-400 text-[11px]">
                           {toPersianDigits(idx + 1)}
                         </td>
@@ -2723,11 +2719,11 @@ export default function OdometerTrackingView({
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-xs truncate" title={item.replyMessage || item.statusMessage}>
+                        <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-xs truncate relative" title={item.replyMessage || item.statusMessage}>
                           {item.replyMessage || item.statusMessage || '-'}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
+
+                          {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
+                          <div className="absolute inset-y-0 left-0 pl-2.5 pr-10 flex items-center gap-1 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                             {!item.vehicleId && onAssignSms && vehicles.length > 0 && (
                               <button
                                 type="button"
@@ -2735,7 +2731,7 @@ export default function OdometerTrackingView({
                                   setAssignModalLog(item);
                                   setAssignVehicleId(vehicles[0].id);
                                 }}
-                                className="p-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors cursor-pointer"
+                                className="p-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer"
                                 title="تخصیص به خودرو و ثبت کارکرد"
                               >
                                 <Truck className="w-3.5 h-3.5" />
@@ -2748,7 +2744,7 @@ export default function OdometerTrackingView({
                                     await onDeleteSmsLog(item.id);
                                   }
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                                className="p-1 text-slate-400 hover:text-rose-500 bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer"
                                 title="حذف لاگ"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

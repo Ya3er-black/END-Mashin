@@ -652,6 +652,24 @@
   ],
   "activityLogs": [
     {
+      "id": 60,
+      "userId": 1,
+      "username": "admin",
+      "action": "حذف تعریف خدمت",
+      "actionDetails": "خدمت بازدید و تعویض لاستیک‌ها از سیستم حذف گردید.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-18T10:45:44.492Z"
+    },
+    {
+      "id": 59,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-18T10:44:26.302Z"
+    },
+    {
       "id": 58,
       "userId": 1,
       "username": "admin",
@@ -1240,7 +1258,7 @@
       "intervalKm": 50000,
       "warningKm": 1000,
       "notes": "جابجایی ضربدری لاستیک‌ها، بالانس چرخ‌ها یا تعویض رویه لاستیک",
-      "createdAt": "2026-07-27T16:39:20.155Z"
+      "createdAt": "2026-09-18T10:45:49.171Z"
     }
   ],
   "smsInboundLogs": [
