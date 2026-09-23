@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Search, Store, X, Trash2, List, MapPin, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Supplier } from '../types';
 import { toPersianDigits, normalizePhone } from '../utils/numberUtils';
@@ -135,21 +135,26 @@ export default function SuppliersView({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittedPhoneRef = useRef<string | null>(null);
 
   // بررسی بلادرنگ تکراری بودن شماره تماس در تامین‌کنندگان (منحصراً در بخش تامین‌کنندگان)
   const duplicateSupplier = useMemo(() => {
+    if (isSubmitting) return null;
     const normCurrent = normalizePhone(phone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return suppliers.find(s => {
       if (editingSupplierId && s.id === editingSupplierId) return false;
       const normS = normalizePhone(s.phone || s.mobile);
       return normS && normS === normCurrent;
     }) || null;
-  }, [phone, suppliers, editingSupplierId]);
+  }, [phone, suppliers, editingSupplierId, isSubmitting]);
 
   const [isNavigatedFromOrigin, setIsNavigatedFromOrigin] = useState(false);
 
   const handleOpenCreateForm = () => {
+    submittedPhoneRef.current = null;
     setEditingSupplierId(null);
     setName('');
     setPhone('');
@@ -170,6 +175,11 @@ export default function SuppliersView({
 
   const handleCloseOrReturn = () => {
     setIsFormOpen(false);
+    submittedPhoneRef.current = null;
+    setEditingSupplierId(null);
+    setName('');
+    setPhone('');
+    setAddress('');
     if (isNavigatedFromOrigin || peekNavigationOrigin()) {
       setIsNavigatedFromOrigin(false);
       returnToOriginView();
@@ -177,6 +187,7 @@ export default function SuppliersView({
   };
 
   const handleOpenEditForm = (s: Supplier) => {
+    submittedPhoneRef.current = null;
     setIsNavigatedFromOrigin(false);
     setEditingSupplierId(s.id);
     setName(s.name || '');
@@ -211,6 +222,8 @@ export default function SuppliersView({
       return;
     }
 
+    const normCurrent = normalizePhone(phone.trim());
+
     const existing = editingSupplierId ? suppliers.find(s => s.id === editingSupplierId) : null;
 
     const payload: any = {
@@ -227,6 +240,8 @@ export default function SuppliersView({
       payload.contactPerson = existing.contactPerson;
     }
 
+    setIsSubmitting(true);
+    submittedPhoneRef.current = normCurrent;
     try {
       if (editingSupplierId) {
         await onEditSupplier(editingSupplierId, payload);
@@ -236,7 +251,10 @@ export default function SuppliersView({
       handleCloseOrReturn();
     } catch (err: any) {
       console.error(err);
+      submittedPhoneRef.current = null;
       alert(err?.message || 'خطا در ذخیره اطلاعات تامین‌کننده');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -439,9 +457,10 @@ export default function SuppliersView({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
                 >
-                  {editingSupplierId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تامین‌کننده و بازگشت' : 'ذخیره اطلاعات تامین‌کننده')}
+                  {isSubmitting ? 'در حال ذخیره...' : (editingSupplierId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تامین‌کننده و بازگشت' : 'ذخیره اطلاعات تامین‌کننده'))}
                 </button>
               </div>
             </div>

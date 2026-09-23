@@ -1327,7 +1327,7 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
                       placeholder="انتخاب یا جستجوی تعمیرکار..."
                       options={allMechanicsList.map(m => ({
                         value: m.key,
-                        label: `${m.name} (${m.shopName}) - ${m.specialty}`
+                        label: m.shopName ? `${m.name} (${m.shopName})` : m.name
                       }))}
                     />
                   </div>

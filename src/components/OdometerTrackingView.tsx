@@ -9,8 +9,7 @@ import {
   PhoneCall, Gauge, AlertTriangle, AlertCircle, CheckCircle2, Clock, Calendar, 
   Search, Plus, Wrench, ArrowUpRight, ShieldAlert, History, 
   Check, X, Edit2, Trash2, Phone, Truck, TrendingUp, Info, RefreshCw,
-  Sparkles, Layers, ListFilter, MessageSquare, Send, Smartphone,
-  Copy, CheckCheck, Radio, Zap, ExternalLink, HelpCircle, Bell,
+  Sparkles, Layers, ListFilter, MessageSquare, Radio, ExternalLink, Bell,
   FileSpreadsheet, List, Eye
 } from 'lucide-react';
 import { Vehicle, PeriodicService, ServiceDefinition, OdometerLog, User, VehicleFailure, RepairWorkflow, PartInventory, SmsInboundLog } from '../types';
@@ -24,6 +23,7 @@ import { calculateComprehensiveServiceHealth, ComprehensiveServiceHealth, findLa
 import { CustomSelect } from './CustomSelect';
 import SmsRemindersTab from './SmsRemindersTab';
 import { OdometerInquiryFormView } from './OdometerInquiryFormView';
+import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 const startsWithPrefix = (text: string | undefined | null, prefix: string): boolean => {
   if (!text) return false;
@@ -95,7 +95,16 @@ export default function OdometerTrackingView({
   onNavigateToServices
 }: OdometerTrackingViewProps) {
   // تب‌های اصلی بخش (پیش‌فرض: لیست پایش و پیش‌بینی)
-  const [activeTab, setActiveTab] = useState<'matrix' | 'due_services' | 'fleet_call' | 'sms_reminders' | 'sms_gateway'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'due_services' | 'fleet_call' | 'inquiry_logs' | 'sms_reminders' | 'sms_gateway'>('matrix');
+
+  // استیت‌های تب سوابق استعلامات
+  const [inquiryLogsSearchTerm, setInquiryLogsSearchTerm] = useState('');
+  const [inquiryLogsSortKey, setInquiryLogsSortKey] = useState<string>('id');
+  const [inquiryLogsSortDirection, setInquiryLogsSortDirection] = useState<SortDirection>('desc');
+  const [inquiryLogsPage, setInquiryLogsPage] = useState(1);
+  const [inquiryLogsPageSize, setInquiryLogsPageSize] = useState(25);
+  const [inquiryLogsColumnFilters, setInquiryLogsColumnFilters] = useState<Record<string, string[]>>({});
+  const [inquiryFilterMenu, setInquiryFilterMenu] = useState<FilterMenuState | null>(null);
 
   // استیت‌های استعلام و همگام‌سازی پیامک‌ها
   const [isSyncingSms, setIsSyncingSms] = useState(false);
@@ -181,14 +190,7 @@ export default function OdometerTrackingView({
   // انتخاب اولیه شناسه خودرو - پیش‌فرض 0 تا زمانی که خودرویی انتخاب شود
   const [selectedVehicleId, setSelectedVehicleId] = useState<number>(0);
 
-  // استیت‌های شبیه‌ساز و وب‌هوک پیامک راننده
-  const [simVehicleId, setSimVehicleId] = useState<number>(() => vehicles.length > 0 ? vehicles[0].id : 0);
-  const [simPhone, setSimPhone] = useState<string>(() => (vehicles.length > 0 && vehicles[0].driverPhone) ? vehicles[0].driverPhone : '09124444444');
-  const [simMessage, setSimMessage] = useState<string>('کیلومتر ۱۴۸۵۰۰');
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simResult, setSimResult] = useState<any | null>(null);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-  const [copiedCron, setCopiedCron] = useState(false);
+  // استیت‌های تب پیامک راننده
   const [smsSearchTerm, setSmsSearchTerm] = useState('');
   const [smsStatusFilter, setSmsStatusFilter] = useState<'all' | 'success' | 'error'>('all');
 
@@ -297,22 +299,11 @@ export default function OdometerTrackingView({
     setIsSearchOpen(false);
   };
 
-  // لیست خودروها منطبق با عبارت جستجوی نام خودرو
+  // لیست خودروها منطبق با عبارت جستجوی نام خودرو، راننده و کد خودرو
   const matchedVehicles = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = searchTerm.trim();
     return query
-      ? vehicles.filter(v => 
-          v.name?.toLowerCase().includes(query) || 
-          v.code?.toLowerCase().includes(query) || 
-          v.plaque?.toLowerCase().includes(query) ||
-          v.driverName?.toLowerCase().includes(query) ||
-          v.company?.toLowerCase().includes(query) ||
-          startsWithPrefix(v.name, query) || 
-          startsWithPrefix(v.code, query) || 
-          startsWithPrefix(v.plaque, query) ||
-          startsWithPrefix(v.driverName, query) ||
-          startsWithPrefix(v.company, query)
-        )
+      ? vehicles.filter(v => matchesVehicleSearch(v, query))
       : vehicles;
   }, [vehicles, searchTerm]);
 
@@ -1128,34 +1119,222 @@ export default function OdometerTrackingView({
     }
   };
 
+  // فیلتر و مرتب‌سازی سوابق استعلامات
+  const filteredInquiryLogs = useMemo(() => {
+    return odometerLogs.filter(log => {
+      // فیلتر جستجوی کلی یا درون-تبی
+      const effectiveSearch = inquiryLogsSearchTerm || searchTerm;
+      if (effectiveSearch && effectiveSearch.trim()) {
+        const query = effectiveSearch.toLowerCase().trim();
+        const matchesQuery = 
+          String(log.vehicleName || '').toLowerCase().includes(query) ||
+          String(log.plaque || '').toLowerCase().includes(query) ||
+          String(log.driverName || '').toLowerCase().includes(query) ||
+          String(log.driverPhone || '').toLowerCase().includes(query) ||
+          String(log.company || '').toLowerCase().includes(query) ||
+          String(log.inquiryDate || '').includes(query) ||
+          String(log.odometerKm || '').includes(query) ||
+          String(log.notes || '').toLowerCase().includes(query) ||
+          String(log.recordedBy || '').toLowerCase().includes(query);
+        if (!matchesQuery) return false;
+      }
+      // فیلتر خودرو انتخابی
+      if (vehicleFilter && vehicleFilter !== 'all' && String(log.vehicleId) !== String(vehicleFilter)) {
+        return false;
+      }
+      // فیلترهای ستونی
+      for (const [col, rawValues] of Object.entries(inquiryLogsColumnFilters)) {
+        const values = rawValues as string[] | undefined;
+        if (!values || values.length === 0) continue;
+        const val = String((log as any)[col] || '');
+        if (!values.includes(val)) return false;
+      }
+      return true;
+    });
+  }, [odometerLogs, inquiryLogsSearchTerm, searchTerm, vehicleFilter, inquiryLogsColumnFilters]);
+
+  useEffect(() => {
+    setInquiryLogsPage(1);
+  }, [inquiryLogsSearchTerm, searchTerm, vehicleFilter, inquiryLogsColumnFilters]);
+
+  const sortedInquiryLogs = useMemo(() => {
+    const customExtractors: Record<string, (item: OdometerLog) => any> = {
+      odometerKm: (item) => Number(item.odometerKm || 0),
+      previousKm: (item) => Number(item.previousKm || 0),
+      differenceKm: (item) => Number(item.differenceKm || 0),
+      inquiryDate: (item) => String(item.inquiryDate || ''),
+      inquiryTime: (item) => String(item.inquiryTime || ''),
+      vehicleName: (item) => String(item.vehicleName || ''),
+      plaque: (item) => String(item.plaque || ''),
+      driverName: (item) => String(item.driverName || ''),
+      company: (item) => String(item.company || ''),
+      recordedBy: (item) => String(item.recordedBy || item.source || ''),
+      id: (item) => Number(item.id || 0)
+    };
+    return sortData(filteredInquiryLogs, inquiryLogsSortKey, inquiryLogsSortDirection, customExtractors);
+  }, [filteredInquiryLogs, inquiryLogsSortKey, inquiryLogsSortDirection]);
+
+  const totalInquiryPages = Math.ceil(sortedInquiryLogs.length / inquiryLogsPageSize) || 1;
+  const paginatedInquiryLogs = useMemo(() => {
+    const start = (inquiryLogsPage - 1) * inquiryLogsPageSize;
+    return sortedInquiryLogs.slice(start, start + inquiryLogsPageSize);
+  }, [sortedInquiryLogs, inquiryLogsPage, inquiryLogsPageSize]);
+
+  const handleSortInquiry = (key: string) => {
+    if (inquiryLogsSortKey === key) {
+      setInquiryLogsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setInquiryLogsSortKey(key);
+      setInquiryLogsSortDirection('desc');
+    }
+  };
+
+  const getInquiryColValue = (item: OdometerLog, colKey: string): string => {
+    switch (colKey) {
+      case 'vehicleName':
+        return item.vehicleName || 'نامشخص';
+      case 'plaque':
+        return item.plaque || 'نامشخص';
+      case 'driverName':
+        return item.driverName || 'بدون راننده';
+      case 'company':
+        return item.company || 'نامشخص';
+      case 'inquiryDate':
+        return item.inquiryDate || 'نامشخص';
+      case 'recordedBy':
+        return item.recordedBy || item.source || 'نامشخص';
+      default:
+        return String((item as any)[colKey] || 'نامشخص');
+    }
+  };
+
+  const handleOpenInquiryFilterMenu = (colKey: string, colTitle: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const menuWidth = 270;
+    const menuHeight = 360;
+    const clampedX = Math.max(10, Math.min(e.clientX - 100, window.innerWidth - menuWidth - 10));
+    const clampedY = Math.max(10, Math.min(e.clientY + 8, window.innerHeight - menuHeight - 10));
+    setInquiryFilterMenu({
+      x: clampedX,
+      y: clampedY,
+      colKey,
+      colTitle
+    });
+  };
+
+  const currentInquiryMenuUniqueValues = useMemo(() => {
+    if (!inquiryFilterMenu) return [];
+    const valMap = new Map<string, number>();
+    odometerLogs.forEach(item => {
+      const val = getInquiryColValue(item, inquiryFilterMenu.colKey);
+      valMap.set(val, (valMap.get(val) || 0) + 1);
+    });
+    return Array.from(valMap.entries()).map(([value, count]) => ({ value, count }));
+  }, [inquiryFilterMenu, odometerLogs]);
+
+  const currentInquirySelectedValues = useMemo(() => {
+    if (!inquiryFilterMenu) return [];
+    if (inquiryLogsColumnFilters[inquiryFilterMenu.colKey]) {
+      return inquiryLogsColumnFilters[inquiryFilterMenu.colKey];
+    }
+    return currentInquiryMenuUniqueValues.map(v => v.value);
+  }, [inquiryFilterMenu, inquiryLogsColumnFilters, currentInquiryMenuUniqueValues]);
+
+  const handleToggleInquiryColumnValue = (val: string) => {
+    if (!inquiryFilterMenu) return;
+    const colKey = inquiryFilterMenu.colKey;
+    const allVals = currentInquiryMenuUniqueValues.map(v => v.value);
+    const currSelected = inquiryLogsColumnFilters[colKey] ?? allVals;
+
+    let updated: string[];
+    if (currSelected.includes(val)) {
+      updated = currSelected.filter(v => v !== val);
+    } else {
+      updated = [...currSelected, val];
+    }
+
+    if (updated.length === allVals.length) {
+      const next = { ...inquiryLogsColumnFilters };
+      delete next[colKey];
+      setInquiryLogsColumnFilters(next);
+    } else {
+      setInquiryLogsColumnFilters({ ...inquiryLogsColumnFilters, [colKey]: updated });
+    }
+  };
+
+  const handleExportInquiryLogsExcel = () => {
+    try {
+      const sanitize = (val: any) => {
+        if (val === undefined || val === null) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const headers = [
+        'ردیف',
+        'شناسه',
+        'نام خودرو',
+        'پلاک',
+        'نام راننده',
+        'شماره تماس راننده',
+        'شرکت / واحد',
+        'تاریخ استعلام',
+        'ساعت استعلام',
+        'کیلومتر ثبت‌شده',
+        'کیلومتر قبلی',
+        'پیمایش / اختلاف (کیلومتر)',
+        'ثبت‌کننده / منبع',
+        'توضیحات و یادداشت'
+      ];
+
+      const rows = sortedInquiryLogs.map((item, idx) => [
+        idx + 1,
+        item.id,
+        item.vehicleName || '---',
+        item.plaque || '---',
+        item.driverName || '---',
+        item.driverPhone || '---',
+        item.company || '---',
+        item.inquiryDate || '---',
+        item.inquiryTime || '---',
+        item.odometerKm || 0,
+        item.previousKm || 0,
+        item.differenceKm !== undefined ? item.differenceKm : 0,
+        item.recordedBy || item.source || '---',
+        item.notes || '---'
+      ]);
+
+      const csvContent = '\uFEFF' + [
+        headers.map(sanitize).join(','),
+        ...rows.map(row => row.map(sanitize).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('link');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `سوابق_استعلام_کیلومتر_ناوگان_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export inquiry logs excel error:', err);
+      alert('خطا در صدور خروجی اکسل سوابق استعلام');
+    }
+  };
+
   // خروجی اکسل هوشمند بر اساس تب فعال
   const handleExportCurrentTabExcel = () => {
     if (activeTab === 'matrix') {
       handleExportMatrixExcel();
     } else if (activeTab === 'due_services') {
       handleExportDueExcel();
+    } else if (activeTab === 'inquiry_logs') {
+      handleExportInquiryLogsExcel();
     } else {
       handleExportFleetExcel();
-    }
-  };
-
-  // اجرای شبیه‌سازی ارسال پیامک راننده
-  const handleRunSmsSimulation = async () => {
-    if (!simPhone || !simMessage) {
-      alert('لطفاً شماره تلفن فرستنده و متن پیامک را مشخص نمایید.');
-      return;
-    }
-    setIsSimulating(true);
-    setSimResult(null);
-    try {
-      if (onSimulateSms) {
-        const res = await onSimulateSms(simPhone, simMessage);
-        setSimResult(res);
-      }
-    } catch (err: any) {
-      alert(err.message || 'خطا در ارتباط با سرور پیامک');
-    } finally {
-      setIsSimulating(false);
     }
   };
 
@@ -1190,22 +1369,6 @@ export default function OdometerTrackingView({
     }
   };
 
-  // کپی آدرس وب‌هوک
-  const handleCopyWebhookUrl = () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/sms/inbound` : 'http://localhost:3000/api/sms/inbound';
-    navigator.clipboard.writeText(url);
-    setCopiedWebhook(true);
-    setTimeout(() => setCopiedWebhook(false), 2500);
-  };
-
-  // کپی آدرس کران‌جاب همگام‌سازی هاست
-  const handleCopyCronUrl = () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/sms/sync-inbound` : 'http://localhost:3000/api/sms/sync-inbound';
-    navigator.clipboard.writeText(url);
-    setCopiedCron(true);
-    setTimeout(() => setCopiedCron(false), 2500);
-  };
-
   // فیلتر لاگ‌های پیامک دریافتی
   const filteredSmsLogs = useMemo(() => {
     return smsLogs.filter(s => {
@@ -1237,6 +1400,7 @@ export default function OdometerTrackingView({
         currentUser={currentUser}
         initialVehicleId={formVehicleId || selectedVehicleId}
         onClose={() => setIsModalOpen(false)}
+        onDelete={onDeleteOdometerLog}
         onSubmit={async (data) => {
           if (editingLog) {
             await onEditOdometerLog(editingLog.id, {
@@ -1356,6 +1520,29 @@ export default function OdometerTrackingView({
             {toPersianDigits(vehicles.length)}
           </span>
           {activeTab === 'fleet_call' && (
+            <motion.div
+              layoutId="activeOdometerTabIndicator"
+              className="absolute bottom-0 right-0 left-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('inquiry_logs')}
+          className={`relative pb-2.5 px-4 text-xs font-bold transition-colors duration-200 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            activeTab === 'inquiry_logs'
+              ? 'text-indigo-600 dark:text-indigo-400'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>سوابق استعلامات کارکرد</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#1a1a1c] text-slate-700 dark:text-slate-300 font-mono font-bold">
+            {toPersianDigits(odometerLogs.length)}
+          </span>
+          {activeTab === 'inquiry_logs' && (
             <motion.div
               layoutId="activeOdometerTabIndicator"
               className="absolute bottom-0 right-0 left-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full"
@@ -1488,8 +1675,8 @@ export default function OdometerTrackingView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>
@@ -2234,16 +2421,50 @@ export default function OdometerTrackingView({
                               <button
                                 type="button"
                                 onClick={() => handleOpenAddModal(v.id)}
-                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap pointer-events-auto"
                                 title="ثبت استعلام کارکرد جدید"
                               >
                                 ثبت استعلام
                               </button>
 
+                              {v.latestLog && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditModal(v.latestLog);
+                                  }}
+                                  className="p-1 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#1e1e24] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
+                                  title="ویرایش آخرین استعلام این خودرو"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {v.latestLog && onDeleteOdometerLog && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`آیا از حذف آخرین استعلام کارکرد خودرو «${v.name}» (${toPersianDigits(formatNumber(v.latestLog.odometerKm))} کیلومتر در تاریخ ${toPersianDigits(v.latestLog.inquiryDate)}) اطمینان دارید؟`)) {
+                                      try {
+                                        await onDeleteOdometerLog(v.latestLog.id);
+                                      } catch (err: any) {
+                                        alert(err?.message || 'خطا در حذف استعلام');
+                                      }
+                                    }
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
+                                  title="حذف آخرین استعلام کارکرد این خودرو"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => setSelectedFleetVehicleForDetails(v)}
-                                className={`w-5 h-5 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 ${
+                                className={`w-5 h-5 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 pointer-events-auto ${
                                   v.needsService
                                     ? 'bg-rose-500 hover:bg-rose-600 border border-rose-400 dark:border-rose-500/50 ring-2 ring-rose-300/60 dark:ring-rose-900/60'
                                     : 'bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 dark:border-emerald-500/50 ring-2 ring-emerald-300/60 dark:ring-emerald-900/60'
@@ -2285,269 +2506,400 @@ export default function OdometerTrackingView({
         </div>
       )}
 
-      {/* محتوای تب سوم: دریافت خودکار پیامکی کارکرد رانندگان (SMS Gateway & Simulator) */}
+      {/* محتوای تب سوابق استعلامات کارکرد ناوگان */}
+      {activeTab === 'inquiry_logs' && (
+        <div className="space-y-4">
+          {/* کارت آمار و هدر تب */}
+          <div className="bg-white dark:bg-[#151518] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/20">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>سوابق و تاریخچه استعلامات کارکرد ناوگان</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-mono font-bold">
+                        {toPersianDigits(sortedInquiryLogs.length)} مورد
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      مشاهده، فیلتر ستونی، ویرایش و حذف کامل استعلام‌های ثبت‌شده دستی، پیامکی و سیستمی
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddModal(selectedVehicleId || vehicles[0]?.id)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer inline-flex items-center gap-1.5 active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>ثبت استعلام کارکرد جدید</span>
+                </button>
+              </div>
+            </div>
+
+            {/* کارت‌های خلاصه آمار */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-[#222226]">
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#1a1a1e] border border-slate-200/60 dark:border-[#2a2a30]">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">کل استعلام‌های ثبت‌شده</span>
+                <span className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                  {toPersianDigits(odometerLogs.length)}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/30">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block mb-0.5">ثبت‌شده توسط پیامک رانندگان</span>
+                <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                  {toPersianDigits(odometerLogs.filter(l => l.source === 'sms').length)}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/30">
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block mb-0.5">ثبت‌شده دستی توسط اپراتور</span>
+                <span className="text-sm font-bold font-mono text-indigo-700 dark:text-indigo-300">
+                  {toPersianDigits(odometerLogs.filter(l => l.source !== 'sms').length)}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/30">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 block mb-0.5">تعداد خودروهای دارای استعلام</span>
+                <span className="text-sm font-bold font-mono text-amber-700 dark:text-amber-300">
+                  {toPersianDigits(new Set(odometerLogs.map(l => l.vehicleId)).size)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* جدول سوابق استعلامات کارکرد */}
+          <div className="bg-white dark:bg-[#151518] rounded-xl border border-slate-200 dark:border-[#2d2d30] shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
+                    <th className="py-2.5 px-3 text-center w-12 text-xs font-medium">ردیف</th>
+
+                    <TableColumnHeader
+                      title="تاریخ و زمان استعلام"
+                      colKey="inquiryDate"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['inquiryDate']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('inquiryDate', 'تاریخ استعلام', e)}
+                      className="min-w-[130px]"
+                    />
+
+                    <TableColumnHeader
+                      title="نام و کد خودرو"
+                      colKey="vehicleName"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['vehicleName']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('vehicleName', 'نام خودرو', e)}
+                      className="min-w-[140px]"
+                    />
+
+                    <TableColumnHeader
+                      title="شماره پلاک"
+                      colKey="plaque"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['plaque']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('plaque', 'پلاک خودرو', e)}
+                      className="min-w-[120px]"
+                      align="center"
+                    />
+
+                    <TableColumnHeader
+                      title="راننده"
+                      colKey="driverName"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['driverName']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('driverName', 'نام راننده', e)}
+                      className="min-w-[130px]"
+                    />
+
+                    <TableColumnHeader
+                      title="شرکت / واحد"
+                      colKey="company"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['company']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('company', 'شرکت', e)}
+                      className="min-w-[110px]"
+                    />
+
+                    <TableColumnHeader
+                      title="کیلومتر ثبت‌شده"
+                      colKey="odometerKm"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      className="min-w-[120px]"
+                      align="center"
+                    />
+
+                    <TableColumnHeader
+                      title="کیلومتر قبلی"
+                      colKey="previousKm"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      className="min-w-[110px]"
+                      align="center"
+                    />
+
+                    <TableColumnHeader
+                      title="پیمایش (اختلاف)"
+                      colKey="differenceKm"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      className="min-w-[110px]"
+                      align="center"
+                    />
+
+                    <TableColumnHeader
+                      title="منبع / ثبت‌کننده"
+                      colKey="recordedBy"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['recordedBy']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('recordedBy', 'ثبت‌کننده / منبع', e)}
+                      className="min-w-[120px]"
+                    />
+
+                    <th className="py-2.5 px-3 text-center w-28 text-xs font-medium">عملیات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
+                  {paginatedInquiryLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <History className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                          <p className="font-bold text-xs">هیچ موردی از استعلام کارکرد یافت نشد.</p>
+                          <p className="text-[11px] text-slate-400">
+                            می‌توانید فیلترهای بالا را پاک کرده یا یک استعلام کارکرد جدید ثبت کنید.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedInquiryLogs.map((logItem, idx) => {
+                      const rowNum = (inquiryLogsPage - 1) * inquiryLogsPageSize + idx + 1;
+                      const isSmsSource = logItem.source === 'sms';
+
+                      return (
+                        <tr
+                          key={logItem.id}
+                          className="hover:bg-indigo-50/30 dark:hover:bg-[#1a1a1e] transition-colors group relative"
+                        >
+                          <td className="py-2 px-3 text-center font-mono text-slate-400 text-xs">
+                            {toPersianDigits(rowNum)}
+                          </td>
+
+                          <td className="py-2 px-3 whitespace-nowrap font-mono text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {toPersianDigits(logItem.inquiryDate)}
+                              </span>
+                              {logItem.inquiryTime && (
+                                <span className="text-slate-400 text-[10px]">
+                                  {toPersianDigits(logItem.inquiryTime)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="font-bold text-slate-900 dark:text-white block">
+                              {logItem.vehicleName || 'نامشخص'}
+                            </span>
+                            {logItem.vehicleId && (
+                              <span className="text-[10px] text-slate-400 block font-mono">
+                                کد: #{toPersianDigits(logItem.vehicleId)}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono">
+                            {logItem.plaque ? (
+                              <span className="inline-block bg-slate-100 dark:bg-[#1d1d22] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30] text-slate-800 dark:text-slate-200 text-[10px]">
+                                {toPersianDigits(logItem.plaque)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">-</span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="text-slate-800 dark:text-slate-200 block font-medium">
+                              {logItem.driverName || 'بدون راننده'}
+                            </span>
+                            {logItem.driverPhone && (
+                              <span className="text-[10px] text-slate-400 block font-mono">
+                                {toPersianDigits(logItem.driverPhone)}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-3 whitespace-nowrap text-slate-600 dark:text-slate-300">
+                            {logItem.company || '-'}
+                          </td>
+
+                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                            <span className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                              {toPersianDigits(formatNumber(logItem.odometerKm))}
+                            </span>
+                            <span className="text-[10px] text-slate-400 mr-1">کیلومتر</span>
+                          </td>
+
+                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-xs text-slate-500">
+                            {logItem.previousKm ? `${toPersianDigits(formatNumber(logItem.previousKm))} km` : '-'}
+                          </td>
+
+                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-xs">
+                            {logItem.differenceKm !== undefined ? (
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                logItem.differenceKm > 0
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              }`}>
+                                +{toPersianDigits(formatNumber(logItem.differenceKm))} km
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              {isSmsSource ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800/40">
+                                  <Radio className="w-3 h-3" />
+                                  <span>پیامک خودکار</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-[#1f1f24] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#2d2d30]">
+                                  <span>دستی</span>
+                                </span>
+                              )}
+                              {logItem.recordedBy && (
+                                <span className="text-[10px] text-slate-400 truncate max-w-[90px]" title={logItem.recordedBy}>
+                                  ({logItem.recordedBy})
+                                </span>
+                              )}
+                            </div>
+                            {logItem.notes && (
+                              <span className="text-[10px] text-slate-400 block truncate max-w-[160px] mt-0.5" title={logItem.notes}>
+                                یادداشت: {logItem.notes}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2 px-3 text-center whitespace-nowrap relative">
+                            {/* دکمه‌های عملیات ثابت */}
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(logItem)}
+                                className="p-1.5 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md transition-colors cursor-pointer"
+                                title="ویرایش این استعلام"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {onDeleteOdometerLog && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`آیا از حذف استعلام شماره #${toPersianDigits(logItem.id)} خودرو «${logItem.vehicleName || ''}» (${toPersianDigits(formatNumber(logItem.odometerKm))} کیلومتر در تاریخ ${toPersianDigits(logItem.inquiryDate)}) اطمینان دارید؟\nدر صورت حذف، کارکرد این خودرو به صورت خودکار به استعلام قبلی برمی‌گردد.`)) {
+                                      try {
+                                        await onDeleteOdometerLog(logItem.id);
+                                      } catch (err: any) {
+                                        alert(err?.message || 'خطا در حذف استعلام');
+                                      }
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
+                                  title="حذف این استعلام"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* نوار عملیات شناور هاور روی ردیف */}
+                            <div className="absolute inset-y-0 left-0 pl-3 pr-10 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(logItem)}
+                                className="px-2 py-1 bg-white dark:bg-[#1e1e24] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-[#2d2d30] rounded-md text-[10px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 pointer-events-auto"
+                                title="ویرایش استعلام"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>ویرایش</span>
+                              </button>
+
+                              {onDeleteOdometerLog && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`آیا از حذف استعلام شماره #${toPersianDigits(logItem.id)} خودرو «${logItem.vehicleName || ''}» (${toPersianDigits(formatNumber(logItem.odometerKm))} کیلومتر در تاریخ ${toPersianDigits(logItem.inquiryDate)}) اطمینان دارید؟`)) {
+                                      try {
+                                        await onDeleteOdometerLog(logItem.id);
+                                      } catch (err: any) {
+                                        alert(err?.message || 'خطا در حذف استعلام');
+                                      }
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-slate-200 dark:border-[#2d2d30] rounded-md text-[10px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 pointer-events-auto"
+                                  title="حذف استعلام"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>حذف</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={inquiryLogsPage}
+              totalPages={totalInquiryPages}
+              pageSize={inquiryLogsPageSize}
+              totalItems={sortedInquiryLogs.length}
+              onPageChange={setInquiryLogsPage}
+              onPageSizeChange={(size) => {
+                setInquiryLogsPageSize(size);
+                setInquiryLogsPage(1);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* محتوای تب سوم: دریافت خودکار پیامکی کارکرد رانندگان (SMS Gateway) */}
       {activeTab === 'sms_gateway' && (
         <div className="space-y-4">
-          {/* بخش ۱: راهنمای وب‌هوک و اتصال به پنل‌های پیامکی ایران */}
-          <div className="bg-gradient-to-r from-violet-50 via-white to-slate-50 dark:from-[#141226] dark:via-[#111116] dark:to-[#121217] p-4 rounded-lg border border-violet-200 dark:border-violet-500/30 shadow-2xs">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              <div className="space-y-1 max-w-2xl">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-md bg-violet-100 dark:bg-violet-600/20 text-violet-700 dark:text-violet-400 flex items-center justify-center border border-violet-200 dark:border-violet-500/30">
-                    <Radio className="w-3.5 h-3.5" />
-                  </div>
-                  <h2 className="text-xs font-bold text-slate-900 dark:text-white">وب‌هوک هوشمند اتصال به پنل‌های پیامکی ایران</h2>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 font-bold">
-                    فعال و آنلاین
-                  </span>
-                </div>
-                <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
-                  کافیست آدرس وب‌هوک زیر را در پنل پیامک خود (کاوه نگار، ملی‌پیامک، فراز اس‌ام‌اس، SMS.ir و...) در بخش <strong className="text-violet-700 dark:text-violet-300">«هدایت پیامک‌های دریافتی (URL Forwarding / Webhook)»</strong> وارد کنید. به محض اینکه راننده عدد کیلومتر را به شماره خط اختصاصی شما پیامک کند، سامانه شماره فرستنده را به صورت خودکار شناسایی کرده و کیلومتر خودرو را فوراً به‌روزرسانی می‌نماید.
-                </p>
-              </div>
-
-              {/* باکس‌های آدرس وب‌هوک و کران‌جاب هاست */}
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                {/* باکس ۱: وب‌هوک پنل پیامک */}
-                <div className="bg-slate-100 dark:bg-[#0b0b0e] p-2.5 rounded-lg border border-violet-200 dark:border-violet-500/20 flex flex-col gap-1.5 min-w-[280px]">
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                    <span>وب‌هوک پنل پیامک (URL Forwarding):</span>
-                    <span className="font-mono text-[9px] text-violet-600 dark:text-violet-400 font-bold">POST / GET</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white dark:bg-[#17171d] px-2 py-1 rounded-md border border-slate-200 dark:border-[#2d2d30]">
-                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 select-all truncate dir-ltr text-left flex-1">
-                      {typeof window !== 'undefined' ? `${window.location.origin}/api/sms/inbound` : '/api/sms/inbound'}
-                    </span>
-                    <button
-                      onClick={handleCopyWebhookUrl}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                        copiedWebhook 
-                          ? 'bg-emerald-600 text-white' 
-                          : 'bg-violet-600 hover:bg-violet-700 text-white'
-                      }`}
-                    >
-                      {copiedWebhook ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedWebhook ? 'کپی شد' : 'کپی'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* باکس ۲: کران‌جاب هاست */}
-                <div className="bg-slate-100 dark:bg-[#0b0b0e] p-2.5 rounded-lg border border-amber-200 dark:border-amber-500/30 flex flex-col gap-1.5 min-w-[280px]">
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                    <span className="text-amber-700 dark:text-amber-400 font-medium">کران‌جاب هاست اشتراکی (Cron Job):</span>
-                    <span className="font-mono text-[9px] text-amber-600 dark:text-amber-400 font-bold">هر ۵ دقیقه</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white dark:bg-[#17171d] px-2 py-1 rounded-md border border-slate-200 dark:border-[#2d2d30]">
-                    <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 select-all truncate dir-ltr text-left flex-1">
-                      {typeof window !== 'undefined' ? `${window.location.origin}/api/sms/sync-inbound` : '/api/sms/sync-inbound'}
-                    </span>
-                    <button
-                      onClick={handleCopyCronUrl}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                        copiedCron 
-                          ? 'bg-emerald-600 text-white' 
-                          : 'bg-amber-600 hover:bg-amber-700 text-white'
-                      }`}
-                    >
-                      {copiedCron ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCron ? 'کپی شد' : 'کپی'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* الگوهای مجاز پیامک راننده */}
-            <div className="mt-3 pt-3 border-t border-violet-200 dark:border-violet-500/20 flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1">
-                <HelpCircle className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                فرمت پیامک راننده:
-              </span>
-              <span className="bg-white dark:bg-[#1b1b26] text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded border border-violet-200 dark:border-violet-500/20 font-mono text-[10px]">
-                145000
-              </span>
-              <span className="bg-white dark:bg-[#1b1b26] text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded border border-violet-200 dark:border-violet-500/20 text-[10px]">
-                کیلومتر ۱۴۵۰۰۰
-              </span>
-              <span className="bg-white dark:bg-[#1b1b26] text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded border border-violet-200 dark:border-violet-500/20 text-[10px]">
-                کارکرد: 148200
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                (سامانه به صورت خودکار اعداد فارسی و انگلیسی را تفکیک و پردازش می‌کند)
-              </span>
-            </div>
-
-            {/* راهنمای کران‌جاب هاست سی‌پنل / دایرکت‌ادمین */}
-            <div className="mt-2.5 pt-2.5 border-t border-violet-200 dark:border-violet-500/20 text-[10px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2">
-              <span className="font-bold text-amber-700 dark:text-amber-400">تنظیم خودکار هاست (Cron Job در سی‌پنل/دایرکت‌ادمین):</span>
-              <span>در صورتی که پنل پیامک شما از هدایت آنی پشتیبانی نمی‌کند، یک Cron Job با بازه زمانی هر ۵ دقیقه با دستور زیر اضافه فرمایید:</span>
-              <code className="bg-white dark:bg-[#1b1b26] text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-500/20 font-mono text-[9px] dir-ltr select-all">
-                curl -s {typeof window !== 'undefined' ? `${window.location.origin}/api/sms/sync-inbound` : 'https://yourdomain.com/api/sms/sync-inbound'} &gt; /dev/null
-              </code>
-            </div>
-          </div>
-
-          {/* بخش ۲: شبیه‌ساز و تست زنده ارسال پیامک راننده */}
-          <div className="bg-white dark:bg-[#111113] p-4 rounded-lg border border-slate-200 dark:border-[#2d2d30] shadow-2xs">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-md bg-indigo-50 dark:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white">شبیه‌ساز و تست زنده ارسال پیامک راننده به سامانه</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">برای آزمایش پردازش خودکار پیامک، می‌توانید یک پیامک تستی ارسال و نتیجه را بلافاصله مشاهده فرمایید.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* انتخاب سریع راننده یا خودرو */}
-              <div className="space-y-1">
-                <label className="text-slate-700 dark:text-slate-300 text-[10px] font-bold block">انتخاب سریع راننده / خودرو:</label>
-                <select
-                  value={simVehicleId}
-                  onChange={(e) => {
-                    const vId = Number(e.target.value);
-                    setSimVehicleId(vId);
-                    const found = vehicles.find(v => v.id === vId);
-                    if (found && found.driverPhone) {
-                      setSimPhone(found.driverPhone);
-                    }
-                  }}
-                  className="w-full bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] text-slate-900 dark:text-white text-[11px] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value={0}>-- انتخاب از ناوگان خودروها --</option>
-                  {vehicles.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.plaque}) - {v.driverName} ({v.driverPhone || 'بدون شماره'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* شماره موبایل فرستنده */}
-              <div className="space-y-1">
-                <label className="text-slate-700 dark:text-slate-300 text-[10px] font-bold block">شماره موبایل فرستنده پیامک:</label>
-                <div className="relative">
-                  <Smartphone className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={simPhone}
-                    onChange={(e) => setSimPhone(e.target.value)}
-                    placeholder="مثال: 09121234567"
-                    className="w-full bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] text-slate-900 dark:text-white text-[11px] rounded-md pr-8 pl-2.5 py-1.5 font-mono focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* متن پیامک ارسالی راننده */}
-              <div className="space-y-1">
-                <label className="text-slate-700 dark:text-slate-300 text-[10px] font-bold block">متن پیامک راننده:</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={simMessage}
-                    onChange={(e) => setSimMessage(e.target.value)}
-                    placeholder="مثال: کیلومتر 145000 یا عدد 145000"
-                    className="flex-1 bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] text-slate-900 dark:text-white text-[11px] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRunSmsSimulation}
-                    disabled={isSimulating}
-                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-900/50 text-white text-[11px] font-bold rounded-md transition-colors flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                  >
-                    {isSimulating ? (
-                      <>
-                        <RefreshCw className="w-3 h-3 animate-spin" />
-                        <span>در حال پردازش...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3 h-3" />
-                        <span>ارسال و تست</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* نمونه‌های آماده برای تست سریع */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2.5 text-[10px]">
-              <span className="text-slate-500 dark:text-slate-400">نمونه پیامک‌های سریع برای تست:</span>
-              <button
-                type="button"
-                onClick={() => setSimMessage('145000')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1a1c] dark:hover:bg-[#25252a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2d2d30] font-mono cursor-pointer"
-              >
-                145000
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimMessage('کیلومتر ۱۴۸۲۵۰')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1a1c] dark:hover:bg-[#25252a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2d2d30] cursor-pointer"
-              >
-                کیلومتر ۱۴۸۲۵۰
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimMessage('سلام کارکرد امروز ماشین ۱۵۲۰۰۰ است')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1a1c] dark:hover:bg-[#25252a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2d2d30] cursor-pointer"
-              >
-                سلام کارکرد امروز ماشین ۱۵۲۰۰۰ است
-              </button>
-            </div>
-
-            {/* نمایش نتیجه شبیه‌سازی زنده */}
-            {simResult && (
-              <div className={`mt-3 p-3 rounded-lg border transition-all ${
-                simResult.success 
-                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' 
-                  : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30'
-              }`}>
-                <div className="flex items-start gap-2.5">
-                  <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
-                    simResult.success ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                  }`}>
-                    {simResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                  </div>
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className={`text-[11px] font-bold ${simResult.success ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                        {simResult.success ? 'پیامک با موفقیت دریافت و کیلومتر خودرو به‌روز شد!' : 'پیامک دریافت شد اما نیاز به بررسی دارد'}
-                      </h4>
-                      {simResult.extractedKm && (
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-white dark:bg-[#111113] rounded border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
-                          کیلومتر: {toPersianDigits(formatNumber(simResult.extractedKm))} کیلومتر
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                      {simResult.smsLog?.statusMessage || simResult.message}
-                    </p>
-                    {simResult.vehicle && (
-                      <div className="flex flex-wrap items-center gap-2 pt-1.5 text-[10px] text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-[#2d2d30]/40">
-                        <span>🚗 خودرو: <strong className="text-slate-900 dark:text-white">{simResult.vehicle.name}</strong></span>
-                        <span>🔢 پلاک: <strong className="text-slate-900 dark:text-white font-mono">{toPersianDigits(simResult.vehicle.plaque)}</strong></span>
-                        <span>👤 راننده: <strong className="text-slate-900 dark:text-white">{simResult.vehicle.driverName}</strong></span>
-                        <span>📊 کیلومتر فعلی: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{toPersianDigits(formatNumber(simResult.vehicle.currentKm))} کیلومتر</strong></span>
-                      </div>
-                    )}
-                    {simResult.replyMessage && (
-                      <div className="mt-1.5 bg-slate-50 dark:bg-[#0c0c0e] p-2 rounded-md border border-slate-200 dark:border-[#2d2d30] text-[10px] flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                        <MessageSquare className="w-3 h-3 text-violet-500 dark:text-violet-400 shrink-0" />
-                        <span>پاسخ خودکار:</span>
-                        <span className="text-violet-700 dark:text-violet-300 font-medium">"{simResult.replyMessage}"</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* بخش ۳: جدول لاگ پیامک‌های دریافتی رانندگان */}
+          {/* جدول لاگ پیامک‌های دریافتی رانندگان */}
           <div className="bg-white dark:bg-[#111113] rounded-lg border border-slate-200 dark:border-[#2d2d30] overflow-hidden shadow-2xs">
             <div className="p-3 border-b border-slate-200 dark:border-[#2d2d30] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-[#161618]">
               <div className="flex items-center gap-2">
@@ -2739,13 +3091,19 @@ export default function OdometerTrackingView({
                             )}
                             {onDeleteSmsLog && (
                               <button
-                                onClick={async () => {
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
                                   if (confirm('آیا از حذف این لاگ پیامک اطمینان دارید؟')) {
-                                    await onDeleteSmsLog(item.id);
+                                    try {
+                                      await onDeleteSmsLog(item.id);
+                                    } catch (err: any) {
+                                      alert(err?.message || 'خطا در حذف لاگ پیامک');
+                                    }
                                   }
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-500 bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer"
-                                title="حذف لاگ"
+                                className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 bg-white dark:bg-[#1e1e24] border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
+                                title="حذف لاگ پیامک"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -2811,7 +3169,7 @@ export default function OdometerTrackingView({
                   >
                     {vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.name} - پلاک {v.plaque} {v.driverName ? `(راننده: ${v.driverName})` : ''} - کارکرد فعلی: {toPersianDigits(formatNumber(v.currentKm || 0))} km
+                        {v.name} - {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'} (کد: {toPersianDigits(v.code)}) - کارکرد: {toPersianDigits(formatNumber(v.currentKm || 0))} km
                       </option>
                     ))}
                   </select>
@@ -3098,6 +3456,112 @@ export default function OdometerTrackingView({
                   </table>
                 </div>
               </div>
+
+              {/* سوابق و تاریخچه استعلام‌های کارکرد این خودرو */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-[#2d2d30]">
+                <div className="flex justify-between items-center">
+                  <span className="font-extrabold text-xs text-slate-900 dark:text-white flex items-center gap-1.5 border-r-2 border-indigo-500 pr-2">
+                    <History className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>سوابق استعلام‌های کارکرد ثبت‌شده ({toPersianDigits(odometerLogs.filter(l => l.vehicleId === selectedFleetVehicleForDetails.id).length)} مورد)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const vId = selectedFleetVehicleForDetails.id;
+                      setSelectedFleetVehicleForDetails(null);
+                      handleOpenAddModal(vId);
+                    }}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>ثبت استعلام جدید برای این خودرو</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#2d2d30] max-h-56">
+                  <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-[#1a1a1c] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs sticky top-0 z-10">
+                        <th className="py-2 px-3 w-10 text-center text-xs font-medium">#</th>
+                        <th className="py-2 px-3 text-xs font-medium">تاریخ و ساعت استعلام</th>
+                        <th className="py-2 px-3 text-center text-xs font-medium">کیلومتر کارکرد</th>
+                        <th className="py-2 px-3 text-center text-xs font-medium">پیمایش (اختلاف)</th>
+                        <th className="py-2 px-3 text-xs font-medium">منبع / ثبت‌کننده</th>
+                        <th className="py-2 px-3 text-center w-24 text-xs font-medium">عملیات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
+                      {odometerLogs.filter(l => l.vehicleId === selectedFleetVehicleForDetails.id).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-slate-400 font-medium">
+                            هیچ استعلام کارکردی تاکنون برای این خودرو ثبت نشده است.
+                          </td>
+                        </tr>
+                      ) : (
+                        [...odometerLogs.filter(l => l.vehicleId === selectedFleetVehicleForDetails.id)]
+                          .sort((a, b) => {
+                            const dateDiff = String(b.inquiryDate || '').localeCompare(String(a.inquiryDate || ''));
+                            if (dateDiff !== 0) return dateDiff;
+                            return Number(b.id || 0) - Number(a.id || 0);
+                          })
+                          .map((logItem, idx) => (
+                            <tr key={logItem.id} className="hover:bg-slate-50 dark:hover:bg-[#1f1f24] transition-colors">
+                              <td className="py-2 px-3 text-center text-slate-400 text-xs font-mono">{toPersianDigits(idx + 1)}</td>
+                              <td className="py-2 px-3 font-mono text-xs whitespace-nowrap">
+                                <span>{toPersianDigits(logItem.inquiryDate)}</span>
+                                {logItem.inquiryTime && (
+                                  <span className="text-slate-400 text-[10px] mr-1.5 font-mono">({toPersianDigits(logItem.inquiryTime)})</span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                                {toPersianDigits(formatNumber(logItem.odometerKm))} کیلومتر
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono text-xs text-slate-500">
+                                {logItem.differenceKm !== undefined ? `+${toPersianDigits(formatNumber(logItem.differenceKm))} km` : '-'}
+                              </td>
+                              <td className="py-2 px-3 text-xs text-slate-500 truncate max-w-[150px]">
+                                {logItem.recordedBy || logItem.source || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleOpenEditModal(logItem);
+                                      setSelectedFleetVehicleForDetails(null);
+                                    }}
+                                    className="p-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded transition-colors cursor-pointer"
+                                    title="ویرایش این استعلام"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {onDeleteOdometerLog && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (confirm(`آیا از حذف استعلام ${toPersianDigits(formatNumber(logItem.odometerKm))} کیلومتر تاریخ ${toPersianDigits(logItem.inquiryDate)} اطمینان دارید؟`)) {
+                                          try {
+                                            await onDeleteOdometerLog(logItem.id);
+                                          } catch (err: any) {
+                                            alert(err?.message || 'خطا در حذف استعلام');
+                                          }
+                                        }
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                      title="حذف این استعلام"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
             {/* فوتر دکمه‌های عملیاتی جزئیات */}
@@ -3192,6 +3656,28 @@ export default function OdometerTrackingView({
             setFleetColumnFilters({ ...fleetColumnFilters, [fleetFilterMenu.colKey]: [val] });
           }}
           onClose={() => setFleetFilterMenu(null)}
+        />
+      )}
+
+      {/* منوی شناور فیلتر ستون‌ها برای سوابق استعلامات کارکرد */}
+      {inquiryFilterMenu && (
+        <ColumnFilterMenu
+          filterMenu={inquiryFilterMenu}
+          uniqueValues={currentInquiryMenuUniqueValues}
+          selectedValues={currentInquirySelectedValues}
+          onToggleValue={handleToggleInquiryColumnValue}
+          onSelectAll={() => {
+            const next = { ...inquiryLogsColumnFilters };
+            delete next[inquiryFilterMenu.colKey];
+            setInquiryLogsColumnFilters(next);
+          }}
+          onDeselectAll={() => {
+            setInquiryLogsColumnFilters({ ...inquiryLogsColumnFilters, [inquiryFilterMenu.colKey]: [] });
+          }}
+          onSelectOnly={(val) => {
+            setInquiryLogsColumnFilters({ ...inquiryLogsColumnFilters, [inquiryFilterMenu.colKey]: [val] });
+          }}
+          onClose={() => setInquiryFilterMenu(null)}
         />
       )}
     </div>

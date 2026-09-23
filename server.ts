@@ -60,6 +60,26 @@ const defaultDb = {
     { id: 7, serviceType: 'تعویض ضدیخ و مایع خنک‌کننده', intervalKm: 20000, warningKm: 500, notes: 'ضدیخ و مایع خنک‌کننده', createdAt: new Date().toISOString() },
     { id: 8, serviceType: 'بازدید و تعویض لاستیک‌ها', intervalKm: 50000, warningKm: 1000, notes: 'بالانس و تعویض لاستیک‌ها', createdAt: new Date().toISOString() }
   ],
+  failureCategories: [
+    { id: 1, name: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'سیستم‌های انتقال قدرت، موتور، کلاچ و ترمز', createdAt: new Date().toISOString() },
+    { id: 2, name: 'برقی و سیستم الکترونیک', description: 'باتری، دینام، استارت، سیم‌کشی و روشنایی', createdAt: new Date().toISOString() },
+    { id: 3, name: 'جلوبندی، لاستیک و تعلیق', description: 'کمک‌فنرها، طبق، سیبک، جعبه فرمان و لاستیک', createdAt: new Date().toISOString() },
+    { id: 4, name: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'رادیاتور، واترپمپ، ترموستات، پمپ بنزین و انژکتور', createdAt: new Date().toISOString() },
+    { id: 5, name: 'بدنه، صافکاری و نقاشی', description: 'سپر، درها، شیشه‌ها، قفل و تزئینات داخلی/خارجی', createdAt: new Date().toISOString() },
+    { id: 6, name: 'سایر و سرویس‌های تخصصی', description: 'سایر عیوب فنی و نیازمندی‌های تعمیرگاهی متفرقه', createdAt: new Date().toISOString() }
+  ],
+  failureDefinitions: [
+    { id: 1, failureType: 'سوختن واشر سرسیلندر', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'کم کردن آب رادیاتور و اختلاط آب و روغن', createdAt: new Date().toISOString() },
+    { id: 2, failureType: 'خرابی دیسک و صفحه کلاچ', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'بکسوات کلاچ و افت شتاب خودرو', createdAt: new Date().toISOString() },
+    { id: 3, failureType: 'روغن‌ریزی هیدرولیک فرمان', category: 'جلوبندی، لاستیک و تعلیق', description: 'کاهش سطح روغن هیدرولیک و سفتی فرمان', createdAt: new Date().toISOString() },
+    { id: 4, failureType: 'ضعف و سوت کشیدن لنت ترمز', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'ساییدگی لنت و صدای ناهنجار در ترمزگیری', createdAt: new Date().toISOString() },
+    { id: 5, failureType: 'خرابی دینام و عدم شارژ باتری', category: 'برقی و سیستم الکترونیک', description: 'روشن ماندن چراغ دینام و تخلیه باتری', createdAt: new Date().toISOString() },
+    { id: 6, failureType: 'استارت نخوردن و خرابی اتوماتیک استارت', category: 'برقی و سیستم الکترونیک', description: 'عدم چرخش موتور هنگام استارت', createdAt: new Date().toISOString() },
+    { id: 7, failureType: 'لرزش فرمان و گیجی جلوبندی', category: 'جلوبندی، لاستیک و تعلیق', description: 'خرابی سیبک‌ها یا عدم بالانس چرخ‌ها', createdAt: new Date().toISOString() },
+    { id: 8, failureType: 'سوراخ شدن رادیاتور و نشت مایع خنک‌کننده', category: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'جوش آوردن موتور و افت سطح آب', createdAt: new Date().toISOString() },
+    { id: 9, failureType: 'خرابی پمپ بنزین', category: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'ریپ زدن و خاموش شدن ناگهانی خودرو', createdAt: new Date().toISOString() },
+    { id: 10, failureType: 'پاره شدن تسمه دینام و هیدرولیک', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'قطع برق دینام و از کار افتادن پمپ هیدرولیک', createdAt: new Date().toISOString() }
+  ],
   odometerLogs: [],
   smsInboundLogs: [],
   vehicleHistory: [],
@@ -76,7 +96,8 @@ const defaultDb = {
     apiKey: 'Xcpq5IEcfWypqDce4tHB612pCor0OsnwkdEdPrAgldxozVWp'
   },
   smsOutboundLogs: [],
-  processedSmsIds: []
+  processedSmsIds: [],
+  reminders: []
 };
 
 // خواندن دیتابیس لوکال
@@ -89,6 +110,10 @@ function readDb() {
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content);
     let changed = false;
+    if (!parsed.reminders) {
+      parsed.reminders = [];
+      changed = true;
+    }
     if (!parsed.smsInboundLogs) {
       parsed.smsInboundLogs = defaultDb.smsInboundLogs || [];
       changed = true;
@@ -111,6 +136,14 @@ function readDb() {
     }
     if (!parsed.odometerLogs) {
       parsed.odometerLogs = defaultDb.odometerLogs || [];
+      changed = true;
+    }
+    if (!parsed.failureCategories || !Array.isArray(parsed.failureCategories) || parsed.failureCategories.length === 0) {
+      parsed.failureCategories = defaultDb.failureCategories;
+      changed = true;
+    }
+    if (!parsed.failureDefinitions || !Array.isArray(parsed.failureDefinitions) || parsed.failureDefinitions.length === 0) {
+      parsed.failureDefinitions = defaultDb.failureDefinitions;
       changed = true;
     }
     // همگام‌سازی شرکت‌های پیش‌فرض کاربران نمونه
@@ -1733,6 +1766,8 @@ async function startServer() {
         assignedMechanicId: assignedMechanicId !== undefined ? (assignedMechanicId ? Number(assignedMechanicId) : undefined) : db.vehicleFailures[idx].assignedMechanicId,
         repairShopName: repairShopName !== undefined ? repairShopName : db.vehicleFailures[idx].repairShopName,
         endDate: endDate !== undefined ? endDate : db.vehicleFailures[idx].endDate,
+        partsUsed: partsUsed !== undefined ? partsUsed : db.vehicleFailures[idx].partsUsed,
+        shopPartsUsed: shopPartsUsed !== undefined ? shopPartsUsed : db.vehicleFailures[idx].shopPartsUsed,
         wages: wages !== undefined ? Number(wages) : db.vehicleFailures[idx].wages,
         totalCost: totalCost !== undefined ? Number(totalCost) : db.vehicleFailures[idx].totalCost,
         satisfactionLevel: satisfactionLevel !== undefined ? satisfactionLevel : db.vehicleFailures[idx].satisfactionLevel
@@ -2584,7 +2619,139 @@ async function startServer() {
     }
   });
 
+  // CRUD for Failure Categories
+  app.get('/api/failure-categories', (req, res) => {
+    res.json(readDb().failureCategories || []);
+  });
+
+  app.post('/api/failure-categories', (req, res) => {
+    const db = readDb();
+    if (!db.failureCategories) db.failureCategories = [];
+    const name = String(req.body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ message: 'نام دسته خرابی الزامی است.' });
+    }
+    // جلوگیری از ثبت دسته تکراری
+    const existing = db.failureCategories.find((c: any) => c.name.trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+      return res.status(400).json({ message: 'این دسته خرابی قبلاً ثبت شده است.' });
+    }
+    const newCategory = {
+      id: db.failureCategories.length > 0 ? Math.max(...db.failureCategories.map((c: any) => c.id)) + 1 : 1,
+      name,
+      description: req.body.description || '',
+      createdAt: new Date().toISOString()
+    };
+    db.failureCategories.push(newCategory);
+    writeDb(db);
+    logActivity(1, 'admin', 'تعریف دسته خرابی جدید', `دسته خرابی «${newCategory.name}» ثبت گردید.`);
+    res.json(newCategory);
+  });
+
+  app.put('/api/failure-categories/:id', (req, res) => {
+    const db = readDb();
+    const { id } = req.params;
+    if (!db.failureCategories) db.failureCategories = [];
+    const idx = db.failureCategories.findIndex((c: any) => c.id === Number(id));
+    if (idx !== -1) {
+      const oldName = db.failureCategories[idx].name;
+      db.failureCategories[idx] = { ...db.failureCategories[idx], ...req.body };
+      // در صورت تغییر نام دسته، نام آن در تعاریف خرابی متناظر نیز به‌روزرسانی شود
+      if (req.body.name && req.body.name !== oldName && db.failureDefinitions) {
+        db.failureDefinitions.forEach((fd: any) => {
+          if (fd.category === oldName) {
+            fd.category = req.body.name;
+          }
+        });
+      }
+      writeDb(db);
+      logActivity(1, 'admin', 'ویرایش دسته خرابی', `دسته خرابی «${db.failureCategories[idx].name}» ویرایش گردید.`);
+      res.json(db.failureCategories[idx]);
+    } else {
+      res.status(404).json({ message: 'دسته خرابی یافت نشد.' });
+    }
+  });
+
+  app.delete('/api/failure-categories/:id', (req, res) => {
+    const db = readDb();
+    const { id } = req.params;
+    if (!db.failureCategories) db.failureCategories = [];
+    const catItem = db.failureCategories.find((c: any) => c.id === Number(id));
+    if (catItem) {
+      db.failureCategories = db.failureCategories.filter((c: any) => c.id !== Number(id));
+      writeDb(db);
+      logActivity(1, 'admin', 'حذف دسته خرابی', `دسته خرابی «${catItem.name}» حذف گردید.`);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ message: 'دسته خرابی یافت نشد.' });
+    }
+  });
+
+  // CRUD for Failure Definitions
+  app.get('/api/failure-definitions', (req, res) => {
+    res.json(readDb().failureDefinitions || []);
+  });
+
+  app.post('/api/failure-definitions', (req, res) => {
+    const db = readDb();
+    if (!db.failureDefinitions) db.failureDefinitions = [];
+    const failureType = String(req.body.failureType || '').trim();
+    if (!failureType) {
+      return res.status(400).json({ message: 'نوع خرابی الزامی است.' });
+    }
+    const newDef = {
+      ...req.body,
+      failureType,
+      category: String(req.body.category || 'عمومی').trim(),
+      description: req.body.description || '',
+      id: db.failureDefinitions.length > 0 ? Math.max(...db.failureDefinitions.map((s: any) => s.id)) + 1 : 1,
+      createdAt: new Date().toISOString()
+    };
+    db.failureDefinitions.push(newDef);
+    writeDb(db);
+    logActivity(1, 'admin', 'تعریف خرابی جدید', `نوع خرابی جدید «${newDef.failureType}» در دسته «${newDef.category}» ثبت گردید.`);
+    res.json(newDef);
+  });
+
+  app.put('/api/failure-definitions/:id', (req, res) => {
+    const db = readDb();
+    const { id } = req.params;
+    if (!db.failureDefinitions) db.failureDefinitions = [];
+    const idx = db.failureDefinitions.findIndex((s: any) => s.id === Number(id));
+    if (idx !== -1) {
+      db.failureDefinitions[idx] = { ...db.failureDefinitions[idx], ...req.body };
+      writeDb(db);
+      logActivity(1, 'admin', 'ویرایش تعریف خرابی', `تعریف خرابی «${db.failureDefinitions[idx].failureType}» ویرایش گردید.`);
+      res.json(db.failureDefinitions[idx]);
+    } else {
+      res.status(404).json({ message: 'تعریف خرابی یافت نشد.' });
+    }
+  });
+
+  app.delete('/api/failure-definitions/:id', (req, res) => {
+    const db = readDb();
+    const { id } = req.params;
+    if (!db.failureDefinitions) db.failureDefinitions = [];
+    const defItem = db.failureDefinitions.find((s: any) => s.id === Number(id));
+    if (defItem) {
+      db.failureDefinitions = db.failureDefinitions.filter((s: any) => s.id !== Number(id));
+      writeDb(db);
+      logActivity(1, 'admin', 'حذف تعریف خرابی', `خرابی «${defItem.failureType}» از سیستم حذف گردید.`);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ message: 'تعریف خرابی یافت نشد.' });
+    }
+  });
+
   // Endpoints aliases for enhanced compatibility
+  app.all('/api/failure_definitions*', (req, res, next) => {
+    req.url = req.url.replace('/api/failure_definitions', '/api/failure-definitions');
+    next();
+  });
+  app.all('/api/failure_categories*', (req, res, next) => {
+    req.url = req.url.replace('/api/failure_categories', '/api/failure-categories');
+    next();
+  });
   app.all('/api/drivers*', (req, res, next) => {
     req.url = req.url.replace('/api/drivers', '/api/persons');
     next();
@@ -2622,6 +2789,8 @@ async function startServer() {
       if (!db.persons) db.persons = [];
       if (!db.companies) db.companies = [];
       if (!db.serviceDefinitions) db.serviceDefinitions = [];
+      if (!db.failureDefinitions) db.failureDefinitions = [];
+      if (!db.failureCategories) db.failureCategories = [];
       if (!db.mechanics) db.mechanics = [];
       if (!db.suppliers) db.suppliers = [];
 
@@ -2633,6 +2802,7 @@ async function startServer() {
         persons: { imported: 0, updated: 0, skipped: 0, total: 0 },
         companies: { imported: 0, updated: 0, skipped: 0, total: 0 },
         service_definitions: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        failure_definitions: { imported: 0, updated: 0, skipped: 0, total: 0 },
         mechanics: { imported: 0, updated: 0, skipped: 0, total: 0 },
         suppliers: { imported: 0, updated: 0, skipped: 0, total: 0 }
       };
@@ -2822,6 +2992,58 @@ async function startServer() {
         });
       };
 
+      // تابع پردازش تعاریف خرابی‌ها
+      const processFailureDefinitions = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          const failureType = (item.failureType || item.title || item.name || '').trim();
+          if (!failureType) return;
+          summary.failure_definitions.total++;
+
+          const category = (item.category || 'عمومی').trim();
+          if (category && !db.failureCategories.some((c: any) => c.name.trim() === category)) {
+            const nextCatId = db.failureCategories.length > 0 ? Math.max(...db.failureCategories.map((c: any) => Number(c.id) || 0)) + 1 : 1;
+            db.failureCategories.push({
+              id: nextCatId,
+              name: category,
+              description: 'ایجاد شده خودکار از ورود اکسل',
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          const existingIdx = db.failureDefinitions.findIndex((f: any) => 
+            f.failureType && f.failureType.trim() === failureType
+          );
+
+          if (existingIdx !== -1) {
+            if (updateDuplicates) {
+              db.failureDefinitions[existingIdx] = {
+                ...db.failureDefinitions[existingIdx],
+                ...item,
+                failureType,
+                category: category || db.failureDefinitions[existingIdx].category,
+                description: item.description || db.failureDefinitions[existingIdx].description || '',
+                id: db.failureDefinitions[existingIdx].id
+              };
+              summary.failure_definitions.updated++;
+            } else {
+              summary.failure_definitions.skipped++;
+            }
+          } else {
+            const nextId = db.failureDefinitions.length > 0 ? Math.max(...db.failureDefinitions.map((f: any) => Number(f.id) || 0)) + 1 : 1;
+            const newF = {
+              failureType,
+              category: category || 'عمومی',
+              description: item.description || '',
+              id: nextId,
+              createdAt: new Date().toISOString()
+            };
+            db.failureDefinitions.push(newF);
+            summary.failure_definitions.imported++;
+          }
+        });
+      };
+
       // تابع پردازش تعمیرکاران
       const processMechanics = (list: any[]) => {
         if (!Array.isArray(list)) return;
@@ -2913,6 +3135,7 @@ async function startServer() {
         if (multiData.persons) processPersons(multiData.persons);
         if (multiData.companies) processCompanies(multiData.companies);
         if (multiData.service_definitions) processServiceDefinitions(multiData.service_definitions);
+        if (multiData.failure_definitions) processFailureDefinitions(multiData.failure_definitions);
         if (multiData.mechanics) processMechanics(multiData.mechanics);
         if (multiData.suppliers) processSuppliers(multiData.suppliers);
       } else {
@@ -2920,6 +3143,7 @@ async function startServer() {
         else if (entityType === 'persons') processPersons(items);
         else if (entityType === 'companies') processCompanies(items);
         else if (entityType === 'service_definitions') processServiceDefinitions(items);
+        else if (entityType === 'failure_definitions') processFailureDefinitions(items);
         else if (entityType === 'mechanics') processMechanics(items);
         else if (entityType === 'suppliers') processSuppliers(items);
       }
@@ -2942,6 +3166,8 @@ async function startServer() {
           persons: db.persons,
           companies: db.companies,
           serviceDefinitions: db.serviceDefinitions,
+          failureDefinitions: db.failureDefinitions,
+          failureCategories: db.failureCategories,
           mechanics: db.mechanics,
           suppliers: db.suppliers
         }
@@ -3056,23 +3282,33 @@ async function startServer() {
     const db = readDb();
     const { id } = req.params;
     if (!db.odometerLogs) db.odometerLogs = [];
-    const logItem = db.odometerLogs.find((o: any) => o.id === Number(id));
+    const targetId = Number(id);
+    const logItem = db.odometerLogs.find((o: any) => o.id === targetId || String(o.id) === String(id));
     if (logItem) {
-      db.odometerLogs = db.odometerLogs.filter((o: any) => o.id !== Number(id));
+      db.odometerLogs = db.odometerLogs.filter((o: any) => o.id !== targetId && String(o.id) !== String(id));
       
       // بازیابی آخرین کیلومتر باقیمانده برای خودرو
-      const vehicle = db.vehicles.find((v: any) => v.id === logItem.vehicleId);
+      const vehicle = db.vehicles?.find((v: any) => v.id === logItem.vehicleId || String(v.id) === String(logItem.vehicleId));
       if (vehicle) {
-        const vehicleLogs = db.odometerLogs.filter((l: any) => l.vehicleId === vehicle.id);
+        const vehicleLogs = db.odometerLogs.filter((l: any) => l.vehicleId === vehicle.id || String(l.vehicleId) === String(vehicle.id));
         if (vehicleLogs.length > 0) {
+          // مرتب‌سازی بر اساس تاریخ و سپس شناسه جهت اطمینان از دریافت جدیدترین استعلام
+          vehicleLogs.sort((a: any, b: any) => {
+            const dateDiff = String(b.inquiryDate || '').localeCompare(String(a.inquiryDate || ''));
+            if (dateDiff !== 0) return dateDiff;
+            return Number(b.id || 0) - Number(a.id || 0);
+          });
           const latestLog = vehicleLogs[0];
           vehicle.currentKm = Number(latestLog.odometerKm);
+        } else if (logItem.previousKm !== undefined && logItem.previousKm !== null) {
+          // در صورتی که هیچ استعلام دیگری باقی نماند، بازگشت به کیلومتر پیشین
+          vehicle.currentKm = Number(logItem.previousKm);
         }
       }
 
       writeDb(db);
-      logActivity(1, 'admin', 'حذف استعلام کیلومتر', `استعلام کیلومتر شماره ${id} متعلق به خودرو ${logItem.vehicleName} حذف گردید.`);
-      res.json({ success: true });
+      logActivity(1, 'admin', 'حذف استعلام کیلومتر', `استعلام کیلومتر شماره ${id} متعلق به خودرو ${logItem.vehicleName || ''} حذف گردید.`);
+      res.json({ success: true, deletedId: id });
     } else {
       res.status(404).json({ message: 'رکورد استعلام یافت نشد.' });
     }
@@ -4321,6 +4557,329 @@ async function startServer() {
     db.dashboardQuickTasks = defaultDashboardTasks;
     writeDb(db);
     res.json(db.dashboardQuickTasks);
+  });
+
+  // ==========================================
+  // API های بخش مدیریت یادآوری‌ها و ارسال پیامک
+  // ==========================================
+
+  const DEFAULT_REMINDER_CATEGORIES = [
+    { id: 'general', label: 'عمومی و اداری' },
+    { id: 'service', label: 'سرویس و تعویض روغن' },
+    { id: 'repair', label: 'تعمیرگاه و رفع خرابی' },
+    { id: 'insurance', label: 'بیمه و معاینه فنی' },
+    { id: 'driver', label: 'رانندگان و مدارک' },
+    { id: 'financial', label: 'مالی، چک و پرداخت' },
+    { id: 'vehicle', label: 'خودرو و تجهیزات' }
+  ];
+
+  // دریافت دسته‌بندی‌های یادآوری
+  app.get('/api/reminder-categories', (req, res) => {
+    const db = readDb();
+    if (!db.reminderCategories || db.reminderCategories.length === 0) {
+      db.reminderCategories = DEFAULT_REMINDER_CATEGORIES;
+      writeDb(db);
+    }
+    res.json(db.reminderCategories);
+  });
+
+  // افزودن دسته‌بندی جدید یادآوری
+  app.post('/api/reminder-categories', (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminderCategories || db.reminderCategories.length === 0) {
+        db.reminderCategories = [...DEFAULT_REMINDER_CATEGORIES];
+      }
+      const label = (req.body.label || req.body.name || '').trim();
+      if (!label) {
+        return res.status(400).json({ message: 'نام دسته‌بندی الزامی است' });
+      }
+
+      // چک تکراری نبودن
+      const existing = db.reminderCategories.find((c: any) => c.label.toLowerCase() === label.toLowerCase());
+      if (existing) {
+        return res.json(existing);
+      }
+
+      const newId = 'custom_' + Date.now();
+      const newCategory = { id: newId, label, isCustom: true };
+      db.reminderCategories.push(newCategory);
+      writeDb(db);
+      res.status(201).json(newCategory);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در ثبت دسته‌بندی' });
+    }
+  });
+
+  // حذف دسته‌بندی سفارشی
+  app.delete('/api/reminder-categories/:id', (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminderCategories) db.reminderCategories = [];
+      const id = req.params.id;
+      db.reminderCategories = db.reminderCategories.filter((c: any) => c.id !== id);
+      writeDb(db);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در حذف دسته‌بندی' });
+    }
+  });
+
+  // دریافت لیست تمام یادآوری‌ها
+  app.get('/api/reminders', (req, res) => {
+    const db = readDb();
+    const reminders = db.reminders || [];
+    res.json(reminders);
+  });
+
+  // ثبت یادآوری جدید
+  app.post('/api/reminders', async (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminders) db.reminders = [];
+
+      const {
+        title,
+        description,
+        reminderDate,
+        reminderTime,
+        targetType,
+        targetId,
+        targetName,
+        targetPhone,
+        sendSms,
+        priority,
+        category,
+        vehicleId,
+        vehicleName,
+        notes
+      } = req.body;
+
+      if (!title || !title.trim()) {
+        return res.status(400).json({ message: 'عنوان و موضوع یادآوری الزامی است.' });
+      }
+
+      if (!reminderDate || !reminderDate.trim()) {
+        return res.status(400).json({ message: 'تاریخ یادآوری الزامی است.' });
+      }
+
+      const newId = db.reminders.length > 0 ? Math.max(...db.reminders.map((r: any) => r.id || 0)) + 1 : 1;
+
+      const newReminder = {
+        id: newId,
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        reminderDate: reminderDate.trim(),
+        reminderTime: reminderTime ? reminderTime.trim() : '',
+        targetType: targetType || 'user',
+        targetId: targetId || undefined,
+        targetName: targetName ? targetName.trim() : '',
+        targetPhone: targetPhone ? targetPhone.trim() : '',
+        sendSms: Boolean(sendSms),
+        smsSent: false,
+        smsSentAt: undefined,
+        smsResponse: undefined,
+        priority: priority || 'normal',
+        status: 'pending',
+        category: category || 'general',
+        vehicleId: vehicleId ? Number(vehicleId) : undefined,
+        vehicleName: vehicleName ? vehicleName.trim() : undefined,
+        createdAt: new Date().toISOString(),
+        createdBy: req.body.createdBy || 'کاربر سیستم',
+        notes: notes ? notes.trim() : ''
+      };
+
+      db.reminders.unshift(newReminder);
+      writeDb(db);
+
+      res.status(201).json(newReminder);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در ثبت یادآوری' });
+    }
+  });
+
+  // ویرایش یا تغییر وضعیت یادآوری
+  app.put('/api/reminders/:id', (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminders) db.reminders = [];
+
+      const id = Number(req.params.id);
+      const index = db.reminders.findIndex((r: any) => r.id === id);
+      if (index === -1) {
+        return res.status(400).json({ message: 'یادآوری مورد نظر یافت نشد.' });
+      }
+
+      const existing = db.reminders[index];
+      const updated = {
+        ...existing,
+        ...req.body,
+        id: existing.id // جلوگیری از تغییر id
+      };
+
+      // در صورت تغییر وضعیت به تکمیل‌شده، تاریخ اتمام ثبت شود
+      if (req.body.status === 'completed' && !existing.completedAt) {
+        updated.completedAt = new Date().toISOString();
+      } else if (req.body.status !== 'completed' && req.body.status !== undefined) {
+        updated.completedAt = undefined;
+      }
+
+      db.reminders[index] = updated;
+      writeDb(db);
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در ویرایش یادآوری' });
+    }
+  });
+
+  // حذف یادآوری
+  app.delete('/api/reminders/:id', (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminders) db.reminders = [];
+
+      const id = Number(req.params.id);
+      const initialLength = db.reminders.length;
+      db.reminders = db.reminders.filter((r: any) => r.id !== id);
+
+      if (db.reminders.length === initialLength) {
+        return res.status(404).json({ message: 'یادآوری مورد نظر یافت نشد.' });
+      }
+
+      writeDb(db);
+      res.json({ success: true, message: 'یادآوری با موفقیت حذف شد.' });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در حذف یادآوری' });
+    }
+  });
+
+  // ارسال پیامک فوری برای یک یادآوری خاص
+  app.post('/api/reminders/:id/send-sms', async (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminders) db.reminders = [];
+
+      const id = Number(req.params.id);
+      const reminder = db.reminders.find((r: any) => r.id === id);
+      if (!reminder) {
+        return res.status(404).json({ message: 'یادآوری یافت نشد.' });
+      }
+
+      const phone = (req.body.phone || reminder.targetPhone || '').trim();
+      if (!phone || phone.length < 10) {
+        return res.status(400).json({ message: 'شماره موبایل معتبر برای ارسال پیامک ثبت نشده است.' });
+      }
+
+      const message = req.body.customMessage || 
+        `یادآوری سامانه ترابری: ${reminder.title}\nتاریخ: ${reminder.reminderDate}${reminder.reminderTime ? ` ساعت ${reminder.reminderTime}` : ''}\n${reminder.description ? `توضیحات: ${reminder.description}\n` : ''}${reminder.vehicleName ? `خودرو: ${reminder.vehicleName}\n` : ''}واحد ترابری`;
+
+      const result = await sendSmsViaGateway(phone, message);
+
+      // ثبت در لاگ پیامک‌های خروجی
+      if (!db.smsOutboundLogs) db.smsOutboundLogs = [];
+      const newLog = {
+        id: db.smsOutboundLogs.length > 0 ? Math.max(...db.smsOutboundLogs.map((o: any) => o.id)) + 1 : 1,
+        vehicleId: reminder.vehicleId || 0,
+        vehicleName: reminder.vehicleName || 'عمومی / سیستم',
+        plaque: '',
+        driverName: reminder.targetName || 'کاربر',
+        driverPhone: phone,
+        messageText: message,
+        sentAt: new Date().toISOString(),
+        status: result.success ? ('sent' as const) : ('failed' as const),
+        type: 'reminder' as const,
+        triggerMode: 'manual' as const,
+        responseInfo: result.info
+      };
+      db.smsOutboundLogs.unshift(newLog);
+
+      // به‌روزرسانی وضعیت یادآوری
+      reminder.smsSent = result.success;
+      reminder.smsSentAt = new Date().toISOString();
+      reminder.smsResponse = result.info;
+      if (result.success && reminder.status === 'pending') {
+        reminder.status = 'reminded';
+      }
+
+      writeDb(db);
+
+      res.json({
+        success: result.success,
+        message: result.success ? 'پیامک یادآوری با موفقیت ارسال شد.' : `خطا در ارسال پیامک: ${result.info}`,
+        info: result.info,
+        reminder
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در پردازش ارسال پیامک یادآوری' });
+    }
+  });
+
+  // بررسی خودکار یادآوری‌های امروز و ارسال پیامک در صورت لزوم
+  app.post('/api/reminders/check-today', async (req, res) => {
+    try {
+      const db = readDb();
+      if (!db.reminders) db.reminders = [];
+
+      const todayJalali = req.body.todayJalali; // تاریخ امروز فرستاده‌شده از کلاینت
+      if (!todayJalali) {
+        return res.status(400).json({ message: 'تاریخ امروز مشخص نشده است.' });
+      }
+
+      // یادآوری‌های منطبق با امروز یا قبل از امروز که وضعیت pending دارند
+      const dueReminders = db.reminders.filter((r: any) => 
+        (r.status === 'pending' || r.status === 'reminded') &&
+        r.reminderDate === todayJalali
+      );
+
+      let smsSentCount = 0;
+      for (const r of dueReminders) {
+        if (r.sendSms && !r.smsSent && r.targetPhone && r.targetPhone.length >= 10) {
+          const message = `یادآوری سامانه ترابری: ${r.title}\nتاریخ: ${r.reminderDate}${r.reminderTime ? ` ساعت ${r.reminderTime}` : ''}\n${r.description ? `توضیحات: ${r.description}\n` : ''}${r.vehicleName ? `خودرو: ${r.vehicleName}\n` : ''}واحد ترابری`;
+          
+          try {
+            const smsRes = await sendSmsViaGateway(r.targetPhone, message);
+            if (smsRes.success) {
+              r.smsSent = true;
+              r.smsSentAt = new Date().toISOString();
+              r.smsResponse = smsRes.info;
+              r.status = 'reminded';
+              smsSentCount++;
+
+              if (!db.smsOutboundLogs) db.smsOutboundLogs = [];
+              db.smsOutboundLogs.unshift({
+                id: db.smsOutboundLogs.length > 0 ? Math.max(...db.smsOutboundLogs.map((o: any) => o.id)) + 1 : 1,
+                vehicleId: r.vehicleId || 0,
+                vehicleName: r.vehicleName || 'عمومی / سیستم',
+                plaque: '',
+                driverName: r.targetName || 'کاربر',
+                driverPhone: r.targetPhone,
+                messageText: message,
+                sentAt: new Date().toISOString(),
+                status: 'sent',
+                type: 'reminder',
+                triggerMode: 'automatic',
+                responseInfo: smsRes.info
+              });
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (smsSentCount > 0) {
+        writeDb(db);
+      }
+
+      res.json({
+        success: true,
+        todayCount: dueReminders.length,
+        dueReminders,
+        smsSentCount,
+        allReminders: db.reminders
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || 'خطا در بررسی یادآوری‌ها' });
+    }
   });
 
   // تایمر خودکار ارسال دوره‌ای پیامک در پس‌زمینه در صورت فعال بودن

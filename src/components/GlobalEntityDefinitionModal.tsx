@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   X, Car, User, Wrench, Building, Store, Settings, Package, 
-  Check, AlertCircle 
+  Check, AlertCircle, AlertTriangle, Plus 
 } from 'lucide-react';
 import { 
   QuickEntityType, 
   notifyEntityCreated 
 } from '../utils/navigation';
-import { Company, Person, ServiceDefinition, Mechanic, Supplier } from '../types';
+import { Company, Person, ServiceDefinition, Mechanic, Supplier, FailureCategory } from '../types';
 import { CustomSelect } from './CustomSelect';
 import { formatNumber, parsePersianNumber, toPersianDigits, normalizePhone } from '../utils/numberUtils';
 import { AddMechanicSpecialtyModal } from './AddMechanicSpecialtyModal';
@@ -22,12 +22,14 @@ interface GlobalEntityDefinitionModalProps {
   serviceDefinitions: ServiceDefinition[];
   mechanics?: Mechanic[];
   suppliers?: Supplier[];
+  failureCategories?: FailureCategory[];
   onAddVehicle: (v: any) => Promise<any>;
   onAddPerson: (p: any) => Promise<any>;
   onAddSupplier: (s: any) => Promise<any>;
   onAddMechanic: (m: any) => Promise<any>;
   onAddCompany: (c: any) => Promise<any>;
   onAddServiceDefinition: (sd: any) => Promise<any>;
+  onAddFailureDefinition?: (fd: any) => Promise<any>;
   onAddPart: (part: any) => Promise<any>;
 }
 
@@ -53,16 +55,23 @@ export default function GlobalEntityDefinitionModal({
   serviceDefinitions: _serviceDefinitions,
   mechanics = [],
   suppliers = [],
+  failureCategories = [],
   onAddVehicle,
   onAddPerson,
   onAddSupplier,
   onAddMechanic,
   onAddCompany,
   onAddServiceDefinition,
+  onAddFailureDefinition,
   onAddPart
 }: GlobalEntityDefinitionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // فیلدهای تعریف خرابی (مطابق دقیق با FailureDefinitionsView.tsx)
+  const [failType, setFailType] = useState('');
+  const [failCat, setFailCat] = useState('');
+  const [failDesc, setFailDesc] = useState('');
 
   // فیلدهای خودرو (مطابق دقیق با VehiclesView.tsx)
   const [vCode, setVCode] = useState('');
@@ -115,36 +124,44 @@ export default function GlobalEntityDefinitionModal({
   const [partSellPrice, setPartSellPrice] = useState<number | ''>('');
   const [partMinQty, setPartMinQty] = useState<number | ''>(5);
   const [partLocation, setPartLocation] = useState('');
+  const submittedPhoneRef = useRef<string | null>(null);
 
   // بررسی شماره تلفن تکراری در رانندگان (منحصراً در بخش رانندگان و پرسنل)
   const duplicatePerson = useMemo(() => {
+    if (isSubmitting) return null;
     if (entityType !== 'driver') return null;
     const normCurrent = normalizePhone(pPhone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return persons.find(p => normalizePhone(p.phone) === normCurrent) || null;
-  }, [entityType, pPhone, persons]);
+  }, [entityType, pPhone, persons, isSubmitting]);
 
   // بررسی شماره تلفن تکراری در تعمیرکاران (منحصراً در بخش تعمیرکاران)
   const duplicateMechanic = useMemo(() => {
+    if (isSubmitting) return null;
     if (entityType !== 'mechanic') return null;
     const normCurrent = normalizePhone(mPhone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return (mechanics || []).find(m => normalizePhone(m.phone) === normCurrent) || null;
-  }, [entityType, mPhone, mechanics]);
+  }, [entityType, mPhone, mechanics, isSubmitting]);
 
   // بررسی شماره تلفن تکراری در تامین‌کنندگان (منحصراً در بخش تامین‌کنندگان)
   const duplicateSupplier = useMemo(() => {
+    if (isSubmitting) return null;
     if (entityType !== 'supplier') return null;
     const normCurrent = normalizePhone(sPhone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return (suppliers || []).find(s => normalizePhone(s.phone || s.mobile) === normCurrent) || null;
-  }, [entityType, sPhone, suppliers]);
+  }, [entityType, sPhone, suppliers, isSubmitting]);
 
   // ریست فرم در زمان باز شدن
   useEffect(() => {
     if (isOpen) {
       setErrorMsg('');
       setIsSubmitting(false);
+      submittedPhoneRef.current = null;
 
       // خودرو
       setVCode(`VEH-${Math.floor(100 + Math.random() * 900)}`);
@@ -189,6 +206,11 @@ export default function GlobalEntityDefinitionModal({
       setPartSellPrice('');
       setPartMinQty(5);
       setPartLocation('');
+
+      // تعریف خرابی
+      setFailType('');
+      setFailCat(failureCategories && failureCategories.length > 0 ? failureCategories[0].name : 'عمومی');
+      setFailDesc('');
     }
   }, [isOpen, entityType]);
 
@@ -246,6 +268,7 @@ export default function GlobalEntityDefinitionModal({
           throw new Error(`این شماره تماس قبلاً برای «${duplicatePerson.fullName}» در بخش رانندگان ثبت شده است.`);
         }
 
+        submittedPhoneRef.current = normalizePhone(pPhone.trim());
         const newPerson = {
           fullName: pFullName.trim(),
           position: 'راننده ناوگان',
@@ -263,6 +286,7 @@ export default function GlobalEntityDefinitionModal({
           throw new Error(`این شماره تماس قبلاً برای تامین‌کننده «${duplicateSupplier.name}» در بخش تامین‌کنندگان ثبت شده است.`);
         }
 
+        submittedPhoneRef.current = normalizePhone(sPhone.trim());
         const newSupplier = {
           name: sName.trim(),
           phone: sPhone.trim(),
@@ -279,6 +303,7 @@ export default function GlobalEntityDefinitionModal({
           throw new Error(`این شماره تماس قبلاً برای تعمیرکار «${duplicateMechanic.name}» در بخش تعمیرکاران ثبت شده است.`);
         }
 
+        submittedPhoneRef.current = normalizePhone(mPhone.trim());
         const newMechanic = {
           name: mName.trim(),
           phone: mPhone.trim(),
@@ -335,6 +360,21 @@ export default function GlobalEntityDefinitionModal({
           warehouseLocation: partLocation.trim()
         };
         createdResult = await onAddPart(newPart);
+
+      } else if (entityType === 'failure') {
+        if (!failType.trim()) {
+          throw new Error('لطفاً نوع خرابی / عنوان عیب را وارد کنید.');
+        }
+
+        const newDef = {
+          failureType: failType.trim(),
+          category: failCat.trim() || 'عمومی',
+          description: failDesc.trim()
+        };
+
+        if (onAddFailureDefinition) {
+          createdResult = await onAddFailureDefinition(newDef);
+        }
       }
 
       // انتخاب اتوماتیک در فرم مبدا و بستن دیالوگ
@@ -343,6 +383,7 @@ export default function GlobalEntityDefinitionModal({
       }
       onClose();
     } catch (err: any) {
+      submittedPhoneRef.current = null;
       setErrorMsg(err.message || 'خطا در ثبت اطلاعات.');
     } finally {
       setIsSubmitting(false);
@@ -357,6 +398,7 @@ export default function GlobalEntityDefinitionModal({
       case 'mechanic': return <Wrench className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
       case 'company': return <Building className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
       case 'service': return <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+      case 'failure': return <AlertTriangle className="w-5 h-5 text-amber-500" />;
       case 'part': return <Package className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
       default: return <Car className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
     }
@@ -370,6 +412,7 @@ export default function GlobalEntityDefinitionModal({
       case 'mechanic': return 'ثبت تعمیرکار و مرکز خدمات جدید';
       case 'company': return 'ثبت شرکت / سازمان جدید';
       case 'service': return 'تعریف خدمت دوره‌ای جدید';
+      case 'failure': return 'تعریف نوع خرابی جدید';
       case 'part': return 'تعریف قطعه و کالای جدید در انبار';
       default: return 'تعریف مورد جدید';
     }
@@ -383,6 +426,7 @@ export default function GlobalEntityDefinitionModal({
       case 'mechanic': return 'ثبت مشخصات تعمیرکار، آدرس، تخصص اصلی و شماره تماس';
       case 'company': return 'ثبت، ویرایش و مدیریت شرکت‌ها و سازمان‌های همکار';
       case 'service': return 'عنوان خدمت، دوره تعویض بر حسب کیلومتر و بازه هشدار';
+      case 'failure': return 'ثبت مشخصات عیب، دسته‌بندی فنی و توضیحات مربوطه';
       case 'part': return 'مشخصات کالا، قیمت‌های خرید و فروش و موقعیت انبار';
       default: return '';
     }
@@ -785,9 +829,19 @@ export default function GlobalEntityDefinitionModal({
               </div>
 
               <div className="space-y-1">
-                <label className="block font-bold text-slate-700 dark:text-slate-300">
-                  تخصص اصلی
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">
+                    تخصص اصلی
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddSpecialtyModalOpen(true)}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>افزودن تخصص جدید</span>
+                  </button>
+                </div>
                 <CustomSelect
                   value={mSpecialty}
                   onChange={(val) => setMSpecialty(val)}
@@ -992,6 +1046,59 @@ export default function GlobalEntityDefinitionModal({
                   value={partLocation}
                   onChange={e => setPartLocation(e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none placeholder-slate-400 dark:placeholder-slate-500 text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ۸. تعریف نوع خرابی (مطابق با FailureDefinitionsView.tsx) */}
+          {entityType === 'failure' && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  عنوان و نوع خرابی <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={failType}
+                  onChange={(e) => setFailType(e.target.value)}
+                  placeholder="مانند نقص در سیستم ترمز ABS، روغن‌ریزی هیدرولیک، سوختن دینام..."
+                  className="w-full bg-white dark:bg-[#1a1a1c] border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  دسته خرابی <span className="text-rose-500">*</span>
+                </label>
+                <CustomSelect
+                  value={failCat}
+                  onChange={(val) => setFailCat(String(val))}
+                  placeholder="-- انتخاب دسته‌بندی خرابی --"
+                  searchable={true}
+                  matchTriggerWidth={true}
+                  options={[
+                    ...(failureCategories || []).map((cat) => ({
+                      value: cat.name,
+                      label: cat.name,
+                      subLabel: cat.description || undefined
+                    })),
+                    { value: 'عمومی', label: 'عمومی / سایر' }
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  شرح، علائم و توضیحات تکمیلی
+                </label>
+                <textarea
+                  value={failDesc}
+                  onChange={(e) => setFailDesc(e.target.value)}
+                  rows={3}
+                  placeholder="علائم خرابی، عواقب یا نکات مرتبط با این عیب فنی..."
+                  className="w-full bg-white dark:bg-[#1a1a1c] border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
                 />
               </div>
             </div>

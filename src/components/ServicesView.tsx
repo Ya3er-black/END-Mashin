@@ -21,6 +21,7 @@ import { CustomSelect } from './CustomSelect';
 import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { findLastServiceOrRepairEvent, findMatchingServiceDef } from '../utils/serviceMatching';
+import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 interface ServicesViewProps {
   vehicles: Vehicle[];
@@ -2268,11 +2269,11 @@ export default function ServicesView({
     setColumnFilters({ ...columnFilters, [filterMenu.colKey]: [val] });
   };
 
-  // لیست خودروها منطبق با عبارت جستجوی نام خودرو (فقط نام و کد خودرو)
+  // لیست خودروها منطبق با عبارت جستجوی نام خودرو، راننده و کد خودرو
   const matchedVehicles = useMemo(() => {
     const query = searchTerm.trim();
     return query
-      ? vehicles.filter(v => startsWithPrefix(v.name, query) || startsWithPrefix(v.code, query))
+      ? vehicles.filter(v => matchesVehicleSearch(v, query))
       : vehicles;
   }, [vehicles, searchTerm]);
 
@@ -2284,7 +2285,7 @@ export default function ServicesView({
       const searchLower = searchTerm.trim();
       const matchesSearch = 
         !searchLower ||
-        (v && (startsWithPrefix(v.name, searchLower) || startsWithPrefix(v.code, searchLower)));
+        (v && matchesVehicleSearch(v, searchLower));
 
       const matchesVehicle = vehicleFilter === 'all' || !vehicleFilter || session.vehicleId.toString() === vehicleFilter;
 
@@ -2640,7 +2641,7 @@ export default function ServicesView({
                   quickAddType="vehicle"
                   options={vehicles.map(v => ({
                     value: v.id.toString(),
-                    label: `${v.name} - پلاک [${toPersianDigits(v.plaque)}] (کد: ${toPersianDigits(v.code)})`
+                    label: getVehicleDisplayName(v)
                   }))}
                 />
                 <input type="hidden" value={vehicleId} required />
@@ -3359,7 +3360,7 @@ export default function ServicesView({
                                     { value: '', label: 'بدون تعمیرکار' },
                                     ...mechanics.map(m => ({
                                       value: m.id.toString(),
-                                      label: `${m.name}${m.shopName ? ` (${m.shopName})` : ''} - ${m.specialty || 'تعمیرگاه/سرویس‌کار'}`
+                                      label: m.shopName ? `${m.name} (${m.shopName})` : m.name
                                     }))
                                   ]}
                                 />
@@ -3682,8 +3683,8 @@ export default function ServicesView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>

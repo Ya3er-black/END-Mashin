@@ -7,6 +7,7 @@ import {
   openQuickEntityModal,
   ENTITY_DEFINITION_TARGETS 
 } from '../utils/navigation';
+import { toPersianDigits, toEnglishDigits } from '../utils/numberUtils';
 
 export interface Option {
   value: string | number;
@@ -88,11 +89,13 @@ export function CustomSelect({
     top: number;
     left: number;
     width: number;
+    maxHeight: number;
     openUpward: boolean;
   }>({
     top: 0,
     left: 0,
     width: 0,
+    maxHeight: 280,
     openUpward: false,
   });
 
@@ -102,17 +105,25 @@ export function CustomSelect({
     ? options.filter((opt) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.trim().toLowerCase();
-        const l = opt.label.toLowerCase();
-        const sl = opt.subLabel ? opt.subLabel.toLowerCase() : '';
+        const qEng = toEnglishDigits(q).toLowerCase();
+        const qPer = toPersianDigits(q).toLowerCase();
+        const searchTerms = [q, qEng, qPer].filter(Boolean);
 
-        const matchesPrefix = (text: string) => {
+        const l = opt.label.toLowerCase();
+        const lEng = toEnglishDigits(l).toLowerCase();
+        const sl = opt.subLabel ? opt.subLabel.toLowerCase() : '';
+        const slEng = opt.subLabel ? toEnglishDigits(opt.subLabel).toLowerCase() : '';
+
+        const matchesPrefixOrSub = (text: string) => {
           if (!text) return false;
-          if (text.startsWith(q)) return true;
-          const words = text.split(/[\s\-_\/()\[\]]+/);
-          return words.some((w) => w.startsWith(q));
+          return searchTerms.some(st => {
+            if (text.includes(st)) return true;
+            const words = text.split(/[\s\-_\/()\[\]:]+/);
+            return words.some(w => w.startsWith(st));
+          });
         };
 
-        return matchesPrefix(l) || (sl ? matchesPrefix(sl) : false);
+        return matchesPrefixOrSub(l) || matchesPrefixOrSub(lEng) || (sl ? matchesPrefixOrSub(sl) || matchesPrefixOrSub(slEng) : false);
       })
     : options;
 
@@ -122,11 +133,16 @@ export function CustomSelect({
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const itemHeight = size === 'xs' ? 28 : 36;
-      const estimatedHeight = Math.min(240, options.length * itemHeight + (searchable ? 45 : 0) + 12);
-      
-      // If near bottom of the viewport or size is xs (e.g. pagination bar), open upward
-      const isNearBottom = spaceBelow < 190 && spaceAbove > 100;
-      const openUpward = isNearBottom || (spaceBelow < estimatedHeight && spaceAbove > spaceBelow);
+      const headerFooterHeight = (searchable ? 48 : 0) + (handleAddNewAction ? 48 : 0);
+      const totalEstimatedHeight = options.length * itemHeight + headerFooterHeight + 12;
+
+      // Determine if dropdown should open upward
+      // If below space is tight (<260 or less than estimated) and above has more space, open upward
+      const openUpward = (spaceBelow < Math.min(280, totalEstimatedHeight) && spaceAbove > spaceBelow) || (spaceBelow < 180 && spaceAbove > 120);
+
+      const availableHeight = openUpward 
+        ? Math.max(120, Math.min(320, spaceAbove - 16))
+        : Math.max(120, Math.min(320, spaceBelow - 16));
 
       const resolvedW = matchTriggerWidth
         ? rect.width
@@ -145,6 +161,7 @@ export function CustomSelect({
         top: openUpward ? rect.top - 4 : rect.bottom + 4,
         left: left,
         width: resolvedW,
+        maxHeight: availableHeight,
         openUpward,
       });
     }
@@ -201,10 +218,6 @@ export function CustomSelect({
     };
   }, [isOpen]);
 
-  const maxMenuHeight = typeof window !== 'undefined' 
-    ? Math.max(100, Math.min(240, coords.openUpward ? coords.top - 16 : window.innerHeight - coords.top - 16)) 
-    : 240;
-
   const dropdownMenu = isOpen && typeof document !== 'undefined' ? (
     createPortal(
       <div
@@ -216,14 +229,15 @@ export function CustomSelect({
           bottom: coords.openUpward ? `${Math.max(4, window.innerHeight - coords.top)}px` : undefined,
           left: `${coords.left}px`,
           width: `${coords.width}px`,
+          maxHeight: `${coords.maxHeight}px`,
           zIndex: 999999,
         }}
         className={`bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2d2d30] ${
           size === 'xs' ? 'rounded-md text-[11px]' : 'rounded-xl text-xs'
-        } shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
+        } shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col`}
       >
         {searchable && (
-          <div className="p-2 border-b border-slate-200 dark:border-[#2d2d30] relative bg-slate-50/50 dark:bg-[#121215]">
+          <div className="p-2 border-b border-slate-200 dark:border-[#2d2d30] relative bg-slate-50/50 dark:bg-[#121215] shrink-0">
             <Search className="absolute right-3.5 top-3 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
@@ -237,8 +251,7 @@ export function CustomSelect({
         )}
 
         <div 
-          style={{ maxHeight: `${maxMenuHeight}px` }}
-          className={`overflow-y-auto ${size === 'xs' ? 'p-1 space-y-1' : 'p-1 space-y-0.5'} custom-scrollbar`}
+          className={`overflow-y-auto flex-1 min-h-0 ${size === 'xs' ? 'p-1 space-y-1' : 'p-1 space-y-0.5'} custom-scrollbar`}
         >
           {filteredOptions.length === 0 ? (
             <div className="py-2 text-center text-slate-400 text-xs">موردی یافت نشد</div>
@@ -282,7 +295,7 @@ export function CustomSelect({
         </div>
 
         {handleAddNewAction && (
-          <div className="p-1.5 border-t border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#121215]">
+          <div className="p-1.5 border-t border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#121215] shrink-0">
             <button
               type="button"
               onClick={(e) => {

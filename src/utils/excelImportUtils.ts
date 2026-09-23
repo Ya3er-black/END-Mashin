@@ -6,6 +6,7 @@ export type DefinitionEntityType =
   | 'persons' 
   | 'companies' 
   | 'service_definitions' 
+  | 'failure_definitions'
   | 'mechanics' 
   | 'suppliers';
 
@@ -66,6 +67,16 @@ export const DEFINITION_COLUMNS_CONFIG: Record<DefinitionEntityType, {
       { key: 'warningKm', label: 'بازه اخطار (کیلومتر)', sample: 200, aliases: ['بازه اخطار', 'اخطار کیلومتر', 'اخطار', 'warningkm', 'warning'] }
     ]
   },
+  failure_definitions: {
+    title: 'تعاریف انواع خرابی',
+    sheetName: 'تعاریف خرابی‌ها',
+    description: 'ثبت و دسته‌بندی عیوب و نقص‌های فنی ناوگان خودرویی',
+    columns: [
+      { key: 'failureType', label: 'نوع خرابی / عنوان عیب', required: true, sample: 'سوختن واشر سرسیلندر', aliases: ['نوع خرابی', 'عنوان خرابی', 'نام خرابی', 'عیب', 'نقص فنی', 'نوع عیب', 'failuretype', 'title', 'defect'] },
+      { key: 'category', label: 'دسته خرابی', sample: 'مکانیکی (موتور / گیربکس / ترمز)', aliases: ['دسته خرابی', 'دسته', 'گروه خرابی', 'نوع سیستم', 'category'] },
+      { key: 'description', label: 'توضیحات و علائم عیب', sample: 'کم کردن آب رادیاتور و اختلاط آب و روغن', aliases: ['توضیحات', 'شرح', 'شرح عیب', 'علائم', 'description', 'notes'] }
+    ]
+  },
   mechanics: {
     title: 'تعریف تعمیرکاران',
     sheetName: 'تعمیرکاران',
@@ -100,6 +111,7 @@ export function detectEntityTypeFromColumns(headers: string[], sheetName?: strin
     if (sName.includes('راننده') || sName.includes('پرسنل') || sName.includes('شخص') || sName.includes('اشخاص') || sName.includes('driver') || sName.includes('person')) return 'persons';
     if (sName.includes('شرکت') || sName.includes('سازمان') || sName.includes('company') || sName.includes('org')) return 'companies';
     if (sName.includes('سرویس') || sName.includes('خدمت') || sName.includes('service')) return 'service_definitions';
+    if (sName.includes('خرابی') || sName.includes('عیب') || sName.includes('نقص') || sName.includes('failure') || sName.includes('defect')) return 'failure_definitions';
     if (sName.includes('تعمیر') || sName.includes('مکانیک') || sName.includes('mechanic')) return 'mechanics';
     if (sName.includes('تامین') || sName.includes('فروشگاه') || sName.includes('supplier') || sName.includes('vendor')) return 'suppliers';
   }
@@ -109,7 +121,7 @@ export function detectEntityTypeFromColumns(headers: string[], sheetName?: strin
   let bestMatch: DefinitionEntityType | null = null;
   let maxScore = 0;
 
-  const entityTypes: DefinitionEntityType[] = ['vehicles', 'persons', 'companies', 'service_definitions', 'mechanics', 'suppliers'];
+  const entityTypes: DefinitionEntityType[] = ['vehicles', 'persons', 'companies', 'service_definitions', 'failure_definitions', 'mechanics', 'suppliers'];
 
   for (const type of entityTypes) {
     const config = DEFINITION_COLUMNS_CONFIG[type];
@@ -269,7 +281,7 @@ export function downloadExcelTemplate(entityType?: DefinitionEntityType) {
     XLSX.writeFile(wb, `قالب_اکسل_${config.sheetName}.xlsx`);
   } else {
     // ایجاد فایل قالب جامع با تمامی شیت‌ها
-    const types: DefinitionEntityType[] = ['vehicles', 'persons', 'companies', 'service_definitions', 'mechanics', 'suppliers'];
+    const types: DefinitionEntityType[] = ['vehicles', 'persons', 'companies', 'service_definitions', 'failure_definitions', 'mechanics', 'suppliers'];
 
     types.forEach(type => {
       const config = DEFINITION_COLUMNS_CONFIG[type];

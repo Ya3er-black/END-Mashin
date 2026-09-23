@@ -3,6 +3,7 @@ import { X, ArrowDownLeft, ArrowUpRight, Package, TrendingUp } from 'lucide-reac
 import { PartInventory, Vehicle } from '../../types';
 import { toPersianDigits, formatPrice, formatNumber, parsePersianNumber } from '../../utils/numberUtils';
 import { CustomSelect } from '../CustomSelect';
+import { getVehicleDisplayName } from '../../utils/vehicleUtils';
 
 // ----------------------------------------------------
 // مدال ورود کالا (رسید خرید و بروزرسانی قیمت‌ها)
@@ -599,7 +600,7 @@ export const StockOutModal: React.FC<StockOutModalProps> = ({
                     { value: '', label: '-- عمومی / بدون تخصیص به خودرو --' },
                     ...vehicles.map(v => ({
                       value: String(v.id),
-                      label: `${v.name} - پلاک [${toPersianDigits(v.plaque)}] (کد: ${toPersianDigits(v.code)}) - راننده: ${v.driverName || 'نامشخص'}`
+                      label: getVehicleDisplayName(v)
                     }))
                   ]}
                 />

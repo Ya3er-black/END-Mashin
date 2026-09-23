@@ -12,7 +12,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Check, Trash2, Eye, Receipt, DollarSign,
   AlertCircle, History, FileText, CheckCircle, RefreshCw, Edit2, FileSpreadsheet, Printer, Tag
 } from 'lucide-react';
-import { Vehicle, VehicleFailure, RepairWorkflow, FailurePriority, FailureType, SatisfactionLevel, PartInventory, User, Mechanic, ServiceDefinition, Supplier, Person } from '../types';
+import { Vehicle, VehicleFailure, RepairWorkflow, FailurePriority, FailureType, SatisfactionLevel, PartInventory, User, Mechanic, ServiceDefinition, Supplier, Person, FailureDefinition, FailureCategory, FailureItem } from '../types';
 import { toJalaliDate, getCurrentJalaliDate, toJalaliStandardString } from '../utils/date';
 import { JalaliDatePicker } from './JalaliDatePicker';
 import { toPersianDigits, formatPrice, formatNumber, parsePersianNumber } from '../utils/numberUtils';
@@ -21,12 +21,21 @@ import { Pagination } from './Pagination';
 import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { detectReplacedServicesInRepair } from '../utils/serviceMatching';
+import { getVehicleDisplayName, getVehicleSelectOption, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 const SATISFACTION_OPTIONS: { id: SatisfactionLevel; label: string }[] = [
   { id: 'weak', label: 'ضعیف' },
   { id: 'medium', label: 'متوسط' },
   { id: 'good', label: 'خوب' },
   { id: 'excellent', label: 'عالی' },
+];
+
+const SATISFACTION_SELECT_OPTIONS = [
+  { value: '', label: '-- انتخاب --' },
+  { value: 'excellent', label: 'عالی' },
+  { value: 'good', label: 'خوب' },
+  { value: 'medium', label: 'متوسط' },
+  { value: 'weak', label: 'ضعیف' },
 ];
 
 /**
@@ -91,6 +100,8 @@ interface FailuresViewProps {
   workflows: RepairWorkflow[];
   parts: PartInventory[];
   serviceDefinitions?: ServiceDefinition[];
+  failureDefinitions?: FailureDefinition[];
+  failureCategories?: FailureCategory[];
   persons?: Person[];
   users: User[];
   mechanics?: Mechanic[];
@@ -100,6 +111,7 @@ interface FailuresViewProps {
   onUpdateFailure?: (id: number, failure: Partial<VehicleFailure>) => Promise<void>;
   onDeleteFailure?: (id: number) => Promise<void>;
   onUpdateWorkflow: (id: number, workflow: Partial<RepairWorkflow> & { markReady?: boolean }) => Promise<void>;
+  onNavigate?: (view: string) => void;
 }
 
 type MainTabType = 'in_repair' | 'completed';
@@ -115,12 +127,36 @@ interface InvoicePartRowItem {
   cost: number;
 }
 
+interface FailureItemRow {
+  id: string;
+  definitionId: string;
+  failureType: string;
+  category: string;
+  mechanicId: string;
+  satisfactionLevel: string;
+  wage?: number;
+  description: string;
+}
+
+const createInitialFailureRow = (): FailureItemRow => ({
+  id: Math.random().toString(36).substring(2, 9),
+  definitionId: '',
+  failureType: '',
+  category: '',
+  mechanicId: '',
+  satisfactionLevel: '',
+  wage: 0,
+  description: ''
+});
+
 export default function FailuresView({
   vehicles,
   failures,
   workflows,
   parts,
   serviceDefinitions = [],
+  failureDefinitions = [],
+  failureCategories: propFailureCategories = [],
   persons = [],
   users,
   mechanics = [],
@@ -129,7 +165,8 @@ export default function FailuresView({
   onAddFailure,
   onUpdateFailure,
   onDeleteFailure,
-  onUpdateWorkflow
+  onUpdateWorkflow,
+  onNavigate
 }: FailuresViewProps) {
   // کلا دو بخش اصلی: در حال تعمیر و آماده شده
   const [activeTab, setActiveTab] = useState<MainTabType>('in_repair');
@@ -190,6 +227,48 @@ export default function FailuresView({
   const [priority, setPriority] = useState<FailurePriority>('medium');
   const [odometer, setOdometer] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [failureRows, setFailureRows] = useState<FailureItemRow[]>([
+    createInitialFailureRow(),
+    createInitialFailureRow(),
+    createInitialFailureRow()
+  ]);
+
+  const handleAddFailureRow = () => {
+    setFailureRows(prev => [...prev, createInitialFailureRow()]);
+  };
+
+  const handleRemoveFailureRow = (id: string) => {
+    setFailureRows(prev => {
+      if (prev.length <= 1) return prev;
+      return prev.filter(r => r.id !== id);
+    });
+  };
+
+  const handleUpdateFailureRow = (id: string, updates: Partial<FailureItemRow>) => {
+    setFailureRows(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const merged = { ...r, ...updates };
+
+      // اگر عنوان تعریف خرابی تغییر کرد، دسته‌بندی و شرح خودکار پر شوند
+      if (updates.definitionId !== undefined) {
+        if (!updates.definitionId) {
+          merged.failureType = '';
+        } else {
+          const def = failureDefinitions.find(d => d.id.toString() === updates.definitionId);
+          if (def) {
+            merged.failureType = def.failureType;
+            if (def.category) {
+              merged.category = def.category;
+            }
+            if (!merged.description) {
+              merged.description = def.description || def.failureType;
+            }
+          }
+        }
+      }
+      return merged;
+    }));
+  };
 
   // لیست دسته‌بندی‌های نقص فنی با پشتیبانی از localStorage و قابلیت افزودن دسته جدید
   const [failureCategories, setFailureCategories] = useState<{ value: string; label: string }[]>(() => {
@@ -212,11 +291,28 @@ export default function FailuresView({
     return defaults;
   });
 
+  // همگام‌سازی دسته‌بندی‌های سرور با لیست محلی
+  useEffect(() => {
+    if (propFailureCategories && propFailureCategories.length > 0) {
+      setFailureCategories(prev => {
+        const map = new Map<string, { value: string; label: string }>();
+        prev.forEach(p => map.set(p.label, p));
+        propFailureCategories.forEach(c => {
+          if (!map.has(c.name)) {
+            map.set(c.name, { value: c.name, label: c.name });
+          }
+        });
+        return Array.from(map.values());
+      });
+    }
+  }, [propFailureCategories]);
+
   // استیت‌های مودال افزودن دسته‌بندی نقص فنی جدید
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryErrorMsg, setCategoryErrorMsg] = useState('');
-  const [categoryTargetForm, setCategoryTargetForm] = useState<'create' | 'edit'>('create');
+  const [categoryTargetForm, setCategoryTargetForm] = useState<'create' | 'edit' | 'invoice'>('create');
+  const [categoryTargetRowId, setCategoryTargetRowId] = useState<string | null>(null);
 
   const handleAddFailureCategory = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -234,9 +330,19 @@ export default function FailuresView({
     } catch (err) {
       console.error(err);
     }
-    if (categoryTargetForm === 'create') {
+    if (categoryTargetRowId) {
+      if (categoryTargetForm === 'create') {
+        handleUpdateFailureRow(categoryTargetRowId, { category: trimmed });
+      } else if (categoryTargetForm === 'invoice') {
+        handleInvoiceUpdateFailureRow(categoryTargetRowId, { category: trimmed });
+      } else {
+        handleEditUpdateFailureRow(categoryTargetRowId, { category: trimmed });
+      }
+      setCategoryTargetRowId(null);
+    } else if (categoryTargetForm === 'create') {
       setFailureType(trimmed);
     } else {
+      setEditCategory(trimmed);
       setEditFailureType(trimmed);
     }
     setNewCategoryName('');
@@ -246,16 +352,81 @@ export default function FailuresView({
 
   // فیلدهای فرم ثبت فاکتور، قطعات مصرفی و انتقال به «آماده شده»
   const [invoiceEndDate, setInvoiceEndDate] = useState(getCurrentJalaliDate());
+  const [invoiceMechanicId, setInvoiceMechanicId] = useState<string>('');
+  const [invoiceRepairShopName, setInvoiceRepairShopName] = useState<string>('');
   const [invoicePartRows, setInvoicePartRows] = useState<InvoicePartRowItem[]>([]);
   const [invoiceWages, setInvoiceWages] = useState<number>(0);
   const [invoiceTotalCost, setInvoiceTotalCost] = useState<number>(0);
   const [shopInvoiceNotes, setShopInvoiceNotes] = useState<string>('');
   const [selectedReplacedServiceTypes, setSelectedReplacedServiceTypes] = useState<string[]>([]);
   const [invoiceSatisfaction, setInvoiceSatisfaction] = useState<SatisfactionLevel | undefined>(undefined);
+  const [invoiceFailureRows, setInvoiceFailureRows] = useState<FailureItemRow[]>([
+    createInitialFailureRow()
+  ]);
+
+  // استیت دیالوگ مشاهده و ثبت شرح نقص فنی
+  const [selectedFailureDescModal, setSelectedFailureDescModal] = useState<{
+    rowIndex: number;
+    failureType: string;
+    description: string;
+    isInvoiceForm?: boolean;
+  } | null>(null);
+
+  const handleInvoiceAddFailureRow = () => {
+    setInvoiceFailureRows(prev => [...prev, createInitialFailureRow()]);
+  };
+
+  const handleInvoiceRemoveFailureRow = (id: string) => {
+    setInvoiceFailureRows(prev => {
+      if (prev.length <= 1) return prev;
+      const updated = prev.filter(r => r.id !== id);
+      const sumWages = updated.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+      setInvoiceWages(sumWages);
+      calculateTotalInvoiceCost(invoicePartRows, sumWages);
+      return updated;
+    });
+  };
+
+  const handleInvoiceUpdateFailureRow = (id: string, updates: Partial<FailureItemRow>) => {
+    setInvoiceFailureRows(prev => {
+      const updated = prev.map(r => {
+        if (r.id !== id) return r;
+        const merged = { ...r, ...updates };
+
+        if (updates.definitionId !== undefined) {
+          if (!updates.definitionId) {
+            merged.failureType = '';
+          } else {
+            const def = failureDefinitions.find(d => d.id.toString() === updates.definitionId);
+            if (def) {
+              merged.failureType = def.failureType;
+              if (def.category) {
+                merged.category = def.category;
+              }
+              if (!merged.description) {
+                merged.description = def.description || def.failureType;
+              }
+            }
+          }
+        }
+        return merged;
+      });
+
+      if (updates.wage !== undefined) {
+        const sumWages = updated.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+        setInvoiceWages(sumWages);
+        calculateTotalInvoiceCost(invoicePartRows, sumWages);
+      }
+
+      return updated;
+    });
+  };
 
   // استیت‌های مدال ویرایش جامع پرونده خرابی / تعمیرات
   const [editingFailure, setEditingFailure] = useState<VehicleFailure | null>(null);
   const [editVehicleId, setEditVehicleId] = useState('');
+  const [editDefinitionId, setEditDefinitionId] = useState('');
+  const [editCategory, setEditCategory] = useState('');
   const [editMechanicId, setEditMechanicId] = useState('');
   const [editRepairShopName, setEditRepairShopName] = useState('');
   const [editFailureDate, setEditFailureDate] = useState('');
@@ -264,6 +435,60 @@ export default function FailuresView({
   const [editFailureType, setEditFailureType] = useState<FailureType>('mechanical');
   const [editPriority, setEditPriority] = useState<FailurePriority>('medium');
   const [editOdometer, setEditOdometer] = useState<number>(0);
+  const [editFailureRows, setEditFailureRows] = useState<FailureItemRow[]>([
+    createInitialFailureRow()
+  ]);
+
+  const handleEditAddFailureRow = () => {
+    setEditFailureRows(prev => [...prev, createInitialFailureRow()]);
+  };
+
+  const handleEditRemoveFailureRow = (id: string) => {
+    setEditFailureRows(prev => {
+      if (prev.length <= 1) return prev;
+      const updated = prev.filter(r => r.id !== id);
+      const sumWages = updated.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+      setEditWages(sumWages);
+      calculateEditTotalCost(editPartRows, sumWages);
+      return updated;
+    });
+  };
+
+  const handleEditUpdateFailureRow = (id: string, updates: Partial<FailureItemRow>) => {
+    setEditFailureRows(prev => {
+      const updated = prev.map(r => {
+        if (r.id !== id) return r;
+        const merged = { ...r, ...updates };
+
+        if (updates.definitionId !== undefined) {
+          if (!updates.definitionId) {
+            merged.failureType = '';
+          } else {
+            const def = failureDefinitions.find(d => d.id.toString() === updates.definitionId);
+            if (def) {
+              merged.failureType = def.failureType;
+              if (def.category) {
+                merged.category = def.category;
+              }
+              if (!merged.description) {
+                merged.description = def.description || def.failureType;
+              }
+            }
+          }
+        }
+        return merged;
+      });
+
+      if (updates.wage !== undefined) {
+        const sumWages = updated.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+        setEditWages(sumWages);
+        calculateEditTotalCost(editPartRows, sumWages);
+      }
+
+      return updated;
+    });
+  };
+
   const [editPartRows, setEditPartRows] = useState<InvoicePartRowItem[]>([]);
   const [editWages, setEditWages] = useState<number>(0);
   const [editTotalCost, setEditTotalCost] = useState<number>(0);
@@ -374,6 +599,54 @@ export default function FailuresView({
     calculateEditTotalCost(updated, editWages);
   };
 
+  // استخراج لیست اشیاء تمام تعمیرکاران منتسب به یک پرونده خرابی (از روی ردیف‌های نقص فنی و رکورد اصلی)
+  const getFailureMechanicsList = (f: VehicleFailure, wf?: RepairWorkflow): Mechanic[] => {
+    const result: Mechanic[] = [];
+    const addedIds = new Set<number>();
+
+    // ۱. بررسی ردیف‌های خرابی (failureItems)
+    if (f.failureItems && Array.isArray(f.failureItems)) {
+      for (const item of f.failureItems) {
+        if (item.mechanicId !== undefined && item.mechanicId !== null) {
+          const mId = Number(item.mechanicId);
+          if (!isNaN(mId) && !addedIds.has(mId)) {
+            addedIds.add(mId);
+            const found = mechanics.find(m => m.id === mId);
+            if (found) {
+              result.push(found);
+            }
+          }
+        }
+      }
+    }
+
+    // ۲. بررسی شناسه تعمیرکار در رکورد پرونده یا گردش کار
+    const primaryId = wf?.technicianId !== undefined && wf?.technicianId !== null
+      ? Number(wf.technicianId)
+      : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? Number(f.assignedMechanicId) : undefined);
+
+    if (primaryId !== undefined && !isNaN(primaryId) && !addedIds.has(primaryId)) {
+      addedIds.add(primaryId);
+      const found = mechanics.find(m => m.id === primaryId);
+      if (found) {
+        result.push(found);
+      }
+    }
+
+    return result;
+  };
+
+  // ساخت متن نمایشی تعمیرکاران / تعمیرگاه جهت نمایش در جدول، جستجو، فیلتر ستونی و خروجی اکسل
+  const getFailureMechanicsDisplay = (f: VehicleFailure, wf?: RepairWorkflow): string => {
+    const mechs = getFailureMechanicsList(f, wf);
+    if (mechs.length > 0) {
+      return mechs
+        .map(m => `${m.name}${m.shopName ? ` (${m.shopName})` : ''}`)
+        .join('، ');
+    }
+    return wf?.repairShopName || f.repairShopName || 'تعمیرگاه مرکزی';
+  };
+
   // پرینت رسمی فاکتور تعمیرات و ترخیص خودرو
   const printRepairInvoiceContent = (
     currentVeh: Vehicle | undefined,
@@ -386,7 +659,7 @@ export default function FailuresView({
     const printKm = failure.odometer || currentVeh?.currentKm || 0;
     const printCost = wf?.totalCost || failure.totalCost || 0;
     const printWages = wf?.wages || failure.wages || 0;
-    const printShopName = wf?.repairShopName || mech?.shopName || (mech ? `${mech.name} (${mech.shopName || 'تکنسین'})` : '') || failure.repairShopName || 'تعمیرگاه مجاز طرف قرارداد';
+    const printShopName = getFailureMechanicsDisplay(failure, wf);
     const printDescription = failure.description || '---';
 
     // گردآوری اقلام مصرفی و خدمات
@@ -640,9 +913,50 @@ export default function FailuresView({
     setEditFailureDate(toJalaliStandardString(f.failureDate));
     setEditEndDate(wf?.endDate ? toJalaliStandardString(wf.endDate) : (f.endDate ? toJalaliStandardString(f.endDate) : ''));
     setEditDescription(f.description || '');
+    
+    // شناسایی نوع خرابی از بین تعاریف
+    const matchingDef = failureDefinitions.find(d => 
+      d.failureType === f.description || 
+      d.failureType === f.failureType || 
+      (f.description && f.description.includes(d.failureType))
+    );
+    setEditDefinitionId(matchingDef ? matchingDef.id.toString() : '');
+    setEditCategory(f.failureType || matchingDef?.category || 'mechanical');
     setEditFailureType(f.failureType || 'mechanical');
     setEditPriority(f.priority || 'medium');
     setEditOdometer(f.odometer || 0);
+
+    const existingWages = wf?.wages || f.wages || 0;
+    if (f.failureItems && Array.isArray(f.failureItems) && f.failureItems.length > 0) {
+      const rows = f.failureItems.map(item => ({
+        id: item.id || Math.random().toString(36).substring(2, 9),
+        definitionId: item.definitionId || '',
+        failureType: item.failureType || '',
+        category: item.category || 'mechanical',
+        mechanicId: item.mechanicId !== undefined && item.mechanicId !== null ? String(item.mechanicId) : (mechId !== undefined ? mechId.toString() : ''),
+        satisfactionLevel: (item.satisfactionLevel as string) || (f.satisfactionLevel as string) || '',
+        wage: item.wage !== undefined ? item.wage : 0,
+        description: item.description || ''
+      }));
+      const sumW = rows.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+      if (sumW === 0 && existingWages > 0 && rows.length > 0) {
+        rows[0].wage = existingWages;
+      }
+      setEditFailureRows(rows);
+    } else {
+      setEditFailureRows([
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          definitionId: matchingDef ? matchingDef.id.toString() : '',
+          failureType: f.failureType || matchingDef?.failureType || '',
+          category: f.failureType || matchingDef?.category || 'mechanical',
+          mechanicId: (mechId !== undefined ? mechId.toString() : ''),
+          satisfactionLevel: (f.satisfactionLevel as string) || '',
+          wage: existingWages,
+          description: f.description || ''
+        }
+      ]);
+    }
 
     // بارگذاری قطعات
     const initialRows: InvoicePartRowItem[] = [];
@@ -701,53 +1015,72 @@ export default function FailuresView({
   const handleSaveEditFailure = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingFailure || !onUpdateFailure) return;
-    if (!editVehicleId || !editDescription) {
-      alert('لطفاً خودرو و شرح خرابی را تکمیل نمایید.');
+    if (!editVehicleId) {
+      alert('لطفاً خودرو را مشخص نمایید.');
       return;
     }
 
     setIsEditSubmitting(true);
     try {
       const wf = workflows.find(w => w.failureId === editingFailure.id);
-      const mechanicIdNum = editMechanicId ? Number(editMechanicId) : undefined;
-      const selectedM = mechanics.find(m => m.id === mechanicIdNum);
-      const finalShopName = editRepairShopName || (selectedM ? (selectedM.shopName || selectedM.name) : '');
 
-      // قطعات انبار
-      const warehouseRows = editPartRows.filter(r => r.source === 'warehouse' && r.partName);
-      const warehousePartsMap: Record<string, number> = {};
-      for (const row of warehouseRows) {
-        const existing = warehousePartsMap[row.partName] || 0;
-        warehousePartsMap[row.partName] = existing + (Number(row.quantity) || 1);
+      const activeRows = editFailureRows.filter(r => 
+        r.failureType.trim() || r.category.trim() || r.description.trim() || r.mechanicId
+      );
+      const rowsToSave = activeRows.length > 0 ? activeRows : editFailureRows;
+      const primaryRow = rowsToSave[0];
+
+      const mechsInRows: Mechanic[] = [];
+      const addedMIds = new Set<number>();
+      for (const r of rowsToSave) {
+        if (r.mechanicId) {
+          const mId = Number(r.mechanicId);
+          if (!isNaN(mId) && !addedMIds.has(mId)) {
+            addedMIds.add(mId);
+            const found = mechanics.find(m => m.id === mId);
+            if (found) mechsInRows.push(found);
+          }
+        }
       }
+      if (editMechanicId) {
+        const mId = Number(editMechanicId);
+        if (!isNaN(mId) && !addedMIds.has(mId)) {
+          addedMIds.add(mId);
+          const found = mechanics.find(m => m.id === mId);
+          if (found) mechsInRows.push(found);
+        }
+      }
+      const mechanicIdNum = mechsInRows[0]?.id || (editMechanicId ? Number(editMechanicId) : undefined);
+      const finalShopName = editRepairShopName || (mechsInRows.length > 0
+        ? mechsInRows.map(m => m.shopName || m.name).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('، ')
+        : '');
 
-      // قطعات خارج از انبار (تعمیرگاه یا تامین‌کنندگان کالا)
-      const nonWarehouseRows = editPartRows.filter(r => r.source !== 'warehouse' && r.partName.trim());
-      const shopPartsList = nonWarehouseRows.map(r => ({
-        name: r.partName.trim(),
-        quantity: Number(r.quantity) || 1,
-        unitPrice: Number(r.unitPrice) || 0,
-        totalPrice: Number(r.cost) || 0
-      }));
-
-      const hasInvoiceData = Boolean(editEndDate || Number(editTotalCost) > 0 || editPartRows.length > 0);
-      const updatedStatus = (hasInvoiceData && editingFailure.status !== 'approved') ? 'completed' : editingFailure.status;
+      const finalDesc = rowsToSave.length === 1
+        ? (rowsToSave[0].description.trim() || rowsToSave[0].failureType || 'گزارش عیب فنی')
+        : rowsToSave.map((r, i) => `${toPersianDigits(i + 1)}. ${r.failureType || 'عیب فنی'}${r.description ? ` (${r.description})` : ''}`).join(' | ');
+      const finalCat = (primaryRow?.category as FailureType) || (primaryRow?.failureType as FailureType) || editFailureType || 'mechanical';
 
       await onUpdateFailure(editingFailure.id, {
         vehicleId: Number(editVehicleId),
-        description: editDescription,
-        failureType: editFailureType,
+        description: finalDesc,
+        failureType: finalCat,
         priority: editPriority,
         odometer: Number(editOdometer),
         failureDate: editFailureDate,
-        endDate: editEndDate || undefined,
+        endDate: editEndDate || editingFailure.endDate || undefined,
         assignedMechanicId: mechanicIdNum,
         repairShopName: finalShopName,
         startDate: editFailureDate,
-        wages: Number(editWages) || 0,
-        totalCost: Number(editTotalCost) || 0,
-        satisfactionLevel: editSatisfaction,
-        status: updatedStatus
+        failureItems: rowsToSave.map(r => ({
+          id: r.id,
+          definitionId: r.definitionId,
+          failureType: r.failureType,
+          category: r.category,
+          mechanicId: r.mechanicId ? Number(r.mechanicId) : undefined,
+          wage: Number(r.wage) || 0,
+          satisfactionLevel: (r.satisfactionLevel as SatisfactionLevel) || undefined,
+          description: r.description
+        }))
       } as any);
 
       if (wf) {
@@ -755,15 +1088,7 @@ export default function FailuresView({
           technicianId: mechanicIdNum,
           repairShopName: finalShopName,
           startDate: editFailureDate,
-          endDate: editEndDate || undefined,
-          partsUsed: warehousePartsMap,
-          shopPartsUsed: shopPartsList,
-          wages: Number(editWages) || 0,
-          totalCost: Number(editTotalCost) || 0,
-          replacedServiceTypes: editSelectedReplacedServiceTypes,
-          satisfactionLevel: editSatisfaction,
-          isDelivered: hasInvoiceData ? true : wf.isDelivered,
-          markReady: hasInvoiceData
+          endDate: editEndDate || wf.endDate || undefined
         });
       }
 
@@ -797,22 +1122,65 @@ export default function FailuresView({
     setAssignedMechanicId(mechanics[0]?.id.toString() || '');
     setCustomShopName(mechanics[0]?.shopName || '');
     setRepairStartDate(getCurrentJalaliDate());
+    setFailureRows([
+      createInitialFailureRow(),
+      createInitialFailureRow(),
+      createInitialFailureRow()
+    ]);
     setIsReportModalOpen(true);
   };
 
   // ثبت خرابی و انتقال مستقیم به بخش «در حال تعمیر»
   const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vehicleId || !description || !odometer) {
-      alert('لطفاً مشخصات خودرو، کیلومتر و شرح خرابی را تکمیل نمایید.');
+    if (!vehicleId || !odometer) {
+      alert('لطفاً مشخصات خودرو و کارکرد فعلی (کیلومتر) را تکمیل نمایید.');
+      return;
+    }
+
+    const activeRows = failureRows.filter(r => 
+      r.failureType.trim() || r.category.trim() || r.description.trim() || r.mechanicId
+    );
+
+    if (activeRows.length === 0) {
+      alert('لطفاً حداقل یک ردیف خرابی با مشخص کردن نوع عیب یا شرح خرابی وارد نمایید.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const selectedVeh = vehicles.find(v => v.id.toString() === vehicleId);
-      const selectedMechanic = mechanics.find(m => m.id === Number(assignedMechanicId));
-      const shopName = customShopName || (selectedMechanic ? selectedMechanic.shopName || selectedMechanic.name : 'تعمیرگاه');
+
+      const mechsInActiveRows: Mechanic[] = [];
+      const addedMechIds = new Set<number>();
+      for (const r of activeRows) {
+        if (r.mechanicId) {
+          const mId = Number(r.mechanicId);
+          if (!isNaN(mId) && !addedMechIds.has(mId)) {
+            addedMechIds.add(mId);
+            const found = mechanics.find(m => m.id === mId);
+            if (found) mechsInActiveRows.push(found);
+          }
+        }
+      }
+      if (assignedMechanicId) {
+        const mId = Number(assignedMechanicId);
+        if (!isNaN(mId) && !addedMechIds.has(mId)) {
+          addedMechIds.add(mId);
+          const found = mechanics.find(m => m.id === mId);
+          if (found) mechsInActiveRows.push(found);
+        }
+      }
+      const primaryMechId = mechsInActiveRows[0]?.id || (assignedMechanicId ? Number(assignedMechanicId) : undefined);
+      const shopName = customShopName || (mechsInActiveRows.length > 0 
+        ? mechsInActiveRows.map(m => m.shopName || m.name).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('، ')
+        : 'تعمیرگاه');
+
+      const fDesc = activeRows.length === 1
+        ? (activeRows[0].description.trim() || activeRows[0].failureType || 'گزارش عیب فنی')
+        : activeRows.map((r, i) => `${toPersianDigits(i + 1)}. ${r.failureType || 'عیب فنی'}${r.description ? ` (${r.description})` : ''}`).join(' | ');
+
+      const primaryCat = (activeRows[0]?.category as FailureType) || (activeRows[0]?.failureType as FailureType) || 'mechanical';
 
       await onAddFailure({
         vehicleId: Number(vehicleId),
@@ -822,13 +1190,21 @@ export default function FailuresView({
         failureDate: new Date().toISOString().split('T')[0],
         failureTime: new Date().toLocaleTimeString('fa-IR', { hour12: false }).substring(0, 5),
         odometer: Number(odometer),
-        description,
-        failureType,
+        description: fDesc,
+        failureType: primaryCat,
         priority,
         status: 'in_repair', // مستقیماً در حال تعمیر
-        assignedMechanicId: assignedMechanicId ? Number(assignedMechanicId) : undefined,
+        assignedMechanicId: primaryMechId,
         repairShopName: shopName,
-        startDate: repairStartDate
+        startDate: repairStartDate,
+        failureItems: activeRows.map(r => ({
+          id: r.id,
+          definitionId: r.definitionId,
+          failureType: r.failureType,
+          category: r.category,
+          mechanicId: r.mechanicId ? Number(r.mechanicId) : undefined,
+          description: r.description
+        }))
       });
 
       setIsReportModalOpen(false);
@@ -850,8 +1226,15 @@ export default function FailuresView({
   // باز کردن مدال ثبت فاکتور و قطعات برای ترخیص به بخش «آماده شده»
   const handleOpenReturnInvoiceModal = (fail: VehicleFailure) => {
     const wf = workflows.find(w => w.failureId === fail.id);
+    const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
+      ? wf.technicianId
+      : (fail.assignedMechanicId !== undefined && fail.assignedMechanicId !== null ? fail.assignedMechanicId : undefined);
+    const mech = mechanics.find(m => m.id === mechId);
+
     setReturnInvoiceFailure(fail);
     setInvoiceEndDate(getCurrentJalaliDate());
+    setInvoiceMechanicId(mechId !== undefined ? mechId.toString() : '');
+    setInvoiceRepairShopName(wf?.repairShopName || fail.repairShopName || (mech ? (mech.shopName || mech.name) : ''));
     
     const initialRows: InvoicePartRowItem[] = [];
 
@@ -889,10 +1272,52 @@ export default function FailuresView({
     }
 
     setInvoicePartRows(initialRows);
-    const existingWages = wf?.wages || 0;
+    const existingWages = wf?.wages || fail.wages || 0;
     setInvoiceWages(existingWages);
     setShopInvoiceNotes(wf?.notes || '');
     setInvoiceSatisfaction(wf?.satisfactionLevel || fail.satisfactionLevel || undefined);
+
+    // بارگذاری ردیف‌های خرابی
+    if (fail.failureItems && Array.isArray(fail.failureItems) && fail.failureItems.length > 0) {
+      const rows = fail.failureItems.map(item => {
+        const itemMechId = item.mechanicId !== undefined && item.mechanicId !== null
+          ? String(item.mechanicId)
+          : (mechId !== undefined ? String(mechId) : '');
+        return {
+          id: item.id || Math.random().toString(36).substring(2, 9),
+          definitionId: item.definitionId || '',
+          failureType: item.failureType || '',
+          category: item.category || 'mechanical',
+          mechanicId: itemMechId,
+          satisfactionLevel: (item.satisfactionLevel as string) || (fail.satisfactionLevel as string) || '',
+          wage: item.wage !== undefined ? item.wage : 0,
+          description: item.description || ''
+        };
+      });
+
+      const sumW = rows.reduce((acc, r) => acc + (Number(r.wage) || 0), 0);
+      if (sumW === 0 && existingWages > 0 && rows.length > 0) {
+        rows[0].wage = existingWages;
+      }
+      setInvoiceFailureRows(rows);
+    } else {
+      const matchingDef = failureDefinitions.find(d => 
+        d.failureType === fail.failureType || 
+        (fail.description && fail.description.includes(d.failureType))
+      );
+      setInvoiceFailureRows([
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          definitionId: matchingDef ? matchingDef.id.toString() : '',
+          failureType: fail.failureType || matchingDef?.failureType || '',
+          category: fail.failureType || matchingDef?.category || 'mechanical',
+          mechanicId: (mechId !== undefined ? mechId.toString() : ''),
+          satisfactionLevel: (fail.satisfactionLevel as string) || '',
+          wage: existingWages,
+          description: fail.description || ''
+        }
+      ]);
+    }
     
     // تشخیص هوشمند خدمات و سرویس‌های دوره‌ای متناظر با این تعمیر
     if (wf?.replacedServiceTypes && wf.replacedServiceTypes.length > 0) {
@@ -1038,7 +1463,54 @@ export default function FailuresView({
 
     setIsSubmitting(true);
     try {
+      const activeRows = invoiceFailureRows.filter(r => 
+        r.failureType.trim() || r.category.trim() || r.description.trim() || r.mechanicId || (r.wage && r.wage > 0)
+      );
+      const rowsToSave = activeRows.length > 0 ? activeRows : invoiceFailureRows;
+      const primaryRow = rowsToSave[0];
+
+      const mechsInReturnRows: Mechanic[] = [];
+      const addedReturnMIds = new Set<number>();
+      for (const r of rowsToSave) {
+        if (r.mechanicId) {
+          const mId = Number(r.mechanicId);
+          if (!isNaN(mId) && !addedReturnMIds.has(mId)) {
+            addedReturnMIds.add(mId);
+            const found = mechanics.find(m => m.id === mId);
+            if (found) mechsInReturnRows.push(found);
+          }
+        }
+      }
+      if (invoiceMechanicId) {
+        const mId = Number(invoiceMechanicId);
+        if (!isNaN(mId) && !addedReturnMIds.has(mId)) {
+          addedReturnMIds.add(mId);
+          const found = mechanics.find(m => m.id === mId);
+          if (found) mechsInReturnRows.push(found);
+        }
+      }
+      const mechanicIdNum = mechsInReturnRows[0]?.id || (invoiceMechanicId ? Number(invoiceMechanicId) : undefined);
+      const finalShopName = invoiceRepairShopName || (mechsInReturnRows.length > 0
+        ? mechsInReturnRows.map(m => m.shopName || m.name).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('، ')
+        : '');
+
+      const rowWithSat = rowsToSave.find(r => r.satisfactionLevel);
+      const finalSatisfaction = (invoiceSatisfaction || rowWithSat?.satisfactionLevel) as SatisfactionLevel | undefined;
+
+      const updatedFailureItems: FailureItem[] = rowsToSave.map(r => ({
+        id: r.id,
+        definitionId: r.definitionId,
+        failureType: r.failureType,
+        category: r.category,
+        mechanicId: r.mechanicId ? Number(r.mechanicId) : undefined,
+        wage: Number(r.wage) || 0,
+        satisfactionLevel: (r.satisfactionLevel as SatisfactionLevel) || undefined,
+        description: r.description
+      }));
+
       await onUpdateWorkflow(wf.id, {
+        technicianId: mechanicIdNum,
+        repairShopName: finalShopName,
         partsUsed: warehousePartsMap, // قطعات انبار جهت کسر خودکار
         shopPartsUsed: shopPartsList, // قطعات تأمین‌شده توسط تعمیرگاه
         wages: Number(invoiceWages) || 0,
@@ -1046,14 +1518,23 @@ export default function FailuresView({
         endDate: invoiceEndDate,
         notes: shopInvoiceNotes,
         replacedServiceTypes: selectedReplacedServiceTypes,
-        satisfactionLevel: invoiceSatisfaction,
+        satisfactionLevel: finalSatisfaction,
         isDelivered: true,
         markReady: true
       });
 
       if (onUpdateFailure) {
         await onUpdateFailure(returnInvoiceFailure.id, {
-          satisfactionLevel: invoiceSatisfaction
+          assignedMechanicId: mechanicIdNum,
+          repairShopName: finalShopName,
+          endDate: invoiceEndDate,
+          partsUsed: warehousePartsMap,
+          shopPartsUsed: shopPartsList,
+          wages: Number(invoiceWages) || 0,
+          totalCost: Number(invoiceTotalCost) || 0,
+          satisfactionLevel: finalSatisfaction,
+          failureItems: updatedFailureItems,
+          status: 'completed'
         });
       }
 
@@ -1078,10 +1559,6 @@ export default function FailuresView({
   const getFailureColValue = (f: VehicleFailure, colKey: string): string => {
     const v = vehicles.find(veh => String(veh.id) === String(f.vehicleId) || Number(veh.id) === Number(f.vehicleId));
     const wf = workflows.find(w => w.failureId === f.id);
-    const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
-      ? wf.technicianId
-      : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? f.assignedMechanicId : undefined);
-    const mech = mechanics.find(m => m.id === mechId);
 
     if (colKey === 'failureDate') {
       return activeTab === 'in_repair' 
@@ -1094,7 +1571,7 @@ export default function FailuresView({
       if (f.driverName) return `خودرو ${f.driverName}`;
       return '—';
     }
-    if (colKey === 'shopName') return (mech ? `${mech.name} ${mech.shopName ? `(${mech.shopName})` : ''}` : '') || wf?.repairShopName || f.repairShopName || 'تعمیرگاه مرکزی';
+    if (colKey === 'shopName') return getFailureMechanicsDisplay(f, wf);
     if (colKey === 'priority') {
       return f.priority === 'high' ? 'بحرانی' : f.priority === 'medium' ? 'متوسط' : 'جزیی';
     }
@@ -1183,11 +1660,11 @@ export default function FailuresView({
     setColumnFilters({ ...columnFilters, [filterMenu.colKey]: [val] });
   };
 
-  // لیست خودروها منطبق با عبارت جستجوی نام خودرو
+  // لیست خودروها منطبق با عبارت جستجوی نام خودرو، راننده و کد خودرو
   const matchedVehicles = useMemo(() => {
     const query = searchTerm.trim();
     return query
-      ? vehicles.filter(v => startsWithPrefix(v.name, query) || startsWithPrefix(v.code, query) || startsWithPrefix(v.plaque, query))
+      ? vehicles.filter(v => matchesVehicleSearch(v, query))
       : vehicles;
   }, [vehicles, searchTerm]);
 
@@ -1196,17 +1673,12 @@ export default function FailuresView({
     return failures.filter((f: VehicleFailure) => {
       const v = vehicles.find(veh => veh.id === f.vehicleId);
       const wf = workflows.find(w => w.failureId === f.id);
-
-      const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
-        ? wf.technicianId
-        : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? f.assignedMechanicId : undefined);
-      const mech = mechanics.find(m => m.id === mechId);
-      const displayShop = (mech ? `${mech.name} ${mech.shopName ? `(${mech.shopName})` : ''}` : '') || wf?.repairShopName || f.repairShopName || '';
+      const displayShop = getFailureMechanicsDisplay(f, wf);
 
       const searchLower = searchTerm.trim();
       const matchesSearch = 
         !searchLower ||
-        (v && (startsWithPrefix(v.name, searchLower) || startsWithPrefix(v.code, searchLower) || startsWithPrefix(v.plaque, searchLower))) ||
+        (v && matchesVehicleSearch(v, searchLower)) ||
         (f.description && f.description.toLowerCase().includes(searchLower.toLowerCase())) ||
         (displayShop && displayShop.toLowerCase().includes(searchLower.toLowerCase()));
 
@@ -1260,11 +1732,7 @@ export default function FailuresView({
     },
     shopName: (f: VehicleFailure) => {
       const wf = workflows.find(w => w.failureId === f.id);
-      const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
-        ? wf.technicianId
-        : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? f.assignedMechanicId : undefined);
-      const mech = mechanics.find(m => m.id === mechId);
-      return (mech ? `${mech.name} ${mech.shopName ? `(${mech.shopName})` : ''}` : '') || wf?.repairShopName || f.repairShopName || '';
+      return getFailureMechanicsDisplay(f, wf);
     },
   });
 
@@ -1346,11 +1814,7 @@ export default function FailuresView({
       const rows = itemsToExport.map((f, idx) => {
         const v = vehicles.find(veh => String(veh.id) === String(f.vehicleId) || Number(veh.id) === Number(f.vehicleId));
         const wf = workflows.find(w => w.failureId === f.id);
-        const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
-          ? wf.technicianId
-          : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? f.assignedMechanicId : undefined);
-        const mech = mechanics.find(m => m.id === mechId);
-        const shopName = (mech ? `${mech.name} ${mech.shopName ? `(${mech.shopName})` : ''}` : '') || wf?.repairShopName || f.repairShopName || 'تعمیرگاه مرکزی';
+        const shopName = getFailureMechanicsDisplay(f, wf);
 
         let statusLabel = 'در حال تعمیر';
         if (f.status === 'completed' || f.status === 'approved') statusLabel = 'آماده شده / تسویه';
@@ -1401,7 +1865,7 @@ export default function FailuresView({
     }
   };
 
-  // ۱. اگر کاربر صفحه ثبت خرابی جدید را باز کرده است (نمایش تمام‌صفحه دقیقاً مانند سرویس دوره‌ای)
+  // ۱. اگر کاربر صفحه ثبت خرابی جدید را باز کرده است (نمایش تمام‌صفحه فرم ثبت خرابی هماهنگ با استایل سرویس دوره‌ای)
   if (isReportModalOpen) {
     return (
       <div className="space-y-6">
@@ -1427,12 +1891,12 @@ export default function FailuresView({
           </div>
 
           {/* بدنه فرم ثبت خرابی */}
-          <form onSubmit={handleReportSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-3 text-xs bg-white dark:bg-[#111113]">
+          <form onSubmit={handleReportSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs bg-white dark:bg-[#111113]">
             
-            {/* ۱. ردیف اول: خودرو، تاریخ ارجاع، و کارکرد فعلی */}
+            {/* ۱. ردیف بالا: نام ماشین، تاریخ ارجاع، کارکرد فعلی و اولویت ارجاع */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
               {/* انتخاب خودرو */}
-              <div className="md:col-span-5 space-y-1">
+              <div className="md:col-span-4 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   نام ماشین (جستجو و انتخاب) <span className="text-rose-500">*</span>
                 </label>
@@ -1448,10 +1912,11 @@ export default function FailuresView({
                   }}
                   placeholder="جستجو و انتخاب خودرو از لیست..."
                   searchable={true}
+                  matchTriggerWidth={true}
                   quickAddType="vehicle"
                   options={vehicles.map(v => ({ 
                     value: v.id, 
-                    label: `${v.name} - پلاک [${toPersianDigits(v.plaque)}] (کد: ${toPersianDigits(v.code)})` 
+                    label: getVehicleDisplayName(v)
                   }))}
                 />
               </div>
@@ -1464,101 +1929,197 @@ export default function FailuresView({
                 <JalaliDatePicker
                   value={repairStartDate}
                   onChange={setRepairStartDate}
+                  className="w-full"
                   inputClassName="h-[38px] text-xs font-bold rounded-md"
                 />
               </div>
 
               {/* کارکرد فعلی (کیلومتر) */}
-              <div className="md:col-span-4 space-y-1">
+              <div className="md:col-span-2 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   کارکرد فعلی (کیلومتر) <span className="text-rose-500">*</span>
                 </label>
                 <input 
                   type="text" 
                   inputMode="numeric"
-                  placeholder="مثال: ۱۲۵،۰۰۰"
+                  placeholder="مثال: ۴۵۲،۰۰۰"
                   value={odometer ? formatNumber(odometer) : ''} 
                   onChange={e => setOdometer(parsePersianNumber(e.target.value))} 
-                  className="w-full h-[38px] px-3 rounded-md border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono font-bold text-xs shadow-2xs"
+                  className="w-full h-[38px] px-3 rounded-md border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono font-bold text-xs shadow-2xs transition-colors"
                   required
                 />
               </div>
-            </div>
 
-            {/* ۲. ردیف دوم: تعمیرکار/تعمیرگاه، دسته‌بندی نقص فنی و سطح فوریت */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  تعمیرکار / تعمیرگاه (طرف قرارداد)
-                </label>
-                <CustomSelect
-                  value={assignedMechanicId}
-                  onChange={(val) => {
-                    setAssignedMechanicId(val);
-                    const mech = mechanics.find(m => m.id === Number(val));
-                    if (mech && mech.shopName) {
-                      setCustomShopName(mech.shopName);
-                    }
-                  }}
-                  placeholder="-- انتخاب یا بدون تعمیرکار مشخص --"
-                  searchable={true}
-                  quickAddType="mechanic"
-                  options={[
-                    { value: '', label: '-- بدون تعمیرکار مشخص / تعمیرگاه آزاد --' },
-                    ...mechanics.map(m => ({ 
-                      value: m.id, 
-                      label: `${m.name} ${m.shopName ? `(${m.shopName})` : ''} - ${m.specialty}` 
-                    }))
-                  ]}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  دسته‌بندی نقص فنی <span className="text-rose-500">*</span>
-                </label>
-                <CustomSelect
-                  value={failureType}
-                  onChange={(val) => setFailureType(val as FailureType)}
-                  options={activeFailureCategoryOptions}
-                  onAddNew={() => {
-                    setCategoryTargetForm('create');
-                    setIsAddCategoryModalOpen(true);
-                  }}
-                  addNewLabel="افزودن دسته‌بندی جدید..."
-                  searchable={true}
-                />
-              </div>
-
-              <div className="space-y-1">
+              {/* سطح فوریت و اولویت ارجاع */}
+              <div className="md:col-span-3 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   سطح فوریت و اولویت ارجاع <span className="text-rose-500">*</span>
                 </label>
                 <CustomSelect
                   value={priority}
                   onChange={(val) => setPriority(val as FailurePriority)}
+                  matchTriggerWidth={true}
                   options={[
-                    { value: 'high', label: 'بحرانی و اضطراری (توقف کامل خودرو)' },
                     { value: 'medium', label: 'اولویت متوسط (نیازمند رسیدگی سریع)' },
+                    { value: 'high', label: 'بحرانی و اضطراری (توقف کامل خودرو)' },
                     { value: 'low', label: 'اشکال جزیی و غیراضطراری' }
                   ]}
                 />
               </div>
             </div>
 
-            {/* ۴. ردیف چهارم: شرح کامل عیب */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                شرح کامل عیب، علائم و توضیحات خرابی <span className="text-rose-500">*</span>
-              </label>
-              <textarea 
-                rows={3}
-                value={description} 
-                onChange={e => setDescription(e.target.value)} 
-                placeholder="علائم خرابی مشاهده شده توسط راننده یا کارشناس فنی را به صورت دقیق توضیح دهید..."
-                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none placeholder-slate-400 dark:placeholder-slate-600 leading-relaxed text-xs"
-                required
-              />
+            {/* ۲. بخش جدول خرابی‌های گزارش شده (دقیقاً با استایل جدول سرویس دوره‌ای) */}
+            <div className="space-y-2.5 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-3">
+              
+              {/* هدر بخش خرابی‌ها */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#2d2d30]">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded border border-indigo-200 dark:border-indigo-500/20">
+                    <Wrench className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                      خرابی‌های گزارش‌شده <span className="text-rose-500">*</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      ثبت انواع خرابی با دسته و تعمیرکار مربوطه
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddFailureRow}
+                  className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold rounded border border-indigo-200 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>افزودن خرابی</span>
+                </button>
+              </div>
+
+              {/* جدول اقلام خرابی */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#2d2d30] bg-white dark:bg-[#111113]">
+                <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
+                      <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
+                      <th className="py-2 px-2 min-w-[190px]">نوع خرابی <span className="text-rose-500">*</span></th>
+                      <th className="py-2 px-2 min-w-[140px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[160px]">تعمیرکار</th>
+                      <th className="py-2 px-2 min-w-[200px]">شرح خرابی</th>
+                      <th className="py-2 px-2 text-center w-10">حذف</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
+                    {failureRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-6 text-slate-500 font-bold text-[11px]">
+                          هیچ ردیف خرابی ثبت نشده است. روی دکمه «+ افزودن خرابی» کلیک کنید.
+                        </td>
+                      </tr>
+                    ) : (
+                      failureRows.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                          {/* شماره ردیف */}
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                            {toPersianDigits(index + 1)}
+                          </td>
+
+                          {/* نوع خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-bold">
+                            <CustomSelect
+                              value={row.definitionId}
+                              onChange={(val) => handleUpdateFailureRow(row.id, { definitionId: String(val) })}
+                              placeholder="انتخاب نوع خرابی..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="failure"
+                              options={[
+                                { value: '', label: '-- بدون انتخاب --' },
+                                ...failureDefinitions.map(def => ({
+                                  value: def.id.toString(),
+                                  label: def.failureType
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* دسته خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.category}
+                              onChange={(val) => handleUpdateFailureRow(row.id, { category: String(val) })}
+                              placeholder="انتخاب دسته..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              onAddNew={() => {
+                                setCategoryTargetRowId(row.id);
+                                setCategoryTargetForm('create');
+                                setIsAddCategoryModalOpen(true);
+                              }}
+                              addNewLabel="افزودن دسته‌بندی جدید..."
+                              options={[
+                                { value: '', label: 'انتخاب کنید...' },
+                                ...activeFailureCategoryOptions.map(cat => ({
+                                  value: cat.value,
+                                  label: cat.label
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* تعمیرکار */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.mechanicId}
+                              onChange={(val) => handleUpdateFailureRow(row.id, { mechanicId: String(val) })}
+                              placeholder=""
+                              showEmptyAsBlank={true}
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="mechanic"
+                              options={[
+                                { value: '', label: '-- بدون تعمیرکار --' },
+                                ...mechanics.map(m => ({
+                                  value: m.id.toString(),
+                                  label: m.shopName ? `${m.name} (${m.shopName})` : m.name
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* شرح خرابی */}
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              value={row.description}
+                              onChange={e => handleUpdateFailureRow(row.id, { description: e.target.value })}
+                              placeholder="علائم این خرابی..."
+                              className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans font-medium text-xs placeholder-slate-400 dark:placeholder-slate-600 shadow-2xs"
+                            />
+                          </td>
+
+                          {/* دکمه حذف ردیف */}
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFailureRow(row.id)}
+                              disabled={failureRows.length <= 1}
+                              className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
+                              title="حذف ردیف"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* دکمه‌های اقدام انتهای صفحه */}
@@ -1566,7 +2127,7 @@ export default function FailuresView({
               <button 
                 type="button" 
                 onClick={() => setIsReportModalOpen(false)} 
-                className="px-3 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+                className="px-3 py-1.5 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-400 font-bold rounded-md transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
               >
                 انصراف
               </button>
@@ -1574,15 +2135,100 @@ export default function FailuresView({
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
               >
-                <Wrench className="w-4 h-4" />
+                <Wrench className="w-3.5 h-3.5" />
                 <span>ثبت خرابی و ارجاع به تعمیرگاه</span>
               </button>
             </div>
-
           </form>
         </div>
+
+        {/* مودال ثبت و تعریف دسته‌بندی نقص فنی جدید درون فرم ثبت */}
+        {isAddCategoryModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto" dir="rtl">
+            <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white dark:bg-[#202024] rounded-lg border border-slate-200 dark:border-[#303035] shadow-xs">
+                    <Tag className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold">
+                      ثبت دسته‌بندی نقص فنی جدید
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      افزودن به لیست گزینه‌های دسته‌بندی خرابی و ارجاع
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCategoryName('');
+                    setCategoryErrorMsg('');
+                    setIsAddCategoryModalOpen(false);
+                    setCategoryTargetRowId(null);
+                  }}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddFailureCategory} className="p-4 sm:p-5 space-y-4 text-xs bg-white dark:bg-[#111113]">
+                {categoryErrorMsg && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg text-rose-700 dark:text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{categoryErrorMsg}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    عنوان دسته‌بندی <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: هیدرولیک و فرمان، سیستم خنک‌کاری، گیربکس اتوماتیک..."
+                    value={newCategoryName}
+                    onChange={(e) => {
+                      setNewCategoryName(e.target.value);
+                      if (categoryErrorMsg) setCategoryErrorMsg('');
+                    }}
+                    className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    این دسته‌بندی در لیست ذخیره شده و بلافاصله برای این ردیف انتخاب خواهد شد.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-[#2d2d30]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCategoryName('');
+                      setCategoryErrorMsg('');
+                      setIsAddCategoryModalOpen(false);
+                      setCategoryTargetRowId(null);
+                    }}
+                    className="px-4 py-2 border border-slate-300 dark:border-[#2d2d30] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#1a1a1c] font-bold rounded-lg transition-colors text-xs cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors shadow-xs active:scale-95 text-xs cursor-pointer"
+                  >
+                    ثبت دسته‌بندی
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1607,51 +2253,296 @@ export default function FailuresView({
               <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 <span>ثبت فاکتور هزینه‌ها و قطعات (ترخیص خودرو)</span>
-                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-mono">#{returnInvoiceFailure.id}</span>
+                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-mono">#{toPersianDigits(returnInvoiceFailure.id)}</span>
               </h3>
               <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                خودرو: <strong className="text-slate-900 dark:text-white">{v?.name} ({v?.code})</strong> | پلاک: <strong className="text-indigo-600 dark:text-indigo-400 font-mono">{toPersianDigits(v?.plaque || '')}</strong>
+                خودرو: <strong className="text-slate-900 dark:text-white">{v?.name} ({v?.code})</strong> | پلاک: <strong className="text-indigo-600 dark:text-indigo-400 font-mono">{toPersianDigits(v?.plaque || '')}</strong> | راننده: <strong className="text-slate-800 dark:text-slate-200">{v?.driverName || '—'}</strong>
               </p>
             </div>
             <button 
               onClick={() => setReturnInvoiceFailure(null)} 
-              className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors border border-transparent hover:border-slate-300 dark:hover:border-[#2d2d30] cursor-pointer"
+              className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors border border-transparent hover:border-slate-300 dark:border-[#2d2d30] cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* بدنه فرم ثبت فاکتور */}
-          <form onSubmit={handleSubmitReturnInvoice} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs bg-white dark:bg-[#111113]">
+          {/* فرم ثبت فاکتور تمام‌صفحه */}
+          <form onSubmit={handleSubmitReturnInvoice} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs bg-white dark:bg-[#111113]">
             
-            {/* ۱. تاریخ ترخیص و شرح خدمات */}
+            {/* ۱. ردیف اول: مشخصات خودرو، کارکرد، تاریخ پذیرش، تاریخ ترخیص (اجباری) و اولویت */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-              <div className="md:col-span-4 space-y-1">
+              {/* نام خودرو */}
+              <div className="md:col-span-3 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  تاریخ تکمیل تعمیرات و ترخیص <span className="text-rose-500">*</span>
+                  نام ماشین و پلاک
+                </label>
+                <div className="w-full h-[38px] px-3 rounded-md border border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center justify-between font-bold text-xs text-slate-900 dark:text-white truncate">
+                  <span className="truncate">{v?.name || returnInvoiceFailure.driverName || 'خودرو'}</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300 shrink-0 mr-2 text-[11px]">
+                    {toPersianDigits(v?.plaque || returnInvoiceFailure.plaque || '')}
+                  </span>
+                </div>
+              </div>
+
+              {/* کارکرد کیلومتر */}
+              <div className="md:col-span-2 space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                  کارکرد (کیلومتر)
+                </label>
+                <div className="w-full h-[38px] px-3 rounded-md border border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center font-mono font-bold text-xs text-slate-900 dark:text-white">
+                  {formatNumber(returnInvoiceFailure.odometer || v?.currentKm || 0)} <span className="text-[10px] text-slate-500 font-sans mr-1">ک‌م</span>
+                </div>
+              </div>
+
+              {/* تاریخ ثبت خرابی / پذیرش */}
+              <div className="md:col-span-2 space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                  تاریخ ثبت خرابی / پذیرش
+                </label>
+                <div className="w-full h-[38px] px-3 rounded-md border border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center font-mono font-bold text-xs text-slate-900 dark:text-white">
+                  {toJalaliDate(returnInvoiceFailure.failureDate)}
+                </div>
+              </div>
+
+              {/* تاریخ تکمیل تعمیرات و ترخیص */}
+              <div className="md:col-span-2 space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                  تاریخ ترخیص و تحویل خودرو <span className="text-rose-500">*</span>
                 </label>
                 <JalaliDatePicker
                   value={invoiceEndDate}
                   onChange={setInvoiceEndDate}
-                  inputClassName="h-[38px] text-xs font-bold"
+                  inputClassName="h-[38px] text-xs font-bold rounded-md"
                 />
               </div>
 
-              <div className="md:col-span-8 space-y-1">
+              {/* سطح فوریت */}
+              <div className="md:col-span-3 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  شرح خدمات یا توضیحات فاکتور تعمیرگاه
+                  سطح فوریت
                 </label>
-                <input 
-                  type="text" 
-                  placeholder="مثال: رفع عیب سیستم برق، تعویض تسمه و تحویل به راننده..."
-                  value={shopInvoiceNotes}
-                  onChange={e => setShopInvoiceNotes(e.target.value)}
-                  className="w-full h-[38px] px-3 rounded-lg border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none text-xs placeholder-slate-400 dark:placeholder-slate-600 font-medium"
-                />
+                <div className="w-full h-[38px] px-3 rounded-md border border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center font-bold text-xs text-slate-800 dark:text-slate-200 truncate">
+                  <span className="truncate">
+                    {returnInvoiceFailure.priority === 'high' 
+                      ? 'بحرانی و اضطراری (توقف کامل خودرو)' 
+                      : returnInvoiceFailure.priority === 'medium'
+                      ? 'اولویت متوسط (نیازمند رسیدگی سریع)'
+                      : 'اشکال جزیی و غیراضطراری'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* ۲. بخش قطعات مصرفی با طراحی فشرده شبیه ثبت خدمات سرویس دوره‌ای */}
+            {/* ۲. بخش جدول خرابی‌های گزارش‌شده و ارجاعی به تعمیرگاه */}
+            <div className="space-y-2.5 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-3">
+              
+              {/* هدر بخش خرابی‌ها */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#2d2d30]">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded border border-indigo-200 dark:border-indigo-500/20">
+                    <Wrench className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                      خرابی‌های ارجاعی و اجرت تعمیرات <span className="text-rose-500">*</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      تعیین اجرت، تعمیرکار و سطح رضایت کیفیت کار به تفکیک هر ردیف خرابی
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleInvoiceAddFailureRow}
+                  className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold rounded border border-indigo-200 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>افزودن خرابی</span>
+                </button>
+              </div>
+
+              {/* جدول اقلام خرابی فاکتور */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#2d2d30] bg-white dark:bg-[#111113]">
+                <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
+                      <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
+                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
+                      <th className="py-2 px-2 min-w-[130px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[140px]">تعمیرکار / تعمیرگاه</th>
+                      <th className="py-2 px-2 text-center w-14">شرح</th>
+                      <th className="py-2 px-2 text-left w-36 min-w-[120px]">اجرت (ریال)</th>
+                      <th className="py-2 px-2 text-center w-32 min-w-[110px]">سطح رضایت</th>
+                      <th className="py-2 px-2 text-center w-10">حذف</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
+                    {invoiceFailureRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-6 text-slate-500 font-bold text-[11px]">
+                          هیچ ردیف خرابی ثبت نشده است. روی دکمه «+ افزودن خرابی» کلیک کنید.
+                        </td>
+                      </tr>
+                    ) : (
+                      invoiceFailureRows.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                          {/* شماره ردیف */}
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                            {toPersianDigits(index + 1)}
+                          </td>
+
+                          {/* نوع خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-bold">
+                            <CustomSelect
+                              value={row.definitionId}
+                              onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { definitionId: String(val) })}
+                              placeholder="انتخاب نوع خرابی..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="failure"
+                              options={[
+                                { value: '', label: '-- بدون انتخاب --' },
+                                ...failureDefinitions.map(def => ({
+                                  value: def.id.toString(),
+                                  label: def.failureType
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* دسته خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.category}
+                              onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { category: String(val) })}
+                              placeholder="انتخاب دسته..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              onAddNew={() => {
+                                setCategoryTargetRowId(row.id);
+                                setCategoryTargetForm('invoice');
+                                setIsAddCategoryModalOpen(true);
+                              }}
+                              addNewLabel="افزودن دسته‌بندی جدید..."
+                              options={[
+                                { value: '', label: 'انتخاب کنید...' },
+                                ...activeFailureCategoryOptions.map(cat => ({
+                                  value: cat.value,
+                                  label: cat.label
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* تعمیرکار */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.mechanicId}
+                              onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { mechanicId: String(val) })}
+                              placeholder=""
+                              showEmptyAsBlank={true}
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="mechanic"
+                              options={[
+                                { value: '', label: '-- بدون تعمیرکار --' },
+                                ...mechanics.map(m => ({
+                                  value: m.id.toString(),
+                                  label: m.shopName ? `${m.name} (${m.shopName})` : m.name
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* دکمه مشاهده و ویرایش جزئیات شرح خرابی */}
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFailureDescModal({
+                                rowIndex: index,
+                                failureType: row.failureType || 'عیب فنی',
+                                description: row.description || '',
+                                isInvoiceForm: true
+                              })}
+                              className={`w-7 h-7 rounded border transition-colors flex items-center justify-center mx-auto cursor-pointer shadow-2xs relative ${
+                                row.description && row.description.trim()
+                                  ? 'border-slate-300 dark:border-[#38383c] bg-white dark:bg-[#1a1a1c] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528]'
+                                  : 'border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100'
+                              }`}
+                              title={row.description && row.description.trim() ? `شرح: ${row.description}` : 'ثبت شرح خرابی'}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              {row.description && row.description.trim() && (
+                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
+                              )}
+                            </button>
+                          </td>
+
+                          {/* اجرت (ریال) */}
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="۰"
+                              value={row.wage ? formatPrice(row.wage) : ''}
+                              onChange={e => {
+                                const val = parsePersianNumber(e.target.value);
+                                handleInvoiceUpdateFailureRow(row.id, { wage: val });
+                              }}
+                              className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white text-left font-mono font-bold focus:ring-1 focus:ring-indigo-500 text-xs shadow-2xs"
+                            />
+                          </td>
+
+                          {/* سطح رضایت */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.satisfactionLevel || ''}
+                              onChange={val => handleInvoiceUpdateFailureRow(row.id, { satisfactionLevel: (val || undefined) as SatisfactionLevel | undefined })}
+                              placeholder="انتخاب رضایت..."
+                              size="xs"
+                              matchTriggerWidth={true}
+                              options={SATISFACTION_SELECT_OPTIONS}
+                            />
+                          </td>
+
+                          {/* دکمه حذف ردیف */}
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleInvoiceRemoveFailureRow(row.id)}
+                              disabled={invoiceFailureRows.length <= 1}
+                              className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
+                              title="حذف ردیف"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+
+                {/* خلاصه اجرت ردیف‌های خرابی در مودال فاکتور */}
+                <div className="p-2 bg-slate-50 dark:bg-[#161618] border-t border-slate-200 dark:border-[#2d2d30] flex flex-wrap items-center justify-between text-xs font-bold gap-2">
+                  <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                    تعداد خرابی‌های ثبت‌شده: <strong className="text-slate-800 dark:text-slate-200 font-mono">{toPersianDigits(invoiceFailureRows.length)}</strong>
+                  </span>
+                  <div className="text-slate-700 dark:text-slate-300 text-[11px] flex items-center gap-1">
+                    <span>مجموع اجرت ردیف‌های خرابی:</span>
+                    <strong className="font-mono text-indigo-600 dark:text-indigo-400">{formatPrice(invoiceWages)}</strong>
+                    <span className="text-[10px] text-slate-400 font-normal">ریال</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ۳. بخش قطعات مصرفی با طراحی فشرده شبیه ثبت خدمات سرویس دوره‌ای */}
             <div className="space-y-2.5 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-3">
               {/* هدر بخش قطعات همراه دکمه‌های کوچک افزودن */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#2d2d30]">
@@ -1684,22 +2575,22 @@ export default function FailuresView({
 
               {/* جدول ردیف‌های اقلام با فیلدهای کوچک و جمع‌وجور */}
               <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#2d2d30] bg-white dark:bg-[#111113]">
-                <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+                <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
-                      <th className="py-2 px-2.5 text-center w-10 text-xs font-medium">#</th>
-                      <th className="py-2 px-2.5 w-56 sm:w-64 text-xs font-medium">منبع تأمین</th>
-                      <th className="py-2 px-2.5 text-xs font-medium">عنوان و مشخصات قطعه</th>
-                      <th className="py-2 px-2.5 text-center w-20 text-xs font-medium">تعداد</th>
-                      <th className="py-2 px-2.5 w-32 text-xs font-medium">قیمت واحد (ریال)</th>
-                      <th className="py-2 px-2.5 w-32 text-xs font-medium">جمع ردیف (ریال)</th>
-                      <th className="py-2 px-2.5 text-center w-12 text-xs font-medium">حذف</th>
+                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
+                      <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
+                      <th className="py-2 px-2 min-w-[150px] text-xs font-bold">منبع تأمین</th>
+                      <th className="py-2 px-2 min-w-[180px] text-xs font-bold">عنوان و مشخصات قطعه</th>
+                      <th className="py-2 px-2 text-center w-16 text-xs font-bold">تعداد</th>
+                      <th className="py-2 px-2 text-left w-32 min-w-[110px] text-xs font-bold">قیمت واحد (ریال)</th>
+                      <th className="py-2 px-2 text-left w-32 min-w-[115px] text-xs font-bold">جمع ردیف (ریال)</th>
+                      <th className="py-2 px-2 text-center w-10 text-xs font-bold">حذف</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                     {invoicePartRows.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-6 text-slate-500 text-[11px]">
+                        <td colSpan={7} className="text-center py-6 text-slate-500 font-bold text-[11px]">
                           هیچ قطعه‌ای ثبت نشده است. روی دکمه «+ افزودن قطعه» کلیک کنید.
                         </td>
                       </tr>
@@ -1708,19 +2599,20 @@ export default function FailuresView({
                         const isWarehouse = row.source === 'warehouse';
                         
                         return (
-                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors text-[11px]">
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
                             {/* ردیف */}
-                            <td className="py-1.5 px-2.5 text-center text-slate-500 dark:text-slate-400 text-[11px]">
+                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
                               {toPersianDigits(index + 1)}
                             </td>
 
                             {/* منبع تأمین */}
-                            <td className="py-1.5 px-2.5">
+                            <td className="py-1.5 px-2">
                               <CustomSelect
                                 value={row.source}
                                 onChange={(val) => handleUpdatePartRow(row.id, { source: val })}
                                 size="xs"
                                 searchable={true}
+                                matchTriggerWidth={true}
                                 quickAddType="supplier"
                                 placeholder="-- انتخاب تامین‌کننده --"
                                 options={[
@@ -1735,13 +2627,14 @@ export default function FailuresView({
                             </td>
 
                             {/* عنوان قطعه */}
-                            <td className="py-1.5 px-2.5">
+                            <td className="py-1.5 px-2">
                               {isWarehouse ? (
                                 <CustomSelect
                                   value={row.partName}
                                   onChange={(val) => handleUpdatePartRow(row.id, { partName: val })}
                                   placeholder="انتخاب قطعه انبار..."
                                   searchable={true}
+                                  matchTriggerWidth={true}
                                   size="xs"
                                   quickAddType="part"
                                   options={parts.map(p => ({
@@ -1755,13 +2648,13 @@ export default function FailuresView({
                                   placeholder="نام و مشخصات قطعه..."
                                   value={row.partName}
                                   onChange={(e) => handleUpdatePartRow(row.id, { partName: e.target.value })}
-                                  className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 text-[11px]"
+                                  className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 text-xs font-medium"
                                 />
                               )}
                             </td>
 
                             {/* تعداد */}
-                            <td className="py-1.5 px-2.5">
+                            <td className="py-1.5 px-2">
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -1770,12 +2663,12 @@ export default function FailuresView({
                                   const q = parsePersianNumber(e.target.value);
                                   handleUpdatePartRow(row.id, { quantity: q > 0 ? q : 1 });
                                 }}
-                                className="w-full h-6 px-1 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white text-center focus:ring-1 focus:ring-indigo-500 text-[11px]"
+                                className="w-full h-6 px-1 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white text-center font-mono font-bold focus:ring-1 focus:ring-indigo-500 text-xs"
                               />
                             </td>
 
                             {/* قیمت واحد */}
-                            <td className="py-1.5 px-2.5">
+                            <td className="py-1.5 px-2">
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -1785,19 +2678,19 @@ export default function FailuresView({
                                   const p = parsePersianNumber(e.target.value);
                                   handleUpdatePartRow(row.id, { unitPrice: p });
                                 }}
-                                className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white text-left focus:ring-1 focus:ring-indigo-500 text-[11px]"
+                                className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white text-left font-mono font-medium focus:ring-1 focus:ring-indigo-500 text-xs"
                               />
                             </td>
 
                             {/* جمع ردیف */}
-                            <td className="py-1.5 px-2.5 whitespace-nowrap">
-                              <div className="h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center justify-end text-slate-800 dark:text-slate-200 text-[11px]">
+                            <td className="py-1.5 px-2 whitespace-nowrap">
+                              <div className="h-6 px-2 rounded border border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center justify-end text-slate-800 dark:text-slate-200 font-mono font-bold text-xs">
                                 {formatPrice(row.cost)}
                               </div>
                             </td>
 
                             {/* دکمه حذف */}
-                            <td className="py-1.5 px-2.5 text-center">
+                            <td className="py-1.5 px-2 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleRemovePartRow(row.id)}
@@ -1832,76 +2725,7 @@ export default function FailuresView({
               </div>
             </div>
 
-            {/* ۳. بخش پایش و همگام‌سازی هوشمند با موعد تعویض سرویس‌های دوره‌ای */}
-            {serviceDefinitions.length > 0 && (
-              <div className="p-3 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 bg-indigo-600 text-white rounded">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
-                        <span>همگام‌سازی خودکار کیلومتر موعد تعویض (سرویس‌های دوره‌ای)</span>
-                        <span className="bg-slate-200 dark:bg-[#252528] text-slate-700 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-                          کیلومتر این تعمیر: {toPersianDigits(returnInvoiceFailure.odometer || 0)}
-                        </span>
-                      </h4>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                        چنانچه در این تعمیر، قطعاتی مانند تسمه تایم، لنت، روغن، شمع یا دیسک تعویض شده‌اند، با انتخاب آن‌ها، سیستم خودکار کیلومتر مبنای دوره‌های بعدی خودرو را از کیلومتر این تعمیر ({toPersianDigits(returnInvoiceFailure.odometer || 0)}) محاسبه می‌کند.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                  {serviceDefinitions.map(sDef => {
-                    const isSelected = selectedReplacedServiceTypes.includes(sDef.serviceType);
-                    return (
-                      <label 
-                        key={sDef.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg border text-[11px] cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700/60 text-indigo-950 dark:text-indigo-200 font-bold'
-                            : 'bg-white dark:bg-[#161619] border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className={`w-3.5 h-3.5 check-indicator rounded flex items-center justify-center border transition-all shrink-0 ${
-                          isSelected ? 'bg-indigo-600 border-indigo-600 shadow-2xs' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-[#151518]'
-                        }`}>
-                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedReplacedServiceTypes([...selectedReplacedServiceTypes, sDef.serviceType]);
-                            } else {
-                              setSelectedReplacedServiceTypes(selectedReplacedServiceTypes.filter(st => st !== sDef.serviceType));
-                            }
-                          }}
-                          className="sr-only"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="truncate">{sDef.serviceType}</div>
-                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-mono font-normal">
-                            دوره: هر {toPersianDigits(sDef.intervalKm || 0)} کیلومتر
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded font-bold">
-                            تثبیت شد
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ۴. هزینه‌های فاکتور، اجرت و جمع کل */}
+            {/* ۳. هزینه‌های فاکتور، اجرت و جمع کل */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch p-3 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30]">
               {/* اجرت و دستمزد تعمیرکار */}
               <div className="space-y-1 md:col-span-6 flex flex-col justify-between">
@@ -1934,32 +2758,19 @@ export default function FailuresView({
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* ۵. سطح رضایت از کار و خدمات */}
-            <div className="p-2 bg-slate-50 dark:bg-[#161618] rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="font-bold text-slate-700 dark:text-slate-300 text-[11px] shrink-0">
-                سطح رضایت از کیفیت کار و خدمات (اختیاری):
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 flex-1 sm:max-w-md">
-                {SATISFACTION_OPTIONS.map(opt => {
-                  const isSelected = invoiceSatisfaction === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setInvoiceSatisfaction(isSelected ? undefined : opt.id)}
-                      className={`h-7 px-2 rounded-md text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none border ${
-                        isSelected
-                          ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 border-indigo-600 dark:border-indigo-400 font-bold'
-                          : 'bg-white dark:bg-[#1a1a1c] hover:bg-slate-50 dark:hover:bg-[#222225] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2d2d30]'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[3] shrink-0" />}
-                      <span className={isSelected ? 'text-indigo-950 dark:text-indigo-200 font-bold' : ''}>{opt.label}</span>
-                    </button>
-                  );
-                })}
+              {/* شرح خدمات و یادداشت فاکتور */}
+              <div className="space-y-1 md:col-span-12">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                  شرح خدمات یا توضیحات تکمیلی فاکتور تعمیرگاه (اختیاری)
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="مثال: رفع عیب سیستم برق، تعویض تسمه و تحویل به راننده..."
+                  value={shopInvoiceNotes}
+                  onChange={e => setShopInvoiceNotes(e.target.value)}
+                  className="w-full h-[38px] px-3 rounded-md border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none text-xs placeholder-slate-400 dark:placeholder-slate-600 font-medium shadow-2xs"
+                />
               </div>
             </div>
 
@@ -1984,6 +2795,164 @@ export default function FailuresView({
             </div>
           </form>
         </div>
+
+        {/* مدال مشاهده و ویرایش جزئیات شرح خرابی */}
+        {selectedFailureDescModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto" dir="rtl">
+            <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg border border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
+                      <span>جزئیات و شرح نقص فنی</span>
+                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-mono">
+                        (ردیف {toPersianDigits(selectedFailureDescModal.rowIndex + 1)})
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      نوع خرابی: <strong className="text-slate-800 dark:text-slate-200">{selectedFailureDescModal.failureType || 'نقص فنی'}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFailureDescModal(null)}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-[#111113]">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block text-xs">
+                    شرح کامل عیوب، علائم خرابی و گزارش راننده یا پذیرش:
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={selectedFailureDescModal.description}
+                    onChange={(e) => {
+                      const newDesc = e.target.value;
+                      setSelectedFailureDescModal(prev => prev ? { ...prev, description: newDesc } : null);
+                      if (selectedFailureDescModal.isInvoiceForm) {
+                        const targetRow = invoiceFailureRows[selectedFailureDescModal.rowIndex];
+                        if (targetRow) {
+                          handleInvoiceUpdateFailureRow(targetRow.id, { description: newDesc });
+                        }
+                      } else {
+                        const targetRow = editFailureRows[selectedFailureDescModal.rowIndex];
+                        if (targetRow) {
+                          handleEditUpdateFailureRow(targetRow.id, { description: newDesc });
+                        }
+                      }
+                    }}
+                    placeholder="توضیحات تکمیلی نقص فنی، علل ایجاد یا توضیحات راننده..."
+                    className="w-full bg-slate-50 dark:bg-[#161619] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 p-3 sm:px-5 sm:py-3.5 border-t border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFailureDescModal(null)}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors text-xs cursor-pointer shadow-xs active:scale-95"
+                >
+                  تأیید و بستن
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* مودال ثبت و تعریف دسته‌بندی نقص فنی جدید */}
+        {isAddCategoryModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto" dir="rtl">
+            <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white dark:bg-[#202024] rounded-lg border border-slate-200 dark:border-[#303035] shadow-xs">
+                    <Tag className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold">
+                      ثبت دسته‌بندی نقص فنی جدید
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      افزودن به لیست گزینه‌های دسته‌بندی خرابی و ارجاع
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCategoryName('');
+                    setCategoryErrorMsg('');
+                    setIsAddCategoryModalOpen(false);
+                    setCategoryTargetRowId(null);
+                  }}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddFailureCategory} className="p-4 sm:p-5 space-y-4 text-xs bg-white dark:bg-[#111113]">
+                {categoryErrorMsg && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg text-rose-700 dark:text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{categoryErrorMsg}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    عنوان دسته‌بندی <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: هیدرولیک و فرمان، سیستم خنک‌کاری، گیربکس اتوماتیک..."
+                    value={newCategoryName}
+                    onChange={(e) => {
+                      setNewCategoryName(e.target.value);
+                      if (categoryErrorMsg) setCategoryErrorMsg('');
+                    }}
+                    className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    این دسته‌بندی در لیست ذخیره شده و بلافاصله برای این ردیف انتخاب خواهد شد.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-[#2d2d30]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCategoryName('');
+                      setCategoryErrorMsg('');
+                      setIsAddCategoryModalOpen(false);
+                      setCategoryTargetRowId(null);
+                    }}
+                    className="px-4 py-2 border border-slate-300 dark:border-[#2d2d30] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#1a1a1c] font-bold rounded-lg transition-colors text-xs cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors shadow-xs active:scale-95 text-xs cursor-pointer"
+                  >
+                    ثبت دسته‌بندی
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2024,7 +2993,9 @@ export default function FailuresView({
                 </span>
               </h3>
               <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                ویرایش مشخصات خودرو، تاریخ ثبت خرابی، تاریخ ترخیص، تعمیرکار، اقلام مصرفی انبار و تعمیرگاه، اجرت و مبالغ فاکتور
+                {isCompletedOrApproved 
+                  ? 'ویرایش مشخصات خودرو، تاریخ ثبت خرابی، تاریخ ترخیص، اقلام مصرفی انبار و تعمیرگاه، اجرت و مبالغ فاکتور'
+                  : 'ویرایش مشخصات خودرو، تاریخ ثبت خرابی، اقلام مصرفی انبار و تعمیرگاه، اجرت و مشخصات پرونده خرابی'}
               </p>
             </div>
             <button 
@@ -2039,10 +3010,10 @@ export default function FailuresView({
           {/* فرم ویرایش تمام‌صفحه */}
           <form onSubmit={handleSaveEditFailure} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs bg-white dark:bg-[#111113]">
             
-            {/* ۱. ردیف اول: نام خودرو، کارکرد کیلومتر، تاریخ ثبت خرابی و تاریخ ترخیص در کنار هم */}
+            {/* ۱. ردیف اول: نام خودرو، کارکرد کیلومتر، تاریخ ثبت خرابی، تاریخ ترخیص (فقط پس از ثبت فاکتور) و سطح فوریت */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
               {/* نام خودرو */}
-              <div className="md:col-span-4 space-y-1">
+              <div className={`${isCompletedOrApproved ? 'md:col-span-3' : 'md:col-span-4'} space-y-1`}>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   نام ماشین (جستجو و انتخاب) <span className="text-rose-500">*</span>
                 </label>
@@ -2057,10 +3028,11 @@ export default function FailuresView({
                   }}
                   placeholder="جستجو و انتخاب خودرو از لیست..."
                   searchable={true}
+                  matchTriggerWidth={true}
                   quickAddType="vehicle"
                   options={vehicles.map(veh => ({ 
                     value: veh.id.toString(), 
-                    label: `${veh.name} - پلاک [${toPersianDigits(veh.plaque)}] (کد: ${toPersianDigits(veh.code)})` 
+                    label: getVehicleDisplayName(veh) 
                   }))}
                 />
               </div>
@@ -2082,7 +3054,7 @@ export default function FailuresView({
               </div>
 
               {/* تاریخ ثبت خرابی / ارجاع */}
-              <div className="md:col-span-3 space-y-1">
+              <div className={`${isCompletedOrApproved ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   تاریخ ثبت خرابی / ارجاع <span className="text-rose-500">*</span>
                 </label>
@@ -2093,71 +3065,29 @@ export default function FailuresView({
                 />
               </div>
 
-              {/* تاریخ ترخیص / پایان (دقیقاً کنار تاریخ ثبت خرابی در بالای فرم طبق درخواست) */}
+              {/* تاریخ ترخیص / پایان (فقط در صورتی که فاکتور ثبت شده یا ترخیص انجام شده باشد) */}
+              {isCompletedOrApproved && (
+                <div className="md:col-span-2 space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                    تاریخ ترخیص / پایان تعمیرات
+                  </label>
+                  <JalaliDatePicker
+                    value={editEndDate}
+                    onChange={setEditEndDate}
+                    inputClassName="h-[38px] text-xs font-bold rounded-md"
+                  />
+                </div>
+              )}
+
+              {/* سطح فوریت */}
               <div className="md:col-span-3 space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  تاریخ ترخیص / پایان تعمیرات
-                </label>
-                <JalaliDatePicker
-                  value={editEndDate}
-                  onChange={setEditEndDate}
-                  inputClassName="h-[38px] text-xs font-bold rounded-md"
-                />
-              </div>
-            </div>
-
-            {/* ۲. ردیف دوم: تعمیرکار/تعمیرگاه، دسته‌بندی نقص فنی و سطح فوریت */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-              <div className="md:col-span-4 space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  تعمیرکار / تعمیرگاه (طرف قرارداد یا آزاد)
-                </label>
-                <CustomSelect
-                  value={editMechanicId}
-                  onChange={val => {
-                    setEditMechanicId(val);
-                    const m = mechanics.find(item => item.id.toString() === val);
-                    if (m) {
-                      setEditRepairShopName(m.shopName || m.name);
-                    }
-                  }}
-                  searchable={true}
-                  quickAddType="mechanic"
-                  placeholder="-- انتخاب یا بدون تعمیرکار مشخص --"
-                  options={[
-                    { value: '', label: '-- بدون تعمیرکار مشخص / تعمیرگاه آزاد --' },
-                    ...mechanics.map(m => ({ 
-                      value: m.id.toString(), 
-                      label: `${m.name} ${m.shopName ? `(${m.shopName})` : ''} - ${m.specialty}` 
-                    }))
-                  ]}
-                />
-              </div>
-
-              <div className="md:col-span-4 space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  دسته‌بندی نقص فنی <span className="text-rose-500">*</span>
-                </label>
-                <CustomSelect
-                  value={editFailureType}
-                  onChange={val => setEditFailureType(val as FailureType)}
-                  options={activeFailureCategoryOptions}
-                  onAddNew={() => {
-                    setCategoryTargetForm('edit');
-                    setIsAddCategoryModalOpen(true);
-                  }}
-                  addNewLabel="افزودن دسته‌بندی جدید..."
-                  searchable={true}
-                />
-              </div>
-
-              <div className="md:col-span-4 space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
                   سطح فوریت و اولویت ارجاع <span className="text-rose-500">*</span>
                 </label>
                 <CustomSelect
                   value={editPriority}
                   onChange={val => setEditPriority(val as FailurePriority)}
+                  matchTriggerWidth={true}
                   options={[
                     { value: 'high', label: 'بحرانی و اضطراری (توقف کامل خودرو)' },
                     { value: 'medium', label: 'اولویت متوسط (نیازمند رسیدگی سریع)' },
@@ -2167,292 +3097,177 @@ export default function FailuresView({
               </div>
             </div>
 
-            {/* ۳. ردیف سوم: شرح کامل عیب */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                شرح کامل عیب، علائم و توضیحات فنی خرابی <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                rows={2}
-                required
-                value={editDescription}
-                onChange={e => setEditDescription(e.target.value)}
-                placeholder="شرح کامل خرابی، علائم و توضیحات فنی..."
-                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 focus:outline-none placeholder-slate-400 dark:placeholder-slate-600 leading-relaxed text-xs"
-              />
-            </div>
-
-            {/* ۴. بخش قطعات مصرفی (انبار شرکت یا تعمیرگاه) */}
-            <div className="space-y-2 p-3 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30]">
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-slate-200 dark:border-[#2d2d30]">
+            {/* ۲. بخش جدول خرابی‌های گزارش‌شده */}
+            <div className="space-y-2.5 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-3">
+              
+              {/* هدر بخش خرابی‌ها */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#2d2d30]">
                 <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-indigo-500" />
-                  <h4 className="font-bold text-slate-900 dark:text-white text-xs">
-                    اقلام و قطعات مصرفی در تعمیرات
-                  </h4>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                    (تأمین از انبار شرکت یا قطعات خریداری‌شده توسط تعمیرگاه)
-                  </span>
+                  <div className="p-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded border border-indigo-200 dark:border-indigo-500/20">
+                    <Wrench className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                      خرابی‌های گزارش‌شده <span className="text-rose-500">*</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      ویرایش و ثبت انواع خرابی با دسته و تعمیرکار مربوطه
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEditAddPartRow()}
-                    className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold rounded border border-indigo-200 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>افزودن قطعه</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleEditAddFailureRow}
+                  className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold rounded border border-indigo-200 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>افزودن خرابی</span>
+                </button>
               </div>
 
-              {/* جدول قطعات */}
-              <div className="overflow-x-auto border border-slate-200 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#111113]">
-                <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+              {/* جدول اقلام خرابی */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#2d2d30] bg-white dark:bg-[#111113]">
+                <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
-                      <th className="py-2 px-2.5 text-center w-10 text-xs font-medium">#</th>
-                      <th className="py-2 px-2.5 w-56 sm:w-64 text-xs font-medium">منبع تأمین</th>
-                      <th className="py-2 px-2.5 text-xs font-medium">عنوان و مشخصات قطعه</th>
-                      <th className="py-2 px-2.5 text-center w-20 text-xs font-medium">تعداد</th>
-                      <th className="py-2 px-2.5 w-32 text-xs font-medium">قیمت واحد (ریال)</th>
-                      <th className="py-2 px-2.5 w-32 text-xs font-medium">جمع ردیف (ریال)</th>
-                      <th className="py-2 px-2.5 text-center w-12 text-xs font-medium">حذف</th>
+                    <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
+                      <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
+                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
+                      <th className="py-2 px-2 min-w-[130px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[140px]">تعمیرکار</th>
+                      <th className="py-2 px-2 text-center w-14">شرح</th>
+                      <th className="py-2 px-2 text-center w-10">حذف</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                    {editPartRows.length === 0 ? (
+                    {editFailureRows.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-5 text-slate-500 text-[11px]">
-                          هیچ قطعه‌ای برای این تعمیر ثبت نشده است. روی دکمه «+ افزودن قطعه» کلیک کنید.
+                        <td colSpan={6} className="text-center py-6 text-slate-500 font-bold text-[11px]">
+                          هیچ ردیف خرابی ثبت نشده است. روی دکمه «+ افزودن خرابی» کلیک کنید.
                         </td>
                       </tr>
                     ) : (
-                      editPartRows.map((row, index) => {
-                        const isWarehouse = row.source === 'warehouse';
-                        return (
-                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors text-[11px]">
-                            <td className="py-1.5 px-2.5 text-center text-slate-500 dark:text-slate-400 text-[11px]">
-                              {toPersianDigits(index + 1)}
-                            </td>
+                      editFailureRows.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                          {/* شماره ردیف */}
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                            {toPersianDigits(index + 1)}
+                          </td>
 
-                            <td className="py-1.5 px-2.5">
-                              <CustomSelect
-                                value={row.source}
-                                onChange={(val) => handleEditUpdatePartRow(row.id, { source: val })}
-                                size="xs"
-                                searchable={true}
-                                quickAddType="supplier"
-                                placeholder="-- انتخاب تامین‌کننده --"
-                                options={[
-                                  { value: 'warehouse', label: 'انبار شرکت' },
-                                  { value: 'shop', label: 'تأمین تعمیرگاه' },
-                                  ...suppliers.map(s => ({
-                                    value: s.id.toString(),
-                                    label: `${s.name}${s.category ? ` (${s.category})` : ''}`
-                                  }))
-                                ]}
-                              />
-                            </td>
+                          {/* نوع خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-bold">
+                            <CustomSelect
+                              value={row.definitionId}
+                              onChange={(val) => handleEditUpdateFailureRow(row.id, { definitionId: String(val) })}
+                              placeholder="انتخاب نوع خرابی..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="failure"
+                              options={[
+                                { value: '', label: '-- بدون انتخاب --' },
+                                ...failureDefinitions.map(def => ({
+                                  value: def.id.toString(),
+                                  label: def.failureType
+                                }))
+                              ]}
+                            />
+                          </td>
 
-                            <td className="py-1.5 px-2.5">
-                              {isWarehouse ? (
-                                <CustomSelect
-                                  value={row.partName}
-                                  onChange={(val) => handleEditUpdatePartRow(row.id, { partName: val })}
-                                  placeholder="انتخاب قطعه انبار..."
-                                  searchable={true}
-                                  size="xs"
-                                  quickAddType="part"
-                                  options={parts.map(p => ({
-                                    value: p.partName,
-                                    label: p.partName
-                                  }))}
-                                />
-                              ) : (
-                                <input
-                                  type="text"
-                                  placeholder="نام و مشخصات قطعه..."
-                                  value={row.partName}
-                                  onChange={(e) => handleEditUpdatePartRow(row.id, { partName: e.target.value })}
-                                  className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 text-[11px]"
-                                />
+                          {/* دسته خرابی */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.category}
+                              onChange={(val) => handleEditUpdateFailureRow(row.id, { category: String(val) })}
+                              placeholder="انتخاب دسته..."
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              onAddNew={() => {
+                                setCategoryTargetRowId(row.id);
+                                setCategoryTargetForm('edit');
+                                setIsAddCategoryModalOpen(true);
+                              }}
+                              addNewLabel="افزودن دسته‌بندی جدید..."
+                              options={[
+                                { value: '', label: 'انتخاب کنید...' },
+                                ...activeFailureCategoryOptions.map(cat => ({
+                                  value: cat.value,
+                                  label: cat.label
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* تعمیرکار */}
+                          <td className="py-1.5 px-2 font-sans font-medium">
+                            <CustomSelect
+                              value={row.mechanicId}
+                              onChange={(val) => handleEditUpdateFailureRow(row.id, { mechanicId: String(val) })}
+                              placeholder=""
+                              showEmptyAsBlank={true}
+                              searchable={true}
+                              size="xs"
+                              matchTriggerWidth={true}
+                              quickAddType="mechanic"
+                              options={[
+                                { value: '', label: '-- بدون تعمیرکار --' },
+                                ...mechanics.map(m => ({
+                                  value: m.id.toString(),
+                                  label: m.shopName ? `${m.name} (${m.shopName})` : m.name
+                                }))
+                              ]}
+                            />
+                          </td>
+
+                          {/* دکمه مشاهده و ویرایش جزئیات شرح خرابی */}
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFailureDescModal({
+                                rowIndex: index,
+                                failureType: row.failureType || 'عیب فنی',
+                                description: row.description || '',
+                                isInvoiceForm: false
+                              })}
+                              className={`w-7 h-7 rounded border transition-colors flex items-center justify-center mx-auto cursor-pointer shadow-2xs relative ${
+                                row.description && row.description.trim()
+                                  ? 'border-slate-300 dark:border-[#38383c] bg-white dark:bg-[#1a1a1c] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528]'
+                                  : 'border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100'
+                              }`}
+                              title={row.description && row.description.trim() ? `شرح: ${row.description}` : 'ثبت شرح خرابی'}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              {row.description && row.description.trim() && (
+                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
                               )}
-                            </td>
+                            </button>
+                          </td>
 
-                            <td className="py-1.5 px-2.5">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={row.quantity ? toPersianDigits(row.quantity) : '۱'}
-                                onChange={(e) => {
-                                  const q = parsePersianNumber(e.target.value);
-                                  handleEditUpdatePartRow(row.id, { quantity: q > 0 ? q : 1 });
-                                }}
-                                className="w-full h-6 px-1 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white text-center focus:ring-1 focus:ring-indigo-500 text-[11px]"
-                              />
-                            </td>
-
-                            <td className="py-1.5 px-2.5">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                placeholder="۰"
-                                value={row.unitPrice ? formatPrice(row.unitPrice) : ''}
-                                onChange={(e) => {
-                                  const p = parsePersianNumber(e.target.value);
-                                  handleEditUpdatePartRow(row.id, { unitPrice: p });
-                                }}
-                                className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white text-left focus:ring-1 focus:ring-indigo-500 text-[11px]"
-                              />
-                            </td>
-
-                            <td className="py-1.5 px-2.5 whitespace-nowrap">
-                              <div className="h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] flex items-center justify-end text-slate-800 dark:text-slate-200 text-[11px]">
-                                {formatPrice(row.cost)}
-                              </div>
-                            </td>
-
-                            <td className="py-1.5 px-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleEditRemovePartRow(row.id)}
-                                className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
-                                title="حذف ردیف"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
+                          {/* دکمه حذف ردیف */}
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleEditRemoveFailureRow(row.id)}
+                              disabled={editFailureRows.length <= 1}
+                              className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
+                              title="حذف ردیف"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
-              </div>
 
-              {/* جمع‌های تفکیکی زیر جدول */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
-                <div className="flex items-center gap-3">
-                  <span className="text-slate-500 dark:text-slate-400">
-                    قطعات انبار شرکت: <strong className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{formatPrice(warehouseTotal)} ریال</strong>
-                  </span>
-                  <span className="text-slate-300 dark:text-slate-700">|</span>
-                  <span className="text-slate-500 dark:text-slate-400">
-                    قطعات تعمیرگاه (آزاد): <strong className="font-mono text-slate-700 dark:text-slate-300 font-bold">{formatPrice(shopPartsTotal)} ریال</strong>
+                {/* خلاصه ردیف‌های خرابی در مودال ویرایش */}
+                <div className="p-2 bg-slate-50 dark:bg-[#161618] border-t border-slate-200 dark:border-[#2d2d30] flex flex-wrap items-center justify-between text-xs font-bold gap-2">
+                  <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                    تعداد خرابی‌های ثبت‌شده: <strong className="text-slate-800 dark:text-slate-200 font-mono">{toPersianDigits(editFailureRows.length)}</strong>
                   </span>
                 </div>
-
-                <div className="text-slate-700 dark:text-slate-300 font-bold">
-                  مجموع هزینه کل قطعات: <span className="font-mono text-slate-900 dark:text-white font-bold">{formatPrice(totalPartsCost)} ریال</span>
-                </div>
-              </div>
-            </div>
-
-            {/* ۵. همگام‌سازی هوشمند با سرویس‌های دوره‌ای */}
-            {serviceDefinitions.length > 0 && (
-              <div className="p-2.5 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30] space-y-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px]">
-                    همگام‌سازی موعد تعویض سرویس‌های دوره‌ای:
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {serviceDefinitions.map(sDef => {
-                    const isChecked = editSelectedReplacedServiceTypes.includes(sDef.serviceType);
-                    return (
-                      <label 
-                        key={sDef.id} 
-                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-[11px] cursor-pointer select-none transition-all ${
-                          isChecked 
-                            ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700/60 text-indigo-950 dark:text-indigo-200 font-bold' 
-                            : 'bg-white dark:bg-[#1a1a1c] border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className={`w-3.5 h-3.5 check-indicator rounded flex items-center justify-center border transition-all shrink-0 ${
-                          isChecked ? 'bg-indigo-600 border-indigo-600 shadow-2xs' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-[#151518]'
-                        }`}>
-                          {isChecked && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
-                        </div>
-                        <input 
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditSelectedReplacedServiceTypes(prev => [...prev, sDef.serviceType]);
-                            } else {
-                              setEditSelectedReplacedServiceTypes(prev => prev.filter(t => t !== sDef.serviceType));
-                            }
-                          }}
-                          className="sr-only"
-                        />
-                        <span className="truncate">{sDef.serviceType}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ۶. اجرت و جمع کل فاکتور */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch p-3 bg-slate-50 dark:bg-[#161618] rounded-xl border border-slate-200 dark:border-[#2d2d30]">
-              <div className="md:col-span-6 space-y-1 flex flex-col justify-between">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  اجرت و دستمزد تعمیرکار (ریال)
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={editWages ? formatPrice(editWages) : ''}
-                  onChange={e => {
-                    const w = parsePersianNumber(e.target.value);
-                    setEditWages(w);
-                    calculateEditTotalCost(editPartRows, w);
-                  }}
-                  placeholder="مثال: ۲,۰۰۰,۰۰۰"
-                  className="w-full h-[38px] px-3 rounded-md border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white font-mono font-bold text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none text-left"
-                />
-              </div>
-
-              <div className="md:col-span-6 space-y-1 flex flex-col justify-between">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  مبلغ کل فاکتور نهایی (ریال)
-                </label>
-                <div className="w-full h-[38px] px-3 rounded-md border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#1a1a1c] flex items-center justify-between select-none">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">مجموع کل:</span>
-                  <div className="text-xs font-black text-slate-900 dark:text-white font-mono">
-                    {formatPrice(editTotalCost || 0)} <span className="text-[10px] font-normal text-slate-500">ریال</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ۷. سطح رضایت از کار و خدمات */}
-            <div className="p-2 bg-slate-50 dark:bg-[#161618] rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="font-bold text-slate-700 dark:text-slate-300 text-[11px] shrink-0">
-                سطح رضایت از کیفیت کار و خدمات:
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 flex-1 sm:max-w-md">
-                {SATISFACTION_OPTIONS.map(opt => {
-                  const isSelected = editSatisfaction === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setEditSatisfaction(isSelected ? undefined : opt.id)}
-                      className={`h-7 px-2 rounded-md text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none border ${
-                        isSelected 
-                          ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 border-indigo-600 dark:border-indigo-400 font-bold' 
-                          : 'bg-white dark:bg-[#1a1a1c] hover:bg-slate-50 dark:hover:bg-[#222225] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2d2d30]'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 stroke-[3] shrink-0" />}
-                      <span className={isSelected ? 'text-indigo-950 dark:text-indigo-200 font-bold' : ''}>{opt.label}</span>
-                    </button>
-                  );
-                })}
               </div>
             </div>
 
@@ -2475,9 +3290,166 @@ export default function FailuresView({
                 <span>{isEditSubmitting ? 'در حال ذخیره...' : 'ذخیره تغییرات پرونده'}</span>
               </button>
             </div>
-
           </form>
         </div>
+
+        {/* مدال مشاهده و ویرایش جزئیات شرح خرابی */}
+        {selectedFailureDescModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto" dir="rtl">
+            <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg border border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
+                      <span>جزئیات و شرح نقص فنی</span>
+                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-mono">
+                        (ردیف {toPersianDigits(selectedFailureDescModal.rowIndex + 1)})
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      نوع خرابی: <strong className="text-slate-800 dark:text-slate-200">{selectedFailureDescModal.failureType || 'نقص فنی'}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFailureDescModal(null)}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-3 bg-white dark:bg-[#111113]">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block text-xs">
+                    شرح کامل عیوب، علائم خرابی و گزارش راننده یا پذیرش:
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={selectedFailureDescModal.description}
+                    onChange={(e) => {
+                      const newDesc = e.target.value;
+                      setSelectedFailureDescModal(prev => prev ? { ...prev, description: newDesc } : null);
+                      if (selectedFailureDescModal.isInvoiceForm) {
+                        const targetRow = invoiceFailureRows[selectedFailureDescModal.rowIndex];
+                        if (targetRow) {
+                          handleInvoiceUpdateFailureRow(targetRow.id, { description: newDesc });
+                        }
+                      } else {
+                        const targetRow = editFailureRows[selectedFailureDescModal.rowIndex];
+                        if (targetRow) {
+                          handleEditUpdateFailureRow(targetRow.id, { description: newDesc });
+                        }
+                      }
+                    }}
+                    placeholder="توضیحات تکمیلی نقص فنی، علل ایجاد یا توضیحات راننده..."
+                    className="w-full bg-slate-50 dark:bg-[#161619] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 p-3 sm:px-5 sm:py-3.5 border-t border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFailureDescModal(null)}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors text-xs cursor-pointer shadow-xs active:scale-95"
+                >
+                  تأیید و بستن
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* مودال ثبت و تعریف دسته‌بندی نقص فنی جدید */}
+        {isAddCategoryModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto" dir="rtl">
+            <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white dark:bg-[#202024] rounded-lg border border-slate-200 dark:border-[#303035] shadow-xs">
+                    <Tag className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold">
+                      ثبت دسته‌بندی نقص فنی جدید
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      افزودن به لیست گزینه‌های دسته‌بندی خرابی و ارجاع
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCategoryName('');
+                    setCategoryErrorMsg('');
+                    setIsAddCategoryModalOpen(false);
+                    setCategoryTargetRowId(null);
+                  }}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddFailureCategory} className="p-4 sm:p-5 space-y-4 text-xs bg-white dark:bg-[#111113]">
+                {categoryErrorMsg && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg text-rose-700 dark:text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{categoryErrorMsg}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    عنوان دسته‌بندی <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: هیدرولیک و فرمان، سیستم خنک‌کاری، گیربکس اتوماتیک..."
+                    value={newCategoryName}
+                    onChange={(e) => {
+                      setNewCategoryName(e.target.value);
+                      if (categoryErrorMsg) setCategoryErrorMsg('');
+                    }}
+                    className="w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    این دسته‌بندی در لیست ذخیره شده و بلافاصله برای این ردیف انتخاب خواهد شد.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-[#2d2d30]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCategoryName('');
+                      setCategoryErrorMsg('');
+                      setIsAddCategoryModalOpen(false);
+                      setCategoryTargetRowId(null);
+                    }}
+                    className="px-4 py-2 border border-slate-300 dark:border-[#2d2d30] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#1a1a1c] font-bold rounded-lg transition-colors text-xs cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors shadow-xs active:scale-95 text-xs cursor-pointer"
+                  >
+                    ثبت دسته‌بندی
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2634,8 +3606,8 @@ export default function FailuresView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>
@@ -2790,11 +3762,8 @@ export default function FailuresView({
                 paginatedFailures.map((f, index) => {
                   const v = vehicles.find(veh => String(veh.id) === String(f.vehicleId) || Number(veh.id) === Number(f.vehicleId));
                   const wf = workflows.find(w => w.failureId === f.id);
-                  const mechId = wf?.technicianId !== undefined && wf?.technicianId !== null
-                    ? wf.technicianId
-                    : (f.assignedMechanicId !== undefined && f.assignedMechanicId !== null ? f.assignedMechanicId : undefined);
-                  const mech = mechanics.find(m => m.id === mechId);
-                  const displayShopName = (mech ? `${mech.name} ${mech.shopName ? `(${mech.shopName})` : ''}` : '') || wf?.repairShopName || f.repairShopName || 'تعمیرگاه مرکزی';
+                  const mechsList = getFailureMechanicsList(f, wf);
+                  const displayShopName = getFailureMechanicsDisplay(f, wf);
 
                   return (
                     <tr 
@@ -2818,9 +3787,19 @@ export default function FailuresView({
                           {v ? `${v.name} - پلاک [${toPersianDigits(v.plaque)}]` : (f.plaque ? `پلاک [${toPersianDigits(f.plaque)}]` : '—')}
                         </span>
                       </td>
-                      <td className="py-1 px-3 whitespace-nowrap align-middle">
-                        <div className="text-slate-800 dark:text-slate-200 text-[11px]">
-                          {displayShopName}
+                      <td className="py-1 px-3 whitespace-nowrap align-middle" title={displayShopName}>
+                        <div className="flex items-center gap-1.5 max-w-[280px]">
+                          <span className="text-slate-800 dark:text-slate-200 text-[11px] truncate">
+                            {displayShopName}
+                          </span>
+                          {mechsList.length > 1 && (
+                            <span 
+                              className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 shrink-0"
+                              title={`${toPersianDigits(mechsList.length)} تعمیرکار منتسب`}
+                            >
+                              {toPersianDigits(mechsList.length)}
+                            </span>
+                          )}
                         </div>
                       </td>
                       
@@ -2857,17 +3836,31 @@ export default function FailuresView({
                               <span>ثبت فاکتور</span>
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewDetailsFailure(f);
-                              }}
-                              className="w-[22px] h-[22px] flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-indigo-100 dark:hover:bg-indigo-600/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-300 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
-                              title="مشاهده جزئیات فاکتور"
-                            >
-                              <Eye className="w-3 h-3" />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenReturnInvoiceModal(f);
+                                }}
+                                className="h-[22px] px-2 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold rounded border border-amber-200 dark:border-amber-800 transition-colors inline-flex items-center gap-1 text-[10px] whitespace-nowrap cursor-pointer"
+                                title="ویرایش فاکتور، قطعات، اجرت و سطح رضایت"
+                              >
+                                <Receipt className="w-3 h-3" />
+                                <span>ویرایش فاکتور</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewDetailsFailure(f);
+                                }}
+                                className="w-[22px] h-[22px] flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-indigo-100 dark:hover:bg-indigo-600/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-300 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors cursor-pointer"
+                                title="مشاهده جزئیات فاکتور"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                            </>
                           )}
 
                           {onDeleteFailure && (
@@ -2988,8 +3981,8 @@ export default function FailuresView({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-indigo-50/50 dark:bg-indigo-950/20 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-500/20">
                       <div>
                         <span className="text-slate-500 text-[11px] block mb-0.5">تعمیرکار / مرکز خدمات:</span>
-                        <strong className="text-indigo-900 dark:text-indigo-200 font-bold text-xs">
-                          {wf?.repairShopName || mech?.shopName || (mech ? `${mech.name} (${mech.shopName || 'تکنسین'})` : '') || viewDetailsFailure.repairShopName || 'تعمیرگاه مرکزی / طرف قرارداد'}
+                        <strong className="text-indigo-900 dark:text-indigo-200 font-bold text-xs leading-relaxed block">
+                          {getFailureMechanicsDisplay(viewDetailsFailure, wf)}
                         </strong>
                       </div>
                       <div>
@@ -3005,12 +3998,48 @@ export default function FailuresView({
                       <div className="flex items-center gap-1.5 border-r-2 border-indigo-500 pr-2">
                         <FileText className="w-3.5 h-3.5 text-indigo-500" />
                         <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                          شرح کامل نقص فنی و اقدامات صورت‌گرفته:
+                          شرح کامل نقص فنی و خرابی‌های ثبت‌شده:
                         </span>
                       </div>
-                      <div className="bg-slate-50 dark:bg-[#161618] border border-slate-200 dark:border-[#2d2d30] rounded-xl p-3 text-slate-800 dark:text-slate-200 leading-relaxed text-xs">
-                        {viewDetailsFailure.description || 'توضیحاتی ثبت نشده است.'}
-                      </div>
+                      
+                      {viewDetailsFailure.failureItems && viewDetailsFailure.failureItems.length > 0 ? (
+                        <div className="border border-slate-200 dark:border-[#2d2d30] rounded-xl overflow-hidden">
+                          <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+                            <thead className="bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs border-b border-slate-200 dark:border-[#2d2d30]">
+                              <tr>
+                                <th className="py-2 px-3 text-center w-8 text-xs font-mono font-bold">#</th>
+                                <th className="py-2 px-3 text-xs font-bold">نوع خرابی</th>
+                                <th className="py-2 px-3 text-xs font-bold">دسته</th>
+                                <th className="py-2 px-3 text-xs font-bold">تعمیرکار منتسب</th>
+                                <th className="py-2 px-3 text-xs font-bold">شرح / توضیحات نقص</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
+                              {viewDetailsFailure.failureItems.map((fi, idx) => {
+                                const rowMech = mechanics.find(m => m.id === fi.mechanicId);
+                                const primaryId = wf?.technicianId ?? viewDetailsFailure.assignedMechanicId;
+                                const defaultMech = primaryId !== undefined ? mechanics.find(m => m.id === primaryId) : undefined;
+                                const effectiveMech = rowMech || defaultMech;
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-[#1a1a1c]/40 text-[11px]">
+                                    <td className="py-2 px-3 text-center text-slate-400 font-mono font-bold">{toPersianDigits(idx + 1)}</td>
+                                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">{fi.failureType || '—'}</td>
+                                    <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{fi.category || '—'}</td>
+                                    <td className="py-2 px-3 text-slate-600 dark:text-slate-300">
+                                      {effectiveMech ? (effectiveMech.shopName ? `${effectiveMech.name} (${effectiveMech.shopName})` : effectiveMech.name) : '—'}
+                                    </td>
+                                    <td className="py-2 px-3 text-slate-800 dark:text-slate-200">{fi.description || '—'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-[#161618] border border-slate-200 dark:border-[#2d2d30] rounded-xl p-3 text-slate-800 dark:text-slate-200 leading-relaxed text-xs">
+                          {viewDetailsFailure.description || 'توضیحاتی ثبت نشده است.'}
+                        </div>
+                      )}
                     </div>
 
                     {/* ۴. جدول ریز قطعات مصرفی و خدمات فاکتور */}
@@ -3170,6 +4199,18 @@ export default function FailuresView({
                     </div>
 
                     <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fToEdit = viewDetailsFailure;
+                          setViewDetailsFailure(null);
+                          handleOpenReturnInvoiceModal(fToEdit);
+                        }}
+                        className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold rounded-lg transition-colors border border-amber-200 dark:border-amber-800 text-xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Receipt className="w-4 h-4" />
+                        <span>ویرایش فاکتور</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handlePrintRepairInvoice(viewDetailsFailure)}

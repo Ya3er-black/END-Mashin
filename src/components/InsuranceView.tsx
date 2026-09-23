@@ -19,6 +19,7 @@ import { sortData, SortDirection } from '../utils/sortUtils';
 import { Pagination } from './Pagination';
 import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
+import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 /**
  * نرمال‌سازی متن فارسی برای یکسان‌سازی حروف (ی/ي، ک/ك و نیم‌فاصله‌ها)
@@ -124,14 +125,7 @@ export default function InsuranceView({
 
   const matchedVehicles = useMemo(() => {
     if (!searchTerm.trim()) return vehicles;
-    return vehicles.filter(v => 
-      startsWithPrefix(v.name, searchTerm) ||
-      startsWithPrefix(v.code, searchTerm) ||
-      startsWithPrefix(v.plaque, searchTerm) ||
-      normalizePersianText(v.name).includes(normalizePersianText(searchTerm)) ||
-      normalizePersianText(v.code).includes(normalizePersianText(searchTerm)) ||
-      normalizePersianText(v.plaque).includes(normalizePersianText(searchTerm))
-    );
+    return vehicles.filter(v => matchesVehicleSearch(v, searchTerm));
   }, [vehicles, searchTerm]);
 
   const [isInsuranceFormOpen, setIsInsuranceFormOpen] = useState(false);
@@ -858,7 +852,7 @@ export default function InsuranceView({
                 placeholder="انتخاب کنید..."
                 searchable={true}
                 quickAddType="vehicle"
-                options={vehicles.map(v => ({ value: v.id, label: `${v.name} - ${v.code} (${v.plaque})` }))}
+                options={vehicles.map(v => ({ value: v.id, label: getVehicleDisplayName(v) }))}
               />
             </div>
 
@@ -1090,7 +1084,7 @@ export default function InsuranceView({
                 placeholder="انتخاب کنید..."
                 searchable={true}
                 quickAddType="vehicle"
-                options={vehicles.map(v => ({ value: v.id, label: `${v.name} - ${v.code} (${v.plaque})` }))}
+                options={vehicles.map(v => ({ value: v.id, label: getVehicleDisplayName(v) }))}
               />
             </div>
 
@@ -1313,8 +1307,8 @@ export default function InsuranceView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>

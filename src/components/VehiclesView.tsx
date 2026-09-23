@@ -988,7 +988,7 @@ export default function VehiclesView({
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
           <input 
             type="text" 
-            placeholder="جستجوی نام خودرو، پلاک، راننده، شرکت یا کد خودرو..." 
+            placeholder="جستجوی نام خودرو، راننده، کد خودرو یا شرکت..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full h-[34px] bg-white dark:bg-[#111113] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-[#2d2d30] rounded-lg pr-9 pl-8 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"

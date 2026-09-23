@@ -75,6 +75,7 @@ export default function DefinitionsExcelImportView({
   const entityTabs: { id: DefinitionEntityType; label: string; icon: any }[] = [
     { id: 'vehicles', label: 'خودروها', icon: Car },
     { id: 'service_definitions', label: 'سرویس‌ها', icon: Settings },
+    { id: 'failure_definitions', label: 'انواع خرابی', icon: AlertTriangle },
     { id: 'companies', label: 'شرکت‌ها', icon: Building2 },
     { id: 'persons', label: 'رانندگان', icon: Users },
     { id: 'mechanics', label: 'تعمیرکاران', icon: Wrench },
@@ -606,6 +607,7 @@ export default function DefinitionsExcelImportView({
                                     previewData?.detectedType === 'persons' ? 'persons' :
                                     previewData?.detectedType === 'companies' ? 'companies' :
                                     previewData?.detectedType === 'service_definitions' ? 'service_definitions' :
+                                    previewData?.detectedType === 'failure_definitions' ? 'failure_definitions' :
                                     previewData?.detectedType === 'mechanics' ? 'mechanics' : 'suppliers';
                   onNavigate(targetView);
                   if (onClose) onClose();

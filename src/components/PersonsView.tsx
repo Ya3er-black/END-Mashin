@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Search, User, Phone, CheckCircle, XCircle, X, Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, List, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Person } from '../types';
 import { toPersianDigits } from '../utils/numberUtils';
@@ -155,21 +155,26 @@ export default function PersonsView({
   // Form state (فقط نام و شماره تماس)
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittedPhoneRef = useRef<string | null>(null);
 
   // بررسی بلادرنگ تکراری بودن شماره تماس و شناسایی صاحب شماره
   const duplicatePerson = useMemo(() => {
+    if (isSubmitting) return null;
     const normCurrent = normalizePhone(phone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return persons.find(p => {
       if (editingPersonId && p.id === editingPersonId) return false;
       const normP = normalizePhone(p.phone);
       return normP && normP === normCurrent;
     }) || null;
-  }, [phone, persons, editingPersonId]);
+  }, [phone, persons, editingPersonId, isSubmitting]);
 
   const [isNavigatedFromOrigin, setIsNavigatedFromOrigin] = useState(false);
 
   const handleOpenCreateForm = () => {
+    submittedPhoneRef.current = null;
     setEditingPersonId(null);
     setFullName('');
     setPhone('');
@@ -189,6 +194,10 @@ export default function PersonsView({
 
   const handleCloseOrReturn = () => {
     setIsFormOpen(false);
+    submittedPhoneRef.current = null;
+    setEditingPersonId(null);
+    setFullName('');
+    setPhone('');
     if (isNavigatedFromOrigin || peekNavigationOrigin()) {
       setIsNavigatedFromOrigin(false);
       returnToOriginView();
@@ -196,6 +205,7 @@ export default function PersonsView({
   };
 
   const handleOpenEditForm = (p: Person) => {
+    submittedPhoneRef.current = null;
     setIsNavigatedFromOrigin(false);
     setEditingPersonId(p.id);
     setFullName(p.fullName);
@@ -232,6 +242,7 @@ export default function PersonsView({
     }
 
     const trimmedPhone = phone.trim();
+    const normCurrent = normalizePhone(trimmedPhone);
 
     const payload = {
       fullName: fullName.trim(),
@@ -241,6 +252,8 @@ export default function PersonsView({
       status: 'active' as const
     };
 
+    setIsSubmitting(true);
+    submittedPhoneRef.current = normCurrent;
     try {
       if (editingPersonId) {
         await onEditPerson(editingPersonId, payload);
@@ -250,7 +263,10 @@ export default function PersonsView({
       handleCloseOrReturn();
     } catch (err: any) {
       console.error(err);
+      submittedPhoneRef.current = null;
       alert(err.message || 'خطا در ذخیره اطلاعات راننده');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -434,9 +450,10 @@ export default function PersonsView({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
                 >
-                  {editingPersonId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت راننده و بازگشت' : 'ثبت راننده')}
+                  {isSubmitting ? 'در حال ذخیره...' : (editingPersonId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت راننده و بازگشت' : 'ثبت راننده'))}
                 </button>
               </div>
             </div>

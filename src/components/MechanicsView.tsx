@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Search, Wrench, Phone, X, Store, Trash2, List, Star, MapPin, FileSpreadsheet, Printer, Upload } from 'lucide-react';
 import { Mechanic, VehicleFailure, RepairWorkflow, SatisfactionLevel } from '../types';
 import { toPersianDigits, normalizePhone } from '../utils/numberUtils';
@@ -35,7 +35,9 @@ export function getMechanicPerformance(
   workflows: RepairWorkflow[] = []
 ) {
   const matchingFailures = failures.filter(
-    f => f.assignedMechanicId === mechanic.id || (f.repairShopName && f.repairShopName.trim() === mechanic.shopName?.trim())
+    f => f.assignedMechanicId === mechanic.id || 
+         (f.repairShopName && f.repairShopName.trim() === mechanic.shopName?.trim()) ||
+         (f.failureItems && f.failureItems.some(fi => fi.mechanicId === mechanic.id))
   );
   
   const matchingWorkflows = workflows.filter(
@@ -232,17 +234,21 @@ export default function MechanicsView({
   const [specialty, setSpecialty] = useState('مکانیک موتور و گیربکس');
   const [shopName, setShopName] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittedPhoneRef = useRef<string | null>(null);
 
   // بررسی بلادرنگ تکراری بودن شماره تماس تعمیرکار (منحصراً در بخش تعمیرکاران)
   const duplicateMechanic = useMemo(() => {
+    if (isSubmitting) return null;
     const normCurrent = normalizePhone(phone);
     if (!normCurrent || normCurrent.length < 7) return null;
+    if (submittedPhoneRef.current && submittedPhoneRef.current === normCurrent) return null;
     return mechanics.find(m => {
       if (editingMechanicId && m.id === editingMechanicId) return false;
       const normM = normalizePhone(m.phone);
       return normM && normM === normCurrent;
     }) || null;
-  }, [phone, mechanics, editingMechanicId]);
+  }, [phone, mechanics, editingMechanicId, isSubmitting]);
 
   const [specialtiesList, setSpecialtiesList] = useState<string[]>(() => getStoredMechanicSpecialties());
   const [isAddSpecialtyModalOpen, setIsAddSpecialtyModalOpen] = useState(false);
@@ -256,6 +262,7 @@ export default function MechanicsView({
   const [isNavigatedFromOrigin, setIsNavigatedFromOrigin] = useState(false);
 
   const handleOpenCreateForm = () => {
+    submittedPhoneRef.current = null;
     setEditingMechanicId(null);
     setName('');
     setPhone('');
@@ -278,6 +285,11 @@ export default function MechanicsView({
 
   const handleCloseOrReturn = () => {
     setIsFormOpen(false);
+    submittedPhoneRef.current = null;
+    setEditingMechanicId(null);
+    setName('');
+    setPhone('');
+    setShopName('');
     if (isNavigatedFromOrigin || peekNavigationOrigin()) {
       setIsNavigatedFromOrigin(false);
       returnToOriginView();
@@ -285,6 +297,7 @@ export default function MechanicsView({
   };
 
   const handleOpenEditForm = (m: Mechanic) => {
+    submittedPhoneRef.current = null;
     setIsNavigatedFromOrigin(false);
     setEditingMechanicId(m.id);
     setName(m.name);
@@ -321,6 +334,8 @@ export default function MechanicsView({
       return;
     }
 
+    const normCurrent = normalizePhone(phone.trim());
+
     const payload = {
       name: name.trim(),
       phone: phone.trim(),
@@ -329,6 +344,8 @@ export default function MechanicsView({
       status: status || 'active'
     };
 
+    setIsSubmitting(true);
+    submittedPhoneRef.current = normCurrent;
     try {
       if (editingMechanicId) {
         await onEditMechanic(editingMechanicId, payload);
@@ -338,7 +355,10 @@ export default function MechanicsView({
       handleCloseOrReturn();
     } catch (err: any) {
       console.error(err);
+      submittedPhoneRef.current = null;
       alert(err?.message || 'خطا در ذخیره اطلاعات تعمیرکار');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -520,7 +540,17 @@ export default function MechanicsView({
 
               {/* تخصص تعمیرکار */}
               <div className="space-y-1">
-                <label className="block font-bold text-slate-700 dark:text-slate-300">تخصص اصلی</label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">تخصص اصلی</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddSpecialtyModalOpen(true)}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>افزودن تخصص جدید</span>
+                  </button>
+                </div>
                 <CustomSelect
                   value={specialty}
                   onChange={(val) => setSpecialty(val)}
@@ -574,9 +604,10 @@ export default function MechanicsView({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-md transition-colors active:scale-95 text-xs cursor-pointer"
                 >
-                  {editingMechanicId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تعمیرکار و بازگشت' : 'ذخیره اطلاعات تعمیرکار')}
+                  {isSubmitting ? 'در حال ذخیره...' : (editingMechanicId ? 'ذخیره تغییرات' : ((isNavigatedFromOrigin || peekNavigationOrigin()) ? 'ثبت تعمیرکار و بازگشت' : 'ذخیره اطلاعات تعمیرکار'))}
                 </button>
               </div>
             </div>

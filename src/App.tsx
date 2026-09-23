@@ -7,13 +7,14 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Bell, AlertCircle, Sparkles, LogOut, CheckCircle2, 
   Terminal, ShieldCheck, RefreshCw, X, Building, Filter, ChevronDown,
-  Calendar, Clock, Menu, Download
+  Calendar, Clock, Menu, Download, Send, ArrowLeft, User as UserIcon
 } from 'lucide-react';
 import { toPersianDigits } from './utils/numberUtils';
 
 import { 
   User, UserPreferences, Person, Vehicle, PeriodicService, Insurance, TechnicalInspection, 
-  VehicleFailure, RepairWorkflow, PartInventory, Expense, UserRole, Mechanic, Company, ServiceDefinition, VehicleHistoryEntry, InventoryTransaction, OdometerLog, SmsInboundLog, Supplier 
+  VehicleFailure, RepairWorkflow, PartInventory, Expense, UserRole, Mechanic, Company, ServiceDefinition, VehicleHistoryEntry, InventoryTransaction, OdometerLog, SmsInboundLog, Supplier,
+  FailureDefinition, FailureCategory, Reminder 
 } from './types';
 
 import LoginView from './components/LoginView';
@@ -21,6 +22,7 @@ import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
 import VehiclesView from './components/VehiclesView';
 import ServiceDefinitionsView from './components/ServiceDefinitionsView';
+import FailureDefinitionsView from './components/FailureDefinitionsView';
 import ServicesView from './components/ServicesView';
 import InsuranceView from './components/InsuranceView';
 import FailuresView from './components/FailuresView';
@@ -35,10 +37,12 @@ import CompaniesView from './components/CompaniesView';
 import SuppliersView from './components/SuppliersView';
 import OdometerTrackingView from './components/OdometerTrackingView';
 import DefinitionsExcelImportView from './components/DefinitionsExcelImportView';
+import RemindersView from './components/RemindersView';
 import GearLoading from './components/GearLoading';
 import GlobalEntityDefinitionModal from './components/GlobalEntityDefinitionModal';
 import { setCurrentActiveView, QuickEntityType } from './utils/navigation';
 import { calculateComprehensiveServiceHealth } from './utils/serviceMatching';
+import { getCurrentJalaliDate, jalaliDayDifference } from './utils/date';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -449,10 +453,15 @@ export default function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [serviceDefinitions, setServiceDefinitions] = useState<ServiceDefinition[]>([]);
+  const [failureDefinitions, setFailureDefinitions] = useState<FailureDefinition[]>([]);
+  const [failureCategories, setFailureCategories] = useState<FailureCategory[]>([]);
   const [vehicleHistory, setVehicleHistory] = useState<VehicleHistoryEntry[]>([]);
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>([]);
   const [odometerLogs, setOdometerLogs] = useState<OdometerLog[]>([]);
   const [smsLogs, setSmsLogs] = useState<SmsInboundLog[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [hasDismissedTodayAlert, setHasDismissedTodayAlert] = useState(false);
+  const [showTodayRemindersPopup, setShowTodayRemindersPopup] = useState(false);
 
   // نوتیفیکیشن‌ها و پیام‌های هشدار هوشمند
   const [notifications, setNotifications] = useState<string[]>([]);
@@ -477,10 +486,13 @@ export default function App() {
         { path: '/api/companies', setter: setCompanies },
         { path: '/api/suppliers', setter: setSuppliers },
         { path: '/api/service-definitions', setter: setServiceDefinitions },
+        { path: '/api/failure-definitions', setter: setFailureDefinitions },
+        { path: '/api/failure-categories', setter: setFailureCategories },
         { path: '/api/vehicle-history', setter: setVehicleHistory },
         { path: '/api/inventory-transactions', setter: setInventoryTransactions },
         { path: '/api/odometer-logs', setter: setOdometerLogs },
-        { path: '/api/sms/inbound-logs', setter: setSmsLogs }
+        { path: '/api/sms/inbound-logs', setter: setSmsLogs },
+        { path: '/api/reminders', setter: setReminders }
       ];
 
       await Promise.all(endpoints.map(async (ep) => {
@@ -497,6 +509,29 @@ export default function App() {
       }));
     } catch (err) {
       console.error('Error fetching data:', err);
+    }
+  };
+
+  // بررسی یادآوری‌های امروز، ارسال پیامک خودکار و نمایش اعلان درون‌برنامه
+  const handleCheckTodayReminders = async () => {
+    try {
+      const todayJalali = getCurrentJalaliDate();
+      const res = await fetch('/api/reminders/check-today', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ todayJalali })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.allReminders) {
+          setReminders(data.allReminders);
+        }
+        if (data.todayCount > 0 && !hasDismissedTodayAlert) {
+          setShowTodayRemindersPopup(true);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not check today reminders:', err);
     }
   };
 
@@ -524,6 +559,7 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       fetchAllData();
+      handleCheckTodayReminders();
     }
   }, [currentUser]);
 
@@ -571,6 +607,8 @@ export default function App() {
       if (Array.isArray(data.persons)) setPersons(data.persons);
       if (Array.isArray(data.companies)) setCompanies(data.companies);
       if (Array.isArray(data.serviceDefinitions)) setServiceDefinitions(data.serviceDefinitions);
+      if (Array.isArray(data.failureDefinitions)) setFailureDefinitions(data.failureDefinitions);
+      if (Array.isArray(data.failureCategories)) setFailureCategories(data.failureCategories);
       if (Array.isArray(data.mechanics)) setMechanics(data.mechanics);
       if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
     }
@@ -856,6 +894,78 @@ export default function App() {
     } else {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'خطا در حذف تعریف خدمت');
+    }
+  };
+
+  // متدهای تعریف خرابی (Failure Definitions)
+  const handleAddFailureDefinition = async (newDef: Omit<FailureDefinition, 'id' | 'createdAt'>) => {
+    const res = await fetch('/api/failure-definitions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDef)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await fetchAllData();
+      return data;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در ثبت تعریف خرابی');
+    }
+  };
+
+  const handleEditFailureDefinition = async (id: number, updated: Partial<FailureDefinition>) => {
+    const res = await fetch(`/api/failure-definitions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      await fetchAllData();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در ویرایش تعریف خرابی');
+    }
+  };
+
+  const handleDeleteFailureDefinition = async (id: number) => {
+    const res = await fetch(`/api/failure-definitions/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      await fetchAllData();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در حذف تعریف خرابی');
+    }
+  };
+
+  // متدهای دسته خرابی (Failure Categories)
+  const handleAddFailureCategory = async (cat: { name: string; description?: string }) => {
+    const res = await fetch('/api/failure-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cat)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await fetchAllData();
+      return data;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در افزودن دسته خرابی');
+    }
+  };
+
+  const handleDeleteFailureCategory = async (id: number) => {
+    const res = await fetch(`/api/failure-categories/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      await fetchAllData();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در حذف دسته خرابی');
     }
   };
 
@@ -1233,11 +1343,18 @@ export default function App() {
   };
 
   const handleDeleteOdometerLog = async (id: number) => {
+    if (id === undefined || id === null || isNaN(Number(id))) {
+      throw new Error('شناسه استعلام نامعتبر است');
+    }
     const res = await fetch(`/api/odometer-logs/${id}`, {
       method: 'DELETE'
     });
-    if (res.ok) fetchAllData();
-    else throw new Error('خطا در حذف استعلام');
+    if (res.ok) {
+      await fetchAllData();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در حذف استعلام');
+    }
   };
 
   const handleSimulateSms = async (senderPhone: string, message: string) => {
@@ -1252,11 +1369,18 @@ export default function App() {
   };
 
   const handleDeleteSmsLog = async (id: number) => {
+    if (id === undefined || id === null || isNaN(Number(id))) {
+      throw new Error('شناسه لاگ پیامک نامعتبر است');
+    }
     const res = await fetch(`/api/sms/inbound-logs/${id}`, {
       method: 'DELETE'
     });
-    if (res.ok) fetchAllData();
-    else throw new Error('خطا در حذف لاگ پیامک');
+    if (res.ok) {
+      await fetchAllData();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در حذف لاگ پیامک');
+    }
   };
 
   const handleSyncSms = useCallback(async () => {
@@ -1296,6 +1420,74 @@ export default function App() {
       throw new Error(data.message || 'خطا در تخصیص خودرو');
     }
   };
+
+  // متدهای عملیات روی یادآوری‌ها و پیگیری‌ها (CRUD و پیامک)
+  const handleAddReminder = async (reminderData: Omit<Reminder, 'id' | 'createdAt'>) => {
+    const res = await fetch('/api/reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reminderData)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setReminders(prev => [data, ...prev]);
+      return data;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در ثبت یادآوری');
+    }
+  };
+
+  const handleEditReminder = async (id: number, reminderData: Partial<Reminder>) => {
+    const res = await fetch(`/api/reminders/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reminderData)
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setReminders(prev => prev.map(r => r.id === id ? updated : r));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در ویرایش یادآوری');
+    }
+  };
+
+  const handleDeleteReminder = async (id: number) => {
+    const res = await fetch(`/api/reminders/${id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      setReminders(prev => prev.filter(r => r.id !== id));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'خطا در حذف یادآوری');
+    }
+  };
+
+  const handleSendReminderSms = async (id: number, phone?: string, customMessage?: string) => {
+    const res = await fetch(`/api/reminders/${id}/send-sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, customMessage })
+    });
+    const data = await res.json().catch(() => ({ success: false, message: 'خطا در ارتباط با سرور' }));
+    if (data.reminder) {
+      setReminders(prev => prev.map(r => r.id === id ? data.reminder : r));
+    }
+    return data;
+  };
+
+  // لیست یادآوری‌های موعد امروز و معوق
+  const dueReminders = useMemo(() => {
+    const today = getCurrentJalaliDate();
+    return (reminders || []).filter(r => 
+      (r.status === 'pending' || r.status === 'reminded') && 
+      (r.reminderDate === today || jalaliDayDifference(r.reminderDate, today) <= 0)
+    );
+  }, [reminders]);
+
+  const dueRemindersCount = dueReminders.length;
 
   if (isLoading) {
     return (
@@ -1337,6 +1529,7 @@ export default function App() {
         onToggleTheme={toggleTheme}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
+        dueRemindersCount={dueRemindersCount}
       />
 
       {/* بخش اصلی محتوا (سمت چپ منوی کناری) - در موبایل تمام‌صفحه و در دسکتاپ هماهنگ با باز/بسته شدن سایدبار */}
@@ -1477,6 +1670,19 @@ export default function App() {
             />
           )}
 
+          {activeView === 'failure_definitions' && (
+            <FailureDefinitionsView 
+              failureDefinitions={failureDefinitions}
+              failureCategories={failureCategories}
+              onAddDefinition={handleAddFailureDefinition}
+              onEditDefinition={handleEditFailureDefinition}
+              onDeleteDefinition={handleDeleteFailureDefinition}
+              onAddCategory={handleAddFailureCategory}
+              onDeleteCategory={handleDeleteFailureCategory}
+              onBulkImportSuccess={handleBulkImportSuccess}
+            />
+          )}
+
           {activeView === 'definitions_excel_import' && (
             <DefinitionsExcelImportView
               onNavigate={handleNavigate}
@@ -1548,11 +1754,15 @@ export default function App() {
               users={users}
               mechanics={mechanics}
               suppliers={suppliers}
+              serviceDefinitions={serviceDefinitions}
+              failureDefinitions={failureDefinitions}
+              failureCategories={failureCategories}
               currentUserRole={currentUser.role}
               onAddFailure={handleAddFailure}
               onUpdateFailure={handleUpdateFailure}
               onDeleteFailure={handleDeleteFailure}
               onUpdateWorkflow={handleUpdateWorkflow}
+              onNavigate={handleNavigate}
             />
           )}
 
@@ -1660,6 +1870,21 @@ export default function App() {
             />
           )}
 
+          {activeView === 'reminders' && (
+            <RemindersView 
+              reminders={reminders}
+              vehicles={visibleVehicles}
+              persons={persons}
+              users={users}
+              currentUser={currentUser}
+              onAddReminder={handleAddReminder}
+              onEditReminder={handleEditReminder}
+              onDeleteReminder={handleDeleteReminder}
+              onSendSms={handleSendReminderSms}
+              onCheckTodayReminders={handleCheckTodayReminders}
+            />
+          )}
+
           {activeView === 'logs' && (
             <LogsView 
               logs={logs}
@@ -1667,6 +1892,111 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* اعلان و پنجره هوشمند یادآوری‌های امروز در بدو ورود به سامانه */}
+      {showTodayRemindersPopup && dueReminders.length > 0 && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto" dir="rtl">
+          <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-[#2d2d30] rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 my-auto">
+            {/* سربرگ استاندارد مدال */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618]">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white dark:bg-[#202024] rounded-lg border border-slate-200 dark:border-[#303035] shadow-xs">
+                  <Bell className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-slate-900 dark:text-white text-sm font-bold">
+                      یادآوری‌های موعد امروز
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono font-bold border border-indigo-200 dark:border-indigo-800/40">
+                      {toPersianDigits(dueReminders.length)} مورد
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    یادآوری‌ها و پیگیری‌های موعد امروز در سامانه ناوگان
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTodayRemindersPopup(false);
+                  setHasDismissedTodayAlert(true);
+                }}
+                className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#1a1a1c] rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                title="بستن"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* لیست آیتم‌های یادآوری */}
+            <div className="p-4 sm:p-5 max-h-72 overflow-y-auto space-y-2.5 custom-scrollbar bg-white dark:bg-[#111113]">
+              {dueReminders.map((r, idx) => (
+                <div 
+                  key={r.id} 
+                  className="p-3.5 bg-slate-50 dark:bg-[#161619] rounded-lg border border-slate-200 dark:border-[#26262a] hover:border-slate-300 dark:hover:border-[#35353a] transition-all flex items-start gap-3"
+                >
+                  <div className="w-6 h-6 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/70 dark:border-indigo-800/40 text-indigo-600 dark:text-indigo-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    {toPersianDigits(idx + 1)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">
+                      {r.title}
+                    </p>
+                    {r.description && (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed whitespace-pre-wrap">
+                        {r.description}
+                      </p>
+                    )}
+                    {(r.targetName || r.vehicleName) && (
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-slate-200/60 dark:border-[#26262a]">
+                        {r.targetName && (
+                          <span className="flex items-center gap-1">
+                            <UserIcon className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-600 dark:text-slate-300">مخاطب: <span className="font-semibold text-slate-800 dark:text-slate-200">{r.targetName}</span></span>
+                          </span>
+                        )}
+                        {r.vehicleName && (
+                          <span className="flex items-center gap-1 font-mono">
+                            <span className="text-slate-600 dark:text-slate-300">خودرو: <span className="font-semibold text-slate-800 dark:text-slate-200">{r.vehicleName}</span></span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* پانوشت دکمه‌ها */}
+            <div className="p-4 bg-slate-50 dark:bg-[#161618] border-t border-slate-200 dark:border-[#2d2d30] flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTodayRemindersPopup(false);
+                  setHasDismissedTodayAlert(true);
+                }}
+                className="px-4 py-2 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-[#252528] text-slate-700 dark:text-slate-300 font-bold rounded-lg transition-colors border border-slate-200 dark:border-[#2d2d30] text-xs cursor-pointer"
+              >
+                بستن پنجره
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTodayRemindersPopup(false);
+                  setHasDismissedTodayAlert(true);
+                  handleNavigate('reminders');
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors shadow-2xs text-xs cursor-pointer flex items-center gap-1.5 active:scale-95"
+              >
+                <span>مشاهده و مدیریت همه یادآوری‌ها</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* مدال تعاریف رسمی و یکپارچه بدون جابجایی صفحه */}
       <GlobalEntityDefinitionModal
@@ -1678,12 +2008,14 @@ export default function App() {
         mechanics={mechanics}
         suppliers={suppliers}
         serviceDefinitions={serviceDefinitions}
+        failureCategories={failureCategories}
         onAddVehicle={handleAddVehicle}
         onAddPerson={handleAddPerson}
         onAddSupplier={handleAddSupplier}
         onAddMechanic={handleAddMechanic}
         onAddCompany={handleAddCompany}
         onAddServiceDefinition={handleAddServiceDefinition}
+        onAddFailureDefinition={handleAddFailureDefinition}
         onAddPart={handleAddPart}
       />
     </div>

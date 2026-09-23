@@ -9,6 +9,7 @@ export type QuickEntityType =
   | 'mechanic'
   | 'company'
   | 'service'
+  | 'failure'
   | 'part';
 
 export interface EntityDefinitionTarget {
@@ -47,6 +48,11 @@ export const ENTITY_DEFINITION_TARGETS: Record<QuickEntityType, EntityDefinition
     view: 'service_definitions',
     title: 'تعاریف خدمات و سرویس‌ها',
     addNewButtonLabel: 'افزودن خدمت جدید...'
+  },
+  failure: {
+    view: 'failure_definitions',
+    title: 'تعاریف انواع و دسته‌های خرابی',
+    addNewButtonLabel: 'تعریف نوع خرابی جدید...'
   },
   part: {
     view: 'parts',

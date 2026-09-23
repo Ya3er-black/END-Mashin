@@ -6,13 +6,14 @@
 import React, { useState, useMemo } from 'react';
 import { 
   PhoneCall, Check, X, AlertTriangle, Phone, 
-  Gauge, Edit2, AlertCircle, Sparkles, Wrench, Clock, Calendar, TrendingUp
+  Gauge, Edit2, AlertCircle, Sparkles, Wrench, Clock, Calendar, TrendingUp, Trash2
 } from 'lucide-react';
 import { Vehicle, OdometerLog, User, PeriodicService, ServiceDefinition, VehicleFailure } from '../types';
 import { toPersianDigits, formatNumber, parsePersianNumber } from '../utils/numberUtils';
 import { JalaliDatePicker } from './JalaliDatePicker';
 import { CustomSelect } from './CustomSelect';
 import { calculateInquiryServicePrediction } from '../utils/predictionEngine';
+import { getVehicleDisplayName } from '../utils/vehicleUtils';
 
 interface OdometerInquiryFormViewProps {
   editingLog: OdometerLog | null;
@@ -24,6 +25,7 @@ interface OdometerInquiryFormViewProps {
   currentUser?: User | null;
   initialVehicleId?: number;
   onClose: () => void;
+  onDelete?: (id: number) => Promise<void>;
   onSubmit: (data: {
     vehicleId: number;
     inquiryDate: string;
@@ -43,6 +45,7 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
   currentUser: _currentUser,
   initialVehicleId,
   onClose,
+  onDelete,
   onSubmit
 }) => {
   const [vehicleId, setVehicleId] = useState<number>(() => {
@@ -113,6 +116,17 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
   const prevKm = selectedVehicle?.currentKm || 0;
   const currentKmNum = odometerKm === '' ? 0 : Number(odometerKm);
   const diffKm = currentKmNum - prevKm;
+
+  // سوابق قبلی استعلام این خودرو
+  const vehicleLogs = useMemo(() => {
+    if (!vehicleId) return [];
+    const logs = odometerLogs.filter(l => l.vehicleId === vehicleId);
+    return [...logs].sort((a, b) => {
+      const dateDiff = String(b.inquiryDate || '').localeCompare(String(a.inquiryDate || ''));
+      if (dateDiff !== 0) return dateDiff;
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
+  }, [odometerLogs, vehicleId]);
 
   // محاسبه زنده پیش‌بینی تاریخ سررسید قطعات: قبل و بعد از ورود کیلومتر
   const livePredictions = useMemo(() => {
@@ -207,7 +221,7 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
                 quickAddType="vehicle"
                 options={vehicles.map(v => ({
                   value: v.id.toString(),
-                  label: `${v.name} - پلاک [${toPersianDigits(v.plaque)}] (کد: ${toPersianDigits(v.code)})`
+                  label: getVehicleDisplayName(v)
                 }))}
               />
               <input type="hidden" value={vehicleId} required />
@@ -440,7 +454,85 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
             </div>
           )}
 
-          {/* ۴. شرح استعلام یا توضیحات و گزارش راننده */}
+          {/* ۴. سوابق قبلی استعلام این خودرو در صورت وجود */}
+          {vehicleLogs.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>سوابق استعلام‌های قبلی ثبت‌شده برای این خودرو ({toPersianDigits(vehicleLogs.length)} مورد)</span>
+                </span>
+                <span className="text-[10px] text-slate-400">امکان حذف استعلام‌های اشتباه با دکمه سطل زباله</span>
+              </div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-[#2d2d30] bg-slate-50/50 dark:bg-[#151518]/50">
+                <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-100/70 dark:bg-[#1a1a1e] text-slate-500 dark:text-slate-400 text-[10px]">
+                      <th className="py-1.5 px-2 text-center w-8">#</th>
+                      <th className="py-1.5 px-2">تاریخ و ساعت</th>
+                      <th className="py-1.5 px-2">کارکرد (کیلومتر)</th>
+                      <th className="py-1.5 px-2">اختلاف</th>
+                      <th className="py-1.5 px-2">ثبت‌کننده / منبع</th>
+                      <th className="py-1.5 px-2 text-center w-16">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200/60 dark:divide-[#2d2d30]/60">
+                    {vehicleLogs.map((l, i) => {
+                      const isCurrentEditing = editingLog?.id === l.id;
+                      return (
+                        <tr 
+                          key={l.id} 
+                          className={`hover:bg-slate-100/80 dark:hover:bg-[#1f1f24] transition-colors ${
+                            isCurrentEditing ? 'bg-amber-50/60 dark:bg-amber-950/20' : ''
+                          }`}
+                        >
+                          <td className="py-1 px-2 text-center text-slate-400 text-[10px]">{toPersianDigits(i + 1)}</td>
+                          <td className="py-1 px-2 whitespace-nowrap">
+                            <span className="font-mono font-medium">{toPersianDigits(l.inquiryDate)}</span>
+                            {l.inquiryTime && (
+                              <span className="text-[10px] text-slate-400 mr-1.5 font-mono">({toPersianDigits(l.inquiryTime)})</span>
+                            )}
+                          </td>
+                          <td className="py-1 px-2 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                            {toPersianDigits(formatNumber(l.odometerKm))}
+                          </td>
+                          <td className="py-1 px-2 font-mono text-slate-500 text-[10px]">
+                            {l.differenceKm !== undefined ? `+${toPersianDigits(formatNumber(l.differenceKm))}` : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-slate-500 text-[10px] truncate max-w-[120px]">
+                            {l.recordedBy || l.source || '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center">
+                            {onDelete && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`آیا از حذف استعلام ${toPersianDigits(formatNumber(l.odometerKm))} کیلومتر تاریخ ${toPersianDigits(l.inquiryDate)} اطمینان دارید؟`)) {
+                                    try {
+                                      await onDelete(l.id);
+                                    } catch (err: any) {
+                                      setFormError(err?.message || 'خطا در حذف استعلام');
+                                    }
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                title="حذف این استعلام"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ۵. شرح استعلام یا توضیحات و گزارش راننده */}
           <div className="space-y-1 pt-1">
             <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
               شرح استعلام یا توضیحات و گزارش راننده (اختیاری)
@@ -454,9 +546,33 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
             />
           </div>
 
-          {/* ۵. نوار دکمه‌های اقدام انتهای فرم (دقیقاً با استایل نوار دکمه‌های ثبت سرویس) */}
+          {/* ۶. نوار دکمه‌های اقدام انتهای فرم */}
           <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-[#2d2d30]">
-            <div />
+            <div>
+              {editingLog && onDelete && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    if (confirm(`آیا از حذف استعلام شماره #${toPersianDigits(editingLog.id)} (${toPersianDigits(formatNumber(editingLog.odometerKm))} کیلومتر در تاریخ ${toPersianDigits(editingLog.inquiryDate)}) اطمینان دارید؟`)) {
+                      setIsSubmitting(true);
+                      try {
+                        await onDelete(editingLog.id);
+                        onClose();
+                      } catch (err: any) {
+                        setFormError(err?.message || 'خطا در حذف استعلام');
+                        setIsSubmitting(false);
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 font-bold rounded-md transition-colors border border-rose-200 dark:border-rose-900/50 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="حذف این استعلام"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف این استعلام</span>
+                </button>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <button 

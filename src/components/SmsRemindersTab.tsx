@@ -1205,9 +1205,12 @@ export default function SmsRemindersTab({
                         <div className="absolute inset-y-0 left-0 pl-2.5 pr-10 flex items-center bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                           <button
                             type="button"
-                            onClick={() => handleDeleteOutboundLog(log.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer bg-white dark:bg-[#1e1e24] rounded border border-slate-200 dark:border-[#2d2d30] shadow-2xs"
-                            title="حذف لاگ"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteOutboundLog(log.id);
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer bg-white dark:bg-[#1e1e24] rounded border border-slate-200 dark:border-[#2d2d30] shadow-2xs pointer-events-auto"
+                            title="حذف لاگ پیامک ارسالی"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

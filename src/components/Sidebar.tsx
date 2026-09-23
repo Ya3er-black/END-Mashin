@@ -9,9 +9,10 @@ import {
   LayoutDashboard, Truck, Wrench, ShieldAlert, Package, 
   Wallet, Users, Terminal, FileText, LogOut, Shield, ArrowLeftRight, UserCog,
   ChevronDown, ClipboardList, Building2, Car, Settings, BarChart4, Building, DollarSign,
-  Sun, Moon, PhoneCall, Store, Pin, X, FileSpreadsheet
+  Sun, Moon, PhoneCall, Store, Pin, X, FileSpreadsheet, AlertOctagon, Bell
 } from 'lucide-react';
 import { User, UserRole } from '../types';
+import { toPersianDigits } from '../utils/numberUtils';
 
 interface SidebarProps {
   activeView: string;
@@ -27,6 +28,7 @@ interface SidebarProps {
   onToggleTheme?: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  dueRemindersCount?: number;
 }
 
 export default function Sidebar({
@@ -42,11 +44,12 @@ export default function Sidebar({
   theme,
   onToggleTheme,
   isMobileOpen = false,
-  onMobileClose
+  onMobileClose,
+  dueRemindersCount = 0
 }: SidebarProps) {
   
   const receptionIds = ['services', 'failures', 'insurance'];
-  const definitionIds = ['vehicles', 'service_definitions', 'companies', 'persons', 'mechanics', 'suppliers', 'definitions_excel_import'];
+  const definitionIds = ['vehicles', 'service_definitions', 'failure_definitions', 'companies', 'persons', 'mechanics', 'suppliers', 'definitions_excel_import'];
   const reportIds = ['reports', 'reports_comprehensive', 'reports_analytics', 'reports_drivers', 'reports_failures', 'reports_companies', 'reports_services', 'reports_insurance'];
 
   // مدیریت باز و بسته شدن هوشمند سایدبار با هاور موس
@@ -158,6 +161,7 @@ export default function Sidebar({
   const definitionSubItems = [
     { id: 'vehicles', label: 'تعریف خودروها', icon: Car },
     { id: 'service_definitions', label: 'تعاریف سرویس‌ها', icon: Settings },
+    { id: 'failure_definitions', label: 'تعریف خرابی‌ها', icon: AlertOctagon },
     { id: 'companies', label: 'تعریف شرکت‌ها', icon: Building2 },
     { id: 'persons', label: 'تعریف رانندگان', icon: Users },
     { id: 'mechanics', label: 'تعریف تعمیرکاران', icon: Wrench },
@@ -165,9 +169,10 @@ export default function Sidebar({
     { id: 'definitions_excel_import', label: 'ورود تعاریف از اکسل', icon: FileSpreadsheet, badge: 'اکسل' },
   ];
 
-  // ۴. منوهای عملیاتی: استعلام کارکرد، حسابداری و مالی، انبارداری و قطعات
+  // ۴. منوهای عملیاتی: استعلام کارکرد، یادآوری‌ها و پیگیری‌ها، حسابداری و مالی، انبارداری و قطعات
   const operationsMenuItems = [
     { id: 'odometer', label: 'استعلام کارکرد', icon: PhoneCall },
+    { id: 'reminders', label: 'یادآوری‌ها و پیگیری‌ها', icon: Bell, badgeCount: dueRemindersCount },
     { id: 'accounting', label: 'حسابداری و مالی', icon: Wallet },
     { id: 'parts', label: 'انبارداری و قطعات', icon: Package },
   ];
@@ -227,10 +232,11 @@ export default function Sidebar({
     };
   };
 
-  const renderSingleMenuItem = (item: { id: string; label: string; icon: any }) => {
+  const renderSingleMenuItem = (item: { id: string; label: string; icon: any; badgeCount?: number }) => {
     if (!hasAccess(item.id)) return null;
     const Icon = item.icon;
     const isActive = activeView === item.id;
+    const hasBadge = Boolean(item.badgeCount && item.badgeCount > 0);
     return (
       <button
         key={item.id}
@@ -240,30 +246,41 @@ export default function Sidebar({
         style={getActiveItemStyle(isActive)}
         className={`h-8.5 flex items-center rounded-lg transition-colors duration-150 cursor-pointer select-none group/item ${
           effectiveCollapsed 
-            ? 'w-8.5 mx-auto justify-center p-0 aspect-square' 
-            : 'w-full px-2 justify-start'
+            ? 'w-8.5 mx-auto justify-center p-0 aspect-square relative' 
+            : 'w-full px-2 justify-between'
         } ${
           isActive 
             ? 'border shadow-xs dark:bg-transparent text-black dark:text-white' 
             : 'text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222228] border border-transparent hover:border-slate-200 dark:hover:border-[#383842]'
         }`}
       >
-        <div className="w-8.5 h-8.5 shrink-0 flex items-center justify-center">
-          <Icon 
-            style={getActiveIconStyle(isActive)}
-            className={`w-[18px] h-[18px] shrink-0 transition-colors duration-150 ${isActive ? 'text-black dark:text-white' : 'text-slate-700 dark:text-slate-300 group-hover/item:text-black dark:group-hover/item:text-white'}`} 
-            strokeWidth={1.8} 
-          />
+        <div className="flex items-center min-w-0">
+          <div className="w-8.5 h-8.5 shrink-0 flex items-center justify-center relative">
+            <Icon 
+              style={getActiveIconStyle(isActive)}
+              className={`w-[18px] h-[18px] shrink-0 transition-colors duration-150 ${isActive ? 'text-black dark:text-white' : 'text-slate-700 dark:text-slate-300 group-hover/item:text-black dark:group-hover/item:text-white'}`} 
+              strokeWidth={1.8} 
+            />
+            {effectiveCollapsed && hasBadge && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#111113] animate-pulse" />
+            )}
+          </div>
+          <span className={`text-xs whitespace-nowrap overflow-hidden transition-[max-width,opacity] duration-200 font-normal ${
+            effectiveCollapsed ? 'w-0 max-w-0 opacity-0 pointer-events-none' : 'max-w-[170px] opacity-100 mr-1.5'
+          } ${
+            isActive 
+              ? 'text-black dark:text-white' 
+              : 'text-slate-800 dark:text-slate-200 group-hover/item:text-black dark:group-hover/item:text-white'
+          }`}>
+            {item.label}
+          </span>
         </div>
-        <span className={`text-xs whitespace-nowrap overflow-hidden transition-[max-width,opacity] duration-200 font-normal ${
-          effectiveCollapsed ? 'w-0 max-w-0 opacity-0 pointer-events-none' : 'max-w-[170px] opacity-100 mr-1.5'
-        } ${
-          isActive 
-            ? 'text-black dark:text-white' 
-            : 'text-slate-800 dark:text-slate-200 group-hover/item:text-black dark:group-hover/item:text-white'
-        }`}>
-          {item.label}
-        </span>
+
+        {!effectiveCollapsed && hasBadge && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-mono animate-pulse shrink-0">
+            {toPersianDigits(item.badgeCount!)}
+          </span>
+        )}
       </button>
     );
   };

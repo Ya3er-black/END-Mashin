@@ -23,6 +23,7 @@ import { MechanicAccountingView } from './MechanicAccountingView';
 import { SupplierAccountingView } from './SupplierAccountingView';
 import { ComprehensiveAccountingView } from './ComprehensiveAccountingView';
 import { TableColumnHeader } from './TableFilterSort';
+import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 export type StatementCategory = 'all' | 'service' | 'repair' | 'expense' | 'insurance';
 
@@ -687,11 +688,11 @@ export default function AccountingView({
     });
   }, [services, failures, workflows, parts, insurances, expenses, inventoryTransactions, vehicles, overrides]);
 
-  // لیست خودروها منطبق با عبارت جستجوی نام خودرو (فقط بر اساس نام خودرو و بازه تاریخ)
+  // لیست خودروها منطبق با عبارت جستجوی نام خودرو، راننده و کد خودرو
   const matchedVehiclesWithStats = useMemo(() => {
     const query = searchTerm.trim();
     const list = query
-      ? vehicles.filter(v => startsWithPrefix(v.name, query) || startsWithPrefix(v.code, query))
+      ? vehicles.filter(v => matchesVehicleSearch(v, query))
       : vehicles;
 
     const startComp = normalizeToComparableJalali(startDate);
@@ -1553,7 +1554,7 @@ export default function AccountingView({
                           <span className="truncate">
                             {(() => {
                               const v = vehicles.find(veh => veh.id.toString() === debitPartyId);
-                              return v ? `${v.name} - پلاک: ${toPersianDigits(v.plaque)} (کد: ${toPersianDigits(v.code)})` : 'انتخاب خودرو از لیست ناوگان...';
+                              return v ? getVehicleDisplayName(v) : 'انتخاب خودرو از لیست ناوگان...';
                             })()}
                           </span>
                           <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1563,23 +1564,19 @@ export default function AccountingView({
                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#161618] border border-slate-200 dark:border-[#2d2d30] rounded-md z-50 max-h-48 overflow-y-auto p-1.5 space-y-1 shadow-xl">
                             <input
                               type="text"
-                              placeholder="جستجوی نام یا پلاک خودرو..."
+                              placeholder="جستجوی نام، راننده یا کد خودرو..."
                               value={debitPartySearch}
                               onChange={e => setDebitPartySearch(e.target.value)}
                               className="w-full p-1.5 bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded text-xs font-bold mb-1 focus:outline-none focus:ring-1 focus:ring-rose-500"
                               autoFocus
                             />
-                            {vehicles.filter(v => 
-                              v.name.toLowerCase().includes(debitPartySearch.toLowerCase()) ||
-                              v.plaque.includes(debitPartySearch) ||
-                              v.code.toLowerCase().includes(debitPartySearch.toLowerCase())
-                            ).map(v => (
+                            {vehicles.filter(v => matchesVehicleSearch(v, debitPartySearch)).map(v => (
                               <div
                                 key={v.id}
                                 onClick={() => {
                                   setDebitPartyId(v.id.toString());
                                   setNewExpenseVehicleId(v.id.toString());
-                                  setNewDebitAccount(`خودرو: ${v.name} [${toPersianDigits(v.plaque)}]`);
+                                  setNewDebitAccount(`خودرو: ${v.name} (${v.driverName || 'بدون راننده'})`);
                                   setIsDebitPartyDropdownOpen(false);
                                   setDebitPartySearch('');
                                 }}
@@ -1587,7 +1584,7 @@ export default function AccountingView({
                               >
                                 <div className="flex items-center gap-2">
                                   <span className="font-bold text-slate-900 dark:text-white">{v.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">[{toPersianDigits(v.plaque)}]</span>
+                                  <span className="text-[10px] text-slate-500">[{v.driverName || 'بدون راننده'}]</span>
                                 </div>
                                 <span className="text-[10px] bg-slate-100 dark:bg-[#252528] px-1.5 py-0.5 rounded font-mono font-bold text-slate-600 dark:text-slate-300">
                                   کد: {toPersianDigits(v.code)}
@@ -1609,7 +1606,7 @@ export default function AccountingView({
                         }}
                         options={mechanics.map(m => ({
                           value: m.id.toString(),
-                          label: `${m.name} ${m.shopName ? `(${m.shopName})` : ''} - ${m.specialty || 'تعمیرات'}`
+                          label: m.shopName ? `${m.name} (${m.shopName})` : m.name
                         }))}
                         searchable={true}
                         quickAddType="mechanic"
@@ -1772,7 +1769,7 @@ export default function AccountingView({
                               const v = vehicles[0];
                               if (v) {
                                 setCreditPartyId(v.id.toString());
-                                setNewCreditAccount(`خودرو: ${v.name} [${toPersianDigits(v.plaque)}]`);
+                                setNewCreditAccount(`خودرو: ${v.name} (${v.driverName || 'بدون راننده'})`);
                               }
                             }
                           }}
@@ -1840,7 +1837,7 @@ export default function AccountingView({
                         }}
                         options={mechanics.map(m => ({
                           value: m.id.toString(),
-                          label: `${m.name} ${m.shopName ? `(${m.shopName})` : ''} - ${m.specialty || 'تعمیرات'}`
+                          label: m.shopName ? `${m.name} (${m.shopName})` : m.name
                         }))}
                         searchable={true}
                         quickAddType="mechanic"
@@ -1875,7 +1872,7 @@ export default function AccountingView({
                           <span className="truncate">
                             {(() => {
                               const v = vehicles.find(veh => veh.id.toString() === creditPartyId);
-                              return v ? `${v.name} - پلاک: ${toPersianDigits(v.plaque)} (کد: ${toPersianDigits(v.code)})` : 'انتخاب خودرو از لیست ناوگان...';
+                              return v ? getVehicleDisplayName(v) : 'انتخاب خودرو از لیست ناوگان...';
                             })()}
                           </span>
                           <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1885,22 +1882,18 @@ export default function AccountingView({
                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#161618] border border-slate-200 dark:border-[#2d2d30] rounded-md z-50 max-h-48 overflow-y-auto p-1.5 space-y-1 shadow-xl">
                             <input
                               type="text"
-                              placeholder="جستجوی نام یا پلاک خودرو..."
+                              placeholder="جستجوی نام، راننده یا کد خودرو..."
                               value={creditPartySearch}
                               onChange={e => setCreditPartySearch(e.target.value)}
                               className="w-full p-1.5 bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded text-xs font-bold mb-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                               autoFocus
                             />
-                            {vehicles.filter(v => 
-                              v.name.toLowerCase().includes(creditPartySearch.toLowerCase()) ||
-                              v.plaque.includes(creditPartySearch) ||
-                              v.code.toLowerCase().includes(creditPartySearch.toLowerCase())
-                            ).map(v => (
+                            {vehicles.filter(v => matchesVehicleSearch(v, creditPartySearch)).map(v => (
                               <div
                                 key={v.id}
                                 onClick={() => {
                                   setCreditPartyId(v.id.toString());
-                                  setNewCreditAccount(`خودرو: ${v.name} [${toPersianDigits(v.plaque)}]`);
+                                  setNewCreditAccount(`خودرو: ${v.name} (${v.driverName || 'بدون راننده'})`);
                                   setIsCreditPartyDropdownOpen(false);
                                   setCreditPartySearch('');
                                 }}
@@ -1908,7 +1901,7 @@ export default function AccountingView({
                               >
                                 <div className="flex items-center gap-2">
                                   <span className="font-bold text-slate-900 dark:text-white">{v.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">[{toPersianDigits(v.plaque)}]</span>
+                                  <span className="text-[10px] text-slate-500">[{v.driverName || 'بدون راننده'}]</span>
                                 </div>
                                 <span className="text-[10px] bg-slate-100 dark:bg-[#252528] px-1.5 py-0.5 rounded font-mono font-bold text-slate-600 dark:text-slate-300">
                                   کد: {toPersianDigits(v.code)}
@@ -2255,8 +2248,8 @@ export default function AccountingView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>

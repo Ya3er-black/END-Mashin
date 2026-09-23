@@ -10,7 +10,7 @@ import {
   PhoneCall, ClipboardList, ShieldAlert, Truck, Wrench, Building2,
   UserCog, Package, Wallet, BarChart4, Terminal, LayoutDashboard,
   CheckSquare, Square, ListTodo, Eye, Sparkles, Check, RefreshCw, Car,
-  Sun, Moon, Type, Sliders, Palette, RotateCcw, Shapes, Pipette
+  Sun, Moon, Type, Sliders, Palette, RotateCcw, Shapes, Pipette, AlertOctagon
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User as UserType, UserRole, Company } from '../types';
@@ -80,6 +80,7 @@ const PERMISSION_GROUPS: PermissionTaskGroup[] = [
     subTasks: [
       { id: 'vehicles', label: 'بانک اطلاعات خودروها', icon: Truck },
       { id: 'service_definitions', label: 'تعاریف و استانداردهای خدمات', icon: ListTodo },
+      { id: 'failure_definitions', label: 'تعاریف و دسته‌های خرابی', icon: AlertOctagon },
       { id: 'companies', label: 'شرکت‌ها و پروژه‌ها', icon: Building2 },
       { id: 'persons', label: 'پرسنل و رانندگان', icon: Users },
       { id: 'mechanics', label: 'تعمیرکاران و مراکز خدمات', icon: Wrench },

@@ -154,6 +154,35 @@ export type FailurePriority = 'low' | 'medium' | 'high';
 export type FailureStatus = 'reported' | 'assigned' | 'in_repair' | 'completed' | 'approved';
 export type SatisfactionLevel = 'weak' | 'medium' | 'good' | 'excellent';
 
+// تعریف خرابی خودرو
+export interface FailureDefinition {
+  id: number;
+  failureType: string; // عنوان یا نوع خرابی (مثلاً: روغن‌ریزی موتور، سوختن واشر سرسیلندر)
+  category: string; // دسته خرابی (مثلاً: مکانیکی، برقی، جلوبندی، ...)
+  description?: string; // توضیحات تکمیلی
+  createdAt: string;
+}
+
+// دسته خرابی خودرو
+export interface FailureCategory {
+  id: number;
+  name: string; // عنوان دسته خرابی
+  description?: string; // توضیحات
+  createdAt: string;
+}
+
+// اقلام و ردیف‌های خرابی ثبت‌شده برای یک خودرو
+export interface FailureItem {
+  id?: string;
+  definitionId?: string;
+  failureType?: string;
+  category?: string;
+  mechanicId?: number;
+  description?: string;
+  wage?: number;
+  satisfactionLevel?: SatisfactionLevel;
+}
+
 // گزارش خرابی خودرو
 export interface VehicleFailure {
   id: number;
@@ -180,6 +209,7 @@ export interface VehicleFailure {
   partsUsed?: Record<string, number>;
   shopPartsUsed?: Array<{ name: string; quantity: number; unitPrice: number; totalPrice: number }>;
   replacedServiceTypes?: string[];
+  failureItems?: FailureItem[];
   createdAt: string;
 }
 
@@ -454,6 +484,47 @@ export interface DashboardQuickTask {
   completed?: boolean; // وضعیت انجام شده
   subTasks?: DashboardQuickSubTask[]; // لیست زیرمجموعه‌ها و اقدامات وابسته به این تسک
   createdAt?: string;
+}
+
+// اولویت‌های یادآوری
+export type ReminderPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+// وضعیت‌های یادآوری
+export type ReminderStatus = 'pending' | 'reminded' | 'completed' | 'cancelled';
+
+// دسته‌بندی موضوعی یادآوری
+export type ReminderCategory = 'service' | 'repair' | 'insurance' | 'driver' | 'financial' | 'vehicle' | 'general' | (string & {});
+
+export interface ReminderCategoryItem {
+  id: string;
+  label: string;
+  isCustom?: boolean;
+}
+
+// تعریف کامل ساختار یادآوری و پیگیری
+export interface Reminder {
+  id: number;
+  title: string;                 // موضوع و عنوان یادآوری
+  description?: string;          // شرح و جزئیات تکمیلی
+  reminderDate: string;          // تاریخ شمسی یادآوری (مثلا 1403/07/15)
+  reminderTime?: string;         // ساعت یادآوری (اختیاری مثلا 09:30)
+  targetType?: 'user' | 'person' | 'driver' | 'custom_phone'; // نوع گیرنده
+  targetId?: number | string;    // شناسه کاربر یا پرسنل
+  targetName?: string;           // نام کاربر/راننده/مخاطب
+  targetPhone?: string;          // شماره تماس جهت ارسال پیامک
+  sendSms: boolean;              // ارسال پیامک خودکار در موعد
+  smsSent?: boolean;             // وضعیت ارسال پیامک
+  smsSentAt?: string;            // تاریخ و زمان ارسال پیامک
+  smsResponse?: string;          // پاسخ دریافتی از درگاه پیامک
+  priority: ReminderPriority;    // اولویت (عادی، مهم، فوری)
+  status: ReminderStatus;        // وضعیت (در انتظار، یادآوری‌شده، انجام‌شده، لغو شده)
+  category: ReminderCategory;    // دسته‌بندی
+  vehicleId?: number;            // خودروی مرتبط (اختیاری)
+  vehicleName?: string;          // نام یا پلاک خودرو مرتبط
+  createdAt: string;             // تاریخ ثبت
+  createdBy?: string;            // کاربر ثبت‌کننده
+  completedAt?: string;          // تاریخ انجام شدن
+  notes?: string;                // یادداشت‌های مدیر
 }
 
 

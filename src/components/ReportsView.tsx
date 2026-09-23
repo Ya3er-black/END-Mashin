@@ -15,6 +15,7 @@ import { Pagination } from './Pagination';
 import { CustomSelect } from './CustomSelect';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { SortDirection } from '../utils/sortUtils';
+import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
 
 interface ReportsViewProps {
   activeView?: string;
@@ -165,11 +166,11 @@ export default function ReportsView({
     setIsSearchOpen(false);
   };
 
-  // لیست خودروها منطبق با عبارت جستجوی نام خودرو (فقط نام و کد خودرو)
+  // لیست خودروها منطبق با عبارت جستجوی نام خودرو، راننده و کد خودرو
   const matchedVehicles = useMemo(() => {
     const query = searchTerm.trim();
     return query
-      ? vehicles.filter(v => startsWithPrefix(v.name, query) || startsWithPrefix(v.code, query))
+      ? vehicles.filter(v => matchesVehicleSearch(v, query))
       : vehicles;
   }, [vehicles, searchTerm]);
 
@@ -524,7 +525,7 @@ export default function ReportsView({
               (s.notes && s.notes.toLowerCase().includes(term)) ||
               (s.driverName && s.driverName.toLowerCase().includes(term)) ||
               (s.company && s.company.toLowerCase().includes(term)) ||
-              (v && (startsWithPrefix(v.name, term) || startsWithPrefix(v.code, term) || v.name.toLowerCase().includes(term) || v.plaque.toLowerCase().includes(term)));
+              (v && matchesVehicleSearch(v, term));
             if (!match) return false;
           }
           return true;
@@ -540,7 +541,7 @@ export default function ReportsView({
             const v = vehicles.find(veh => veh.id === i.vehicleId);
             const match = (i.insuranceCompany && i.insuranceCompany.toLowerCase().includes(term)) ||
               (i.policyNumber && i.policyNumber.toLowerCase().includes(term)) ||
-              (v && (startsWithPrefix(v.name, term) || startsWithPrefix(v.code, term) || v.name.toLowerCase().includes(term) || v.plaque.toLowerCase().includes(term)));
+              (v && matchesVehicleSearch(v, term));
             if (!match) return false;
           }
           return true;
@@ -557,7 +558,7 @@ export default function ReportsView({
               (f.description && f.description.toLowerCase().includes(term)) ||
               (f.driverName && f.driverName.toLowerCase().includes(term)) ||
               (f.company && f.company.toLowerCase().includes(term)) ||
-              (v && (startsWithPrefix(v.name, term) || startsWithPrefix(v.code, term) || v.name.toLowerCase().includes(term) || v.plaque.toLowerCase().includes(term)));
+              (v && matchesVehicleSearch(v, term));
             if (!match) return false;
           }
           return true;
@@ -574,7 +575,7 @@ export default function ReportsView({
               (e.description && e.description.toLowerCase().includes(term)) ||
               (e.driverName && e.driverName.toLowerCase().includes(term)) ||
               (e.company && e.company.toLowerCase().includes(term)) ||
-              (v && (startsWithPrefix(v.name, term) || startsWithPrefix(v.code, term) || v.name.toLowerCase().includes(term) || v.plaque.toLowerCase().includes(term)));
+              (v && matchesVehicleSearch(v, term));
             if (!match) return false;
           }
           return true;
@@ -1050,8 +1051,8 @@ export default function ReportsView({
                         </div>
 
                         <div className="shrink-0 text-left">
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
-                            پلاک: {toPersianDigits(v.plaque)}
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-[#1a1a1e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30]">
+                            {v.driverName ? `راننده: ${v.driverName}` : 'بدون راننده'}
                           </span>
                         </div>
                       </div>
