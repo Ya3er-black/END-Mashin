@@ -1512,7 +1512,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#0a0a0b] text-slate-800 dark:text-[#e2e8f0] font-sans antialiased flex" dir="rtl">
+    <div className="min-h-screen bg-transparent text-slate-800 dark:text-[#f1f5f9] font-sans antialiased flex" dir="rtl">
       
       {/* منوی کناری راست‌چین با قابلیت دراور در موبایل */}
       <Sidebar 
@@ -1542,7 +1542,7 @@ export default function App() {
       >
         
         {/* هدر بالایی با نمایش دکمه منو در موبایل، تاریخ، ساعت، اعلانات و نمایه کاربر */}
-        <header className="bg-white/80 dark:bg-[#0a0a0b]/80 backdrop-blur-md border-b border-slate-200 dark:border-[#2d2d30] h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 sticky top-0 z-20 print:hidden w-full min-w-0">
+        <header className="bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-md border-b border-slate-200 dark:border-[#27272a] h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 sticky top-0 z-20 print:hidden w-full min-w-0">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               {/* دکمه باز کردن منوی کشویی در موبایل */}
               <button
@@ -1948,21 +1948,6 @@ export default function App() {
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed whitespace-pre-wrap">
                         {r.description}
                       </p>
-                    )}
-                    {(r.targetName || r.vehicleName) && (
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-slate-200/60 dark:border-[#26262a]">
-                        {r.targetName && (
-                          <span className="flex items-center gap-1">
-                            <UserIcon className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-600 dark:text-slate-300">مخاطب: <span className="font-semibold text-slate-800 dark:text-slate-200">{r.targetName}</span></span>
-                          </span>
-                        )}
-                        {r.vehicleName && (
-                          <span className="flex items-center gap-1 font-mono">
-                            <span className="text-slate-600 dark:text-slate-300">خودرو: <span className="font-semibold text-slate-800 dark:text-slate-200">{r.vehicleName}</span></span>
-                          </span>
-                        )}
-                      </div>
                     )}
                   </div>
                 </div>
