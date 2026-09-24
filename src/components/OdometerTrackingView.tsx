@@ -2508,77 +2508,35 @@ export default function OdometerTrackingView({
 
       {/* محتوای تب سوابق استعلامات کارکرد ناوگان */}
       {activeTab === 'inquiry_logs' && (
-        <div className="space-y-4">
-          {/* کارت آمار و هدر تب */}
-          <div className="bg-white dark:bg-[#151518] rounded-xl border border-slate-200 dark:border-[#2d2d30] p-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/20">
-                    <History className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>سوابق و تاریخچه استعلامات کارکرد ناوگان</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-mono font-bold">
-                        {toPersianDigits(sortedInquiryLogs.length)} مورد
-                      </span>
-                    </h2>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      مشاهده، فیلتر ستونی، ویرایش و حذف کامل استعلام‌های ثبت‌شده دستی، پیامکی و سیستمی
-                    </p>
-                  </div>
-                </div>
+        <div className="space-y-3">
+          {/* جدول نمایش سوابق استعلامات کارکرد */}
+          <div className="bg-white dark:bg-[#111113] rounded-lg border border-slate-200 dark:border-[#2d2d30] overflow-hidden">
+            <div className="px-3 py-2 border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#151518] flex justify-between items-center">
+              <div className="flex items-center gap-1.5 font-extrabold text-[11px] text-slate-900 dark:text-white">
+                <History className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>سوابق و تاریخچه استعلامات کارکرد ناوگان</span>
               </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                  {toPersianDigits(sortedInquiryLogs.length)} مورد استعلام
+                </span>
                 <button
                   type="button"
                   onClick={() => handleOpenAddModal(selectedVehicleId || vehicles[0]?.id)}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer inline-flex items-center gap-1.5 active:scale-95"
+                  className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-bold transition-all shadow-2xs cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                  title="ثبت استعلام کارکرد جدید"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>ثبت استعلام کارکرد جدید</span>
+                  <Plus className="w-3 h-3" />
+                  <span>ثبت استعلام جدید</span>
                 </button>
               </div>
             </div>
 
-            {/* کارت‌های خلاصه آمار */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-[#222226]">
-              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#1a1a1e] border border-slate-200/60 dark:border-[#2a2a30]">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">کل استعلام‌های ثبت‌شده</span>
-                <span className="text-sm font-bold font-mono text-slate-900 dark:text-white">
-                  {toPersianDigits(odometerLogs.length)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/30">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block mb-0.5">ثبت‌شده توسط پیامک رانندگان</span>
-                <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-300">
-                  {toPersianDigits(odometerLogs.filter(l => l.source === 'sms').length)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/30">
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block mb-0.5">ثبت‌شده دستی توسط اپراتور</span>
-                <span className="text-sm font-bold font-mono text-indigo-700 dark:text-indigo-300">
-                  {toPersianDigits(odometerLogs.filter(l => l.source !== 'sms').length)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/30">
-                <span className="text-[10px] text-amber-600 dark:text-amber-400 block mb-0.5">تعداد خودروهای دارای استعلام</span>
-                <span className="text-sm font-bold font-mono text-amber-700 dark:text-amber-300">
-                  {toPersianDigits(new Set(odometerLogs.map(l => l.vehicleId)).size)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* جدول سوابق استعلامات کارکرد */}
-          <div className="bg-white dark:bg-[#151518] rounded-xl border border-slate-200 dark:border-[#2d2d30] shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
-                    <th className="py-2.5 px-3 text-center w-12 text-xs font-medium">ردیف</th>
+                  <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161619] text-slate-600 dark:text-slate-400 font-medium text-xs">
+                    <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
                     <TableColumnHeader
                       title="تاریخ و زمان استعلام"
@@ -2588,30 +2546,36 @@ export default function OdometerTrackingView({
                       onSort={handleSortInquiry}
                       isFiltered={!!inquiryLogsColumnFilters['inquiryDate']}
                       onOpenFilter={(e) => handleOpenInquiryFilterMenu('inquiryDate', 'تاریخ استعلام', e)}
-                      className="min-w-[130px]"
                     />
 
                     <TableColumnHeader
-                      title="نام و کد خودرو"
+                      title="خودرو"
                       colKey="vehicleName"
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
                       isFiltered={!!inquiryLogsColumnFilters['vehicleName']}
                       onOpenFilter={(e) => handleOpenInquiryFilterMenu('vehicleName', 'نام خودرو', e)}
-                      className="min-w-[140px]"
                     />
 
                     <TableColumnHeader
-                      title="شماره پلاک"
+                      title="پلاک"
                       colKey="plaque"
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
                       isFiltered={!!inquiryLogsColumnFilters['plaque']}
                       onOpenFilter={(e) => handleOpenInquiryFilterMenu('plaque', 'پلاک خودرو', e)}
-                      className="min-w-[120px]"
-                      align="center"
+                    />
+
+                    <TableColumnHeader
+                      title="شرکت"
+                      colKey="company"
+                      sortKey={inquiryLogsSortKey}
+                      sortDirection={inquiryLogsSortDirection}
+                      onSort={handleSortInquiry}
+                      isFiltered={!!inquiryLogsColumnFilters['company']}
+                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('company', 'شرکت', e)}
                     />
 
                     <TableColumnHeader
@@ -2622,28 +2586,14 @@ export default function OdometerTrackingView({
                       onSort={handleSortInquiry}
                       isFiltered={!!inquiryLogsColumnFilters['driverName']}
                       onOpenFilter={(e) => handleOpenInquiryFilterMenu('driverName', 'نام راننده', e)}
-                      className="min-w-[130px]"
                     />
 
                     <TableColumnHeader
-                      title="شرکت / واحد"
-                      colKey="company"
-                      sortKey={inquiryLogsSortKey}
-                      sortDirection={inquiryLogsSortDirection}
-                      onSort={handleSortInquiry}
-                      isFiltered={!!inquiryLogsColumnFilters['company']}
-                      onOpenFilter={(e) => handleOpenInquiryFilterMenu('company', 'شرکت', e)}
-                      className="min-w-[110px]"
-                    />
-
-                    <TableColumnHeader
-                      title="کیلومتر ثبت‌شده"
+                      title="کارکرد کیلومتر"
                       colKey="odometerKm"
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
-                      className="min-w-[120px]"
-                      align="center"
                     />
 
                     <TableColumnHeader
@@ -2652,8 +2602,6 @@ export default function OdometerTrackingView({
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
-                      className="min-w-[110px]"
-                      align="center"
                     />
 
                     <TableColumnHeader
@@ -2662,35 +2610,24 @@ export default function OdometerTrackingView({
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
-                      className="min-w-[110px]"
-                      align="center"
                     />
 
                     <TableColumnHeader
-                      title="منبع / ثبت‌کننده"
+                      title="ثبت‌کننده / منبع"
                       colKey="recordedBy"
                       sortKey={inquiryLogsSortKey}
                       sortDirection={inquiryLogsSortDirection}
                       onSort={handleSortInquiry}
                       isFiltered={!!inquiryLogsColumnFilters['recordedBy']}
                       onOpenFilter={(e) => handleOpenInquiryFilterMenu('recordedBy', 'ثبت‌کننده / منبع', e)}
-                      className="min-w-[120px]"
                     />
-
-                    <th className="py-2.5 px-3 text-center w-28 text-xs font-medium">عملیات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                   {paginatedInquiryLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="py-12 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <History className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                          <p className="font-bold text-xs">هیچ موردی از استعلام کارکرد یافت نشد.</p>
-                          <p className="text-[11px] text-slate-400">
-                            می‌توانید فیلترهای بالا را پاک کرده یا یک استعلام کارکرد جدید ثبت کنید.
-                          </p>
-                        </div>
+                      <td colSpan={10} className="py-8 text-center text-slate-500 text-[11px]">
+                        هیچ استعلام کارکردی با این مشخصات در سوابق یافت نشد.
                       </td>
                     </tr>
                   ) : (
@@ -2701,50 +2638,39 @@ export default function OdometerTrackingView({
                       return (
                         <tr
                           key={logItem.id}
-                          className="hover:bg-indigo-50/30 dark:hover:bg-[#1a1a1e] transition-colors group relative"
+                          className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
                         >
-                          <td className="py-2 px-3 text-center font-mono text-slate-400 text-xs">
+                          <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
                             {toPersianDigits(rowNum)}
                           </td>
 
-                          <td className="py-2 px-3 whitespace-nowrap font-mono text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-800 dark:text-slate-200">
-                                {toPersianDigits(logItem.inquiryDate)}
+                          <td className="py-1.5 px-3 whitespace-nowrap text-[11px]">
+                            <span className="text-slate-900 dark:text-white">
+                              {toPersianDigits(logItem.inquiryDate)}
+                            </span>
+                            {logItem.inquiryTime && (
+                              <span className="text-slate-400 text-[10px] mr-1.5 font-mono">
+                                {toPersianDigits(logItem.inquiryTime)}
                               </span>
-                              {logItem.inquiryTime && (
-                                <span className="text-slate-400 text-[10px]">
-                                  {toPersianDigits(logItem.inquiryTime)}
-                                </span>
-                              )}
-                            </div>
+                            )}
                           </td>
 
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <span className="font-bold text-slate-900 dark:text-white block">
+                          <td className="py-1.5 px-3">
+                            <span className="text-slate-900 dark:text-white text-[11px]">
                               {logItem.vehicleName || 'نامشخص'}
                             </span>
-                            {logItem.vehicleId && (
-                              <span className="text-[10px] text-slate-400 block font-mono">
-                                کد: #{toPersianDigits(logItem.vehicleId)}
-                              </span>
-                            )}
                           </td>
 
-                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono">
-                            {logItem.plaque ? (
-                              <span className="inline-block bg-slate-100 dark:bg-[#1d1d22] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2d2d30] text-slate-800 dark:text-slate-200 text-[10px]">
-                                {toPersianDigits(logItem.plaque)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[10px]">-</span>
-                            )}
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] whitespace-nowrap">
+                            {toPersianDigits(logItem.plaque || '-')}
                           </td>
 
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <span className="text-slate-800 dark:text-slate-200 block font-medium">
-                              {logItem.driverName || 'بدون راننده'}
-                            </span>
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300">
+                            {logItem.company || 'شرکت ثبت نشده'}
+                          </td>
+
+                          <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200">
+                            <span className="block">{logItem.driverName || 'ثبت نشده'}</span>
                             {logItem.driverPhone && (
                               <span className="text-[10px] text-slate-400 block font-mono">
                                 {toPersianDigits(logItem.driverPhone)}
@@ -2752,22 +2678,22 @@ export default function OdometerTrackingView({
                             )}
                           </td>
 
-                          <td className="py-2 px-3 whitespace-nowrap text-slate-600 dark:text-slate-300">
-                            {logItem.company || '-'}
+                          <td className="py-1 px-3 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200">
+                              <span className="text-slate-900 dark:text-white text-[11px]">
+                                {toPersianDigits(formatNumber(logItem.odometerKm))}
+                              </span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                                کیلومتر
+                              </span>
+                            </div>
                           </td>
 
-                          <td className="py-2 px-3 text-center whitespace-nowrap">
-                            <span className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                              {toPersianDigits(formatNumber(logItem.odometerKm))}
-                            </span>
-                            <span className="text-[10px] text-slate-400 mr-1">کیلومتر</span>
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] whitespace-nowrap font-mono">
+                            {logItem.previousKm ? `${toPersianDigits(formatNumber(logItem.previousKm))} کیلومتر` : '-'}
                           </td>
 
-                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-xs text-slate-500">
-                            {logItem.previousKm ? `${toPersianDigits(formatNumber(logItem.previousKm))} km` : '-'}
-                          </td>
-
-                          <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-xs">
+                          <td className="py-1.5 px-3 whitespace-nowrap text-[11px] font-mono">
                             {logItem.differenceKm !== undefined ? (
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                 logItem.differenceKm > 0
@@ -2781,74 +2707,34 @@ export default function OdometerTrackingView({
                             )}
                           </td>
 
-                          <td className="py-2 px-3 whitespace-nowrap">
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] relative whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               {isSmsSource ? (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800/40">
                                   <Radio className="w-3 h-3" />
-                                  <span>پیامک خودکار</span>
+                                  <span>پیامک</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-[#1f1f24] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#2d2d30]">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-[#1f1f24] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#2d2d30]">
                                   <span>دستی</span>
                                 </span>
                               )}
                               {logItem.recordedBy && (
-                                <span className="text-[10px] text-slate-400 truncate max-w-[90px]" title={logItem.recordedBy}>
+                                <span className="text-[10px] text-slate-400 truncate max-w-[80px]" title={logItem.recordedBy}>
                                   ({logItem.recordedBy})
                                 </span>
                               )}
                             </div>
-                            {logItem.notes && (
-                              <span className="text-[10px] text-slate-400 block truncate max-w-[160px] mt-0.5" title={logItem.notes}>
-                                یادداشت: {logItem.notes}
-                              </span>
-                            )}
-                          </td>
 
-                          <td className="py-2 px-3 text-center whitespace-nowrap relative">
-                            {/* دکمه‌های عملیات ثابت */}
-                            <div className="flex items-center justify-center gap-1">
+                            {/* دکمه‌های عملیات شناور - دقیقاً مشابه لیست سریع ناوگان هنگام هاور موس */}
+                            <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(logItem)}
-                                className="p-1.5 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md transition-colors cursor-pointer"
+                                className="p-1 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#1e1e24] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
                                 title="ویرایش این استعلام"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-
-                              {onDeleteOdometerLog && (
-                                <button
-                                  type="button"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (confirm(`آیا از حذف استعلام شماره #${toPersianDigits(logItem.id)} خودرو «${logItem.vehicleName || ''}» (${toPersianDigits(formatNumber(logItem.odometerKm))} کیلومتر در تاریخ ${toPersianDigits(logItem.inquiryDate)}) اطمینان دارید؟\nدر صورت حذف، کارکرد این خودرو به صورت خودکار به استعلام قبلی برمی‌گردد.`)) {
-                                      try {
-                                        await onDeleteOdometerLog(logItem.id);
-                                      } catch (err: any) {
-                                        alert(err?.message || 'خطا در حذف استعلام');
-                                      }
-                                    }
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
-                                  title="حذف این استعلام"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* نوار عملیات شناور هاور روی ردیف */}
-                            <div className="absolute inset-y-0 left-0 pl-3 pr-10 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#161618] dark:via-[#161618] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditModal(logItem)}
-                                className="px-2 py-1 bg-white dark:bg-[#1e1e24] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-[#2d2d30] rounded-md text-[10px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 pointer-events-auto"
-                                title="ویرایش استعلام"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>ویرایش</span>
                               </button>
 
                               {onDeleteOdometerLog && (
@@ -2864,11 +2750,10 @@ export default function OdometerTrackingView({
                                       }
                                     }
                                   }}
-                                  className="px-2 py-1 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-slate-200 dark:border-[#2d2d30] rounded-md text-[10px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 pointer-events-auto"
-                                  title="حذف استعلام"
+                                  className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
+                                  title="حذف این استعلام"
                                 >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>حذف</span>
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               )}
                             </div>

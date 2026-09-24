@@ -151,103 +151,6 @@
   font-display: swap;
 }
 
-/* Shabnam Local Font Family */
-@font-face {
-  font-family: 'Shabnam';
-  src: url('./fonts/shabnam/Shabnam-Thin.woff2') format('woff2');
-  font-weight: 100;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Shabnam';
-  src: url('./fonts/shabnam/Shabnam-Light.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Shabnam';
-  src: url('./fonts/shabnam/Shabnam.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Shabnam';
-  src: url('./fonts/shabnam/Shabnam-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Shabnam';
-  src: url('./fonts/shabnam/Shabnam-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Sahel Local Font Family */
-@font-face {
-  font-family: 'Sahel';
-  src: url('./fonts/sahel/Sahel-Light.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Sahel';
-  src: url('./fonts/sahel/Sahel.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Sahel';
-  src: url('./fonts/sahel/Sahel-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Sahel';
-  src: url('./fonts/sahel/Sahel-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Sahel';
-  src: url('./fonts/sahel/Sahel-Black.woff2') format('woff2');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Samim Local Font Family */
-@font-face {
-  font-family: 'Samim';
-  src: url('./fonts/samim/Samim.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Samim';
-  src: url('./fonts/samim/Samim-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Samim';
-  src: url('./fonts/samim/Samim-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* Dana Local Font Family */
 @font-face {
   font-family: 'Dana';
@@ -494,32 +397,11 @@
   font-display: swap;
 }
 
-/* Tanha, Gandom, Parastoo Local Fonts */
+/* Tanha Local Font */
 @font-face {
   font-family: 'Tanha';
   src: url('./fonts/tanha/Tanha.woff2') format('woff2');
   font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Gandom';
-  src: url('./fonts/gandom/Gandom.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Parastoo';
-  src: url('./fonts/parastoo/Parastoo.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Parastoo';
-  src: url('./fonts/parastoo/Parastoo-Bold.woff2') format('woff2');
-  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }

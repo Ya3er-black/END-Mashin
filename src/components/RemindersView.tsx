@@ -1051,6 +1051,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     value={formReminderDate}
                     onChange={setFormReminderDate}
                     placeholder="انتخاب تاریخ موعد..."
+                    inputClassName="h-[38px]"
                   />
                 </div>
 
@@ -1064,6 +1065,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     onChange={setFormReminderTime}
                     placeholder="انتخاب ساعت یادآوری..."
                     required={true}
+                    buttonClassName="h-[38px]"
                   />
                 </div>
               </div>

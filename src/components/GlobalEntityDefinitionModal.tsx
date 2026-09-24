@@ -80,10 +80,10 @@ export default function GlobalEntityDefinitionModal({
   const [vCurrentKm, setVCurrentKm] = useState<number | ''>('');
   const [vCompany, setVCompany] = useState('');
   const [vDriverName, setVDriverName] = useState('');
-  const [vPlatePart1, setVPlatePart1] = useState('۱۲');
+  const [vPlatePart1, setVPlatePart1] = useState('');
   const [vPlateLetter, setVPlateLetter] = useState('ب');
-  const [vPlatePart2, setVPlatePart2] = useState('۳۶۵');
-  const [vPlatePart3, setVPlatePart3] = useState('۱۱');
+  const [vPlatePart2, setVPlatePart2] = useState('');
+  const [vPlatePart3, setVPlatePart3] = useState('');
 
   // فیلدهای راننده / شخص (مطابق دقیق با PersonsView.tsx)
   const [pFullName, setPFullName] = useState('');
@@ -170,10 +170,10 @@ export default function GlobalEntityDefinitionModal({
       setVCurrentKm('');
       setVCompany('');
       setVDriverName('');
-      setVPlatePart1('۱۲');
+      setVPlatePart1('');
       setVPlateLetter('ب');
-      setVPlatePart2('۳۶۵');
-      setVPlatePart3('۱۱');
+      setVPlatePart2('');
+      setVPlatePart3('');
 
       // راننده
       setPFullName('');
@@ -228,11 +228,14 @@ export default function GlobalEntityDefinitionModal({
         if (!vCode.trim() || !vName.trim()) {
           throw new Error('لطفاً فیلدهای الزامی (کد و نام خودرو) را وارد کنید.');
         }
-        if (!vPlatePart1.trim() || !vPlatePart2.trim() || !vPlatePart3.trim()) {
-          throw new Error('لطفاً شماره پلاک را به صورت کامل تکمیل کنید.');
+        const hasPlateParts = vPlatePart1.trim() || vPlatePart2.trim() || vPlatePart3.trim();
+        let plaque = '';
+        if (hasPlateParts) {
+          if (!vPlatePart1.trim() || !vPlatePart2.trim() || !vPlatePart3.trim()) {
+            throw new Error('لطفاً شماره پلاک را به صورت کامل تکمیل کنید.');
+          }
+          plaque = `${toPersianDigits(vPlatePart1.trim())} ${vPlateLetter} ${toPersianDigits(vPlatePart2.trim())} ایران ${toPersianDigits(vPlatePart3.trim())}`;
         }
-
-        const plaque = `${toPersianDigits(vPlatePart1.trim())} ${vPlateLetter} ${toPersianDigits(vPlatePart2.trim())} ایران ${toPersianDigits(vPlatePart3.trim())}`;
         const matchedPerson = persons.find(p => p.fullName === vDriverName.trim());
         const resolvedPhone = matchedPerson?.phone || '-';
 
@@ -600,7 +603,8 @@ export default function GlobalEntityDefinitionModal({
                         <CustomSelect
                           value={vPlateLetter}
                           onChange={(val) => setVPlateLetter(val)}
-                          searchable={true}
+                          searchable={false}
+                          matchTriggerWidth={true}
                           size="8"
                           options={IRAN_PLATE_LETTERS.map(l => ({ value: l, label: l }))}
                         />
@@ -676,14 +680,14 @@ export default function GlobalEntityDefinitionModal({
                         </span>
                       </div>
                       <div className="flex items-center px-1.5 gap-1 bg-white text-black font-extrabold font-mono" style={{ direction: 'ltr' }}>
-                        <span>{toPersianDigits(vPlatePart1 || '--')}</span>
-                        <span className="text-emerald-800 font-bold px-0.5 font-sans text-[10px]">{vPlateLetter || '-'}</span>
-                        <span>{toPersianDigits(vPlatePart2 || '---')}</span>
+                        <span className={!vPlatePart1 ? 'text-slate-300' : ''}>{vPlatePart1 ? toPersianDigits(vPlatePart1) : '--'}</span>
+                        <span className="text-emerald-800 font-bold px-0.5 font-sans text-[10px]">{vPlatePart1 || vPlatePart2 ? vPlateLetter : '-'}</span>
+                        <span className={!vPlatePart2 ? 'text-slate-300' : ''}>{vPlatePart2 ? toPersianDigits(vPlatePart2) : '---'}</span>
                       </div>
                       <div className="w-[1px] bg-slate-700 h-full shrink-0"></div>
                       <div className="bg-white flex flex-col items-center justify-center w-7 h-full text-[9px] leading-tight shrink-0">
                         <span className="text-[5px] text-slate-800 font-extrabold leading-none mb-0.5 font-sans">ایران</span>
-                        <span className="text-[10px] font-mono font-bold leading-none">{toPersianDigits(vPlatePart3 || '--')}</span>
+                        <span className={`text-[10px] font-mono font-bold leading-none ${!vPlatePart3 ? 'text-slate-300' : 'text-slate-900'}`}>{vPlatePart3 ? toPersianDigits(vPlatePart3) : '--'}</span>
                       </div>
                     </div>
                   </div>

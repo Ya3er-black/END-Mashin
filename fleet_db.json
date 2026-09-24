@@ -63,6 +63,53 @@
       "qrCode": "VEH-435_پراید_۶۴_ط_۹۱۵_ایران_۹۴",
       "id": 1,
       "createdAt": "2026-09-12T11:13:22.372Z"
+    },
+    {
+      "code": "V-838",
+      "name": "354653",
+      "brand": "-",
+      "model": "-",
+      "productionYear": 1402,
+      "currentKm": 0,
+      "plaque": "",
+      "chassisNumber": "-",
+      "engineNumber": "-",
+      "vin": "-",
+      "company": "-",
+      "project": "-",
+      "department": "ترابری",
+      "location": "-",
+      "driverName": "ثبت نشده",
+      "driverPhone": "-",
+      "color": "-",
+      "status": "active",
+      "qrCode": "V-838_354653",
+      "id": 2,
+      "createdAt": "2026-09-24T06:00:11.248Z"
+    },
+    {
+      "code": "VEH-441",
+      "name": "2",
+      "brand": "-",
+      "model": "-",
+      "productionYear": 12,
+      "currentKm": 4545,
+      "plaque": "",
+      "plate": "",
+      "chassisNumber": "-",
+      "engineNumber": "-",
+      "vin": "-",
+      "company": "-",
+      "project": "-",
+      "department": "ترابری",
+      "location": "-",
+      "driverName": "ثبت نشده",
+      "driverPhone": "-",
+      "color": "-",
+      "status": "active",
+      "qrCode": "VEH-441_2",
+      "id": 3,
+      "createdAt": "2026-09-24T06:00:27.178Z"
     }
   ],
   "periodicServices": [
@@ -651,6 +698,51 @@
     }
   ],
   "activityLogs": [
+    {
+      "id": 72,
+      "userId": 1,
+      "username": "admin",
+      "action": "ثبت خودرو جدید",
+      "actionDetails": "خودرو جدید 2 با کد VEH-441 ثبت شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-24T06:00:27.181Z"
+    },
+    {
+      "id": 71,
+      "userId": 1,
+      "username": "admin",
+      "action": "ثبت خودرو جدید",
+      "actionDetails": "خودرو جدید 354653 با کد V-838 ثبت شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-24T06:00:11.250Z"
+    },
+    {
+      "id": 70,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-24T05:59:03.786Z"
+    },
+    {
+      "id": 69,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-24T05:57:03.574Z"
+    },
+    {
+      "id": 68,
+      "userId": 1,
+      "username": "admin",
+      "action": "ورود به سیستم",
+      "actionDetails": "کاربر مدیر سامانه (@admin) وارد سیستم شد.",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-09-24T05:53:19.295Z"
+    },
     {
       "id": 67,
       "userId": 1,
@@ -1791,5 +1883,6 @@
       "description": "قطع برق دینام و از کار افتادن پمپ هیدرولیک",
       "createdAt": "2026-09-22T06:16:13.483Z"
     }
-  ]
+  ],
+  "reminders": []
 }

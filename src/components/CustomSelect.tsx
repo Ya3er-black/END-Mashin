@@ -233,7 +233,7 @@ export function CustomSelect({
           zIndex: 999999,
         }}
         className={`bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2d2d30] ${
-          size === 'xs' ? 'rounded-md text-[11px]' : 'rounded-xl text-xs'
+          size === 'xs' || size === '8' ? 'rounded-md text-[11px]' : 'rounded-xl text-xs'
         } shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col`}
       >
         {searchable && (
@@ -251,47 +251,43 @@ export function CustomSelect({
         )}
 
         <div 
-          className={`overflow-y-auto flex-1 min-h-0 ${size === 'xs' ? 'p-1 space-y-1' : 'p-1 space-y-0.5'} custom-scrollbar`}
+          className={`overflow-y-auto flex-1 min-h-0 ${size === 'xs' || size === '8' ? 'p-0.5 space-y-0.5' : 'p-1 space-y-0.5'} custom-scrollbar`}
         >
-          {filteredOptions.length === 0 ? (
-            <div className="py-2 text-center text-slate-400 text-xs">موردی یافت نشد</div>
-          ) : (
-            filteredOptions.map((opt) => {
-              const isSelected = String(opt.value) === String(value);
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                    setSearchQuery('');
-                  }}
-                  className={`w-full flex items-center justify-between ${
-                    size === 'xs'
-                      ? 'px-2.5 py-1.5 rounded-md text-[11px]'
-                      : 'px-3 py-2 rounded-lg text-xs'
-                  } text-right transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold'
-                      : 'hover:bg-slate-100 dark:hover:bg-[#232328] text-slate-800 dark:text-slate-200 font-medium'
-                  }`}
-                >
-                  <div className="flex flex-col truncate text-right flex-1 min-w-0">
-                    <span className="truncate text-right">{opt.label}</span>
-                    {opt.subLabel && opt.subLabel !== 'راننده ناوگان' && opt.subLabel !== 'راننده' && (
-                      <span className={`text-[10px] truncate text-right ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400'}`}>{opt.subLabel}</span>
-                    )}
-                  </div>
-                  {isSelected && (
-                    <div className={`${size === 'xs' ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center shrink-0 mr-2 check-indicator shadow-2xs transition-all`}>
-                      <Check className={`${size === 'xs' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-white stroke-[3]`} />
-                    </div>
+          {filteredOptions.map((opt) => {
+            const isSelected = String(opt.value) === String(value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                  setSearchQuery('');
+                }}
+                className={`w-full flex items-center justify-between ${
+                  size === 'xs' || size === '8'
+                    ? 'px-1.5 py-1 rounded text-[11px]'
+                    : 'px-3 py-2 rounded-lg text-xs'
+                } transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold'
+                    : 'hover:bg-slate-100 dark:hover:bg-[#232328] text-slate-800 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <div className="flex flex-col truncate flex-1 min-w-0 text-right">
+                  <span className="truncate text-right">{opt.label}</span>
+                  {opt.subLabel && opt.subLabel !== 'راننده ناوگان' && opt.subLabel !== 'راننده' && (
+                    <span className={`text-[10px] truncate text-right ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400'}`}>{opt.subLabel}</span>
                   )}
-                </button>
-              );
-            })
-          )}
+                </div>
+                {isSelected && (
+                  <div className={`${size === 'xs' || size === '8' ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center shrink-0 mr-1.5 check-indicator shadow-2xs transition-all`}>
+                    <Check className={`${size === 'xs' || size === '8' ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-white stroke-[3]`} />
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {handleAddNewAction && (
@@ -336,7 +332,7 @@ export function CustomSelect({
             : <span className="text-slate-400 font-normal">{placeholder}</span>}
         </span>
         <ChevronDown
-          className={`${size === 'xs' ? 'w-3 h-3' : 'w-4 h-4'} text-slate-400 transition-transform duration-200 shrink-0 mr-1.5 ${
+          className={`${size === 'xs' || size === '8' ? 'w-3 h-3' : 'w-4 h-4'} text-slate-400 transition-transform duration-200 shrink-0 mr-1 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />

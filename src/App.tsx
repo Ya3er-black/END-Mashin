@@ -124,6 +124,30 @@ export default function App() {
     return localStorage.getItem('appAccentColor') || 'blue';
   });
 
+  // تسک‌های برگزیده سایدبار جهت نمایش در داشبورد
+  const [pinnedDashboardTasks, setPinnedDashboardTasks] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('fleet_pinned_dashboard_tasks');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse pinned tasks', e);
+    }
+    return ['odometer', 'services', 'failures'];
+  });
+
+  const handleTogglePinTask = (taskId: string) => {
+    setPinnedDashboardTasks(prev => {
+      const exists = prev.includes(taskId);
+      const next = exists ? prev.filter(id => id !== taskId) : [...prev, taskId];
+      try {
+        localStorage.setItem('fleet_pinned_dashboard_tasks', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save pinned tasks', e);
+      }
+      return next;
+    });
+  };
+
   // ساعت و تقویم جاری زنده
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
 
@@ -1530,6 +1554,8 @@ export default function App() {
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         dueRemindersCount={dueRemindersCount}
+        pinnedTaskIds={pinnedDashboardTasks}
+        onTogglePinTask={handleTogglePinTask}
       />
 
       {/* بخش اصلی محتوا (سمت چپ منوی کناری) - در موبایل تمام‌صفحه و در دسکتاپ هماهنگ با باز/بسته شدن سایدبار */}
@@ -1642,6 +1668,8 @@ export default function App() {
               onNavigate={handleNavigate}
               selectedCompany={adminCompanyFilter}
               onSelectCompany={setAdminCompanyFilter}
+              pinnedTaskIds={pinnedDashboardTasks}
+              onTogglePinTask={handleTogglePinTask}
             />
           )}
 

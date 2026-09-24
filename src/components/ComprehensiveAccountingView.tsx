@@ -126,13 +126,14 @@ function getEntityColValue(item: EntityAccountSummary, colKey: string): string {
 }
 
 function renderIranianPlate(
-  plaqueInput: string | { p1: string; lettr: string; p2: string; p3: string },
+  plaqueInput: string | { p1: string; lettr: string; p2: string; p3: string } | undefined | null,
   size: 'sm' | 'md' = 'sm'
 ) {
-  let p1 = '', lettr = 'ب', p2 = '', p3 = '';
-  if (typeof plaqueInput === 'object' && plaqueInput !== null) {
+  let p1 = '', lettr = '', p2 = '', p3 = '';
+  const isObject = typeof plaqueInput === 'object' && plaqueInput !== null;
+  if (isObject) {
     p1 = plaqueInput.p1 !== undefined ? plaqueInput.p1 : '';
-    lettr = plaqueInput.lettr || 'ب';
+    lettr = plaqueInput.lettr || '';
     p2 = plaqueInput.p2 !== undefined ? plaqueInput.p2 : '';
     p3 = plaqueInput.p3 !== undefined ? plaqueInput.p3 : '';
   } else {
@@ -140,7 +141,7 @@ function renderIranianPlate(
     const parts = str.trim().split(/\s+/);
     if (parts.length >= 4) {
       p1 = parts[0] || '';
-      lettr = parts[1] || 'ب';
+      lettr = parts[1] || '';
       p2 = parts[2] || '';
       p3 = parts[parts.length - 1] || '';
       if (parts.length >= 5 && parts[3] === 'ایران') {
@@ -149,9 +150,13 @@ function renderIranianPlate(
     }
   }
 
-  const displayP1 = p1 !== '' ? toPersianDigits(p1) : '۱۲';
-  const displayP2 = p2 !== '' ? toPersianDigits(p2) : '۳۶۵';
-  const displayP3 = p3 !== '' ? toPersianDigits(p3) : '۱۱';
+  if (!isObject && (!p1 && !p2 && !p3)) {
+    return <span className="text-slate-400 dark:text-slate-500 font-mono text-xs">ثبت نشده</span>;
+  }
+
+  const displayP1 = p1 !== '' ? toPersianDigits(p1) : '';
+  const displayP2 = p2 !== '' ? toPersianDigits(p2) : '';
+  const displayP3 = p3 !== '' ? toPersianDigits(p3) : '';
 
   const isMd = size === 'md';
 
@@ -195,9 +200,9 @@ function renderIranianPlate(
 
         {/* Main Number Section */}
         <div className={`flex items-center justify-around flex-1 px-1 ${isMd ? 'text-[12px]' : 'text-[10px]'} font-extrabold text-black bg-white font-mono`} style={{ direction: 'ltr' }}>
-          <span className={`w-4 text-center ${p1 === '' ? 'text-slate-400' : ''}`}>{displayP1}</span>
-          <span className={`text-emerald-800 font-bold px-0.5 font-sans ${isMd ? 'text-[11px]' : 'text-[9px]'} w-3.5 text-center`}>{lettr || 'ب'}</span>
-          <span className={`w-8 text-center ${p2 === '' ? 'text-slate-400' : ''}`}>{displayP2}</span>
+          <span className={`w-4 text-center ${p1 === '' ? 'text-slate-300' : ''}`}>{displayP1 || '- -'}</span>
+          <span className={`text-emerald-800 font-bold px-0.5 font-sans ${isMd ? 'text-[11px]' : 'text-[9px]'} w-3.5 text-center`}>{lettr || '-'}</span>
+          <span className={`w-8 text-center ${p2 === '' ? 'text-slate-300' : ''}`}>{displayP2 || '- - -'}</span>
         </div>
 
         {/* Vertical Divider */}
@@ -206,7 +211,7 @@ function renderIranianPlate(
         {/* Right Iran Region Code Box */}
         <div className={`flex flex-col items-center justify-center bg-white ${isMd ? 'w-7' : 'w-6'} h-full shrink-0`}>
           <span className={`${isMd ? 'text-[6px]' : 'text-[5px]'} text-slate-800 font-extrabold leading-none mb-0.5 font-sans`}>ایران</span>
-          <span className={`${isMd ? 'text-[11px]' : 'text-[9px]'} font-mono font-bold leading-none ${p3 === '' ? 'text-slate-400' : 'text-slate-900'}`}>{displayP3}</span>
+          <span className={`${isMd ? 'text-[11px]' : 'text-[9px]'} font-mono font-bold leading-none ${p3 === '' ? 'text-slate-300' : 'text-slate-900'}`}>{displayP3 || '- -'}</span>
         </div>
       </div>
     </div>

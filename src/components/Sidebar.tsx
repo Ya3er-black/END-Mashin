@@ -29,6 +29,8 @@ interface SidebarProps {
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
   dueRemindersCount?: number;
+  pinnedTaskIds?: string[];
+  onTogglePinTask?: (taskId: string) => void;
 }
 
 export default function Sidebar({
@@ -45,7 +47,9 @@ export default function Sidebar({
   onToggleTheme,
   isMobileOpen = false,
   onMobileClose,
-  dueRemindersCount = 0
+  dueRemindersCount = 0,
+  pinnedTaskIds = [],
+  onTogglePinTask
 }: SidebarProps) {
   
   const receptionIds = ['services', 'failures', 'insurance'];
@@ -237,11 +241,19 @@ export default function Sidebar({
     const Icon = item.icon;
     const isActive = activeView === item.id;
     const hasBadge = Boolean(item.badgeCount && item.badgeCount > 0);
+    const isPinned = item.id !== 'dashboard' && (pinnedTaskIds?.includes(item.id) ?? false);
     return (
-      <button
+      <div
         key={item.id}
-        type="button"
+        role="button"
+        tabIndex={0}
         onClick={() => handleNavigate(item.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleNavigate(item.id);
+          }
+        }}
         title={effectiveCollapsed ? item.label : undefined}
         style={getActiveItemStyle(isActive)}
         className={`h-8.5 flex items-center rounded-lg transition-colors duration-150 cursor-pointer select-none group/item ${
@@ -266,7 +278,7 @@ export default function Sidebar({
             )}
           </div>
           <span className={`text-xs whitespace-nowrap overflow-hidden transition-[max-width,opacity] duration-200 font-normal ${
-            effectiveCollapsed ? 'w-0 max-w-0 opacity-0 pointer-events-none' : 'max-w-[170px] opacity-100 mr-1.5'
+            effectiveCollapsed ? 'w-0 max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100 mr-1.5'
           } ${
             isActive 
               ? 'text-black dark:text-white' 
@@ -276,12 +288,36 @@ export default function Sidebar({
           </span>
         </div>
 
-        {!effectiveCollapsed && hasBadge && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-mono animate-pulse shrink-0">
-            {toPersianDigits(item.badgeCount!)}
-          </span>
+        {!effectiveCollapsed && (
+          <div className="flex items-center gap-1 shrink-0">
+            {hasBadge && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-mono animate-pulse">
+                {toPersianDigits(item.badgeCount!)}
+              </span>
+            )}
+            {item.id !== 'dashboard' && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePinTask?.(item.id);
+                }}
+                title={isPinned ? 'حذف از داشبورد (سنجاق شده)' : 'سنجاق به داشبورد'}
+                className={`w-5 h-5 rounded flex items-center justify-center transition-all cursor-pointer ${
+                  isPinned 
+                    ? 'text-indigo-600 dark:text-indigo-400 opacity-100' 
+                    : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover/item:opacity-100 max-md:opacity-60 hover:bg-slate-200/50 dark:hover:bg-white/10'
+                }`}
+              >
+                <Pin 
+                  className={`w-3 h-3 transition-transform ${isPinned ? '-rotate-45' : 'rotate-0'}`} 
+                  strokeWidth={1.8}
+                />
+              </button>
+            )}
+          </div>
         )}
-      </button>
+      </div>
     );
   };
 
@@ -348,24 +384,18 @@ export default function Sidebar({
                   e.stopPropagation();
                   onToggleCollapse();
                 }}
-                style={!isCollapsed ? {
-                  backgroundColor: 'color-mix(in srgb, var(--primary-600) 18%, transparent)',
-                  color: 'var(--primary-600)',
-                  borderColor: 'color-mix(in srgb, var(--primary-500) 40%, transparent)'
-                } : undefined}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors duration-150 cursor-pointer ${
                   !isCollapsed
-                    ? 'border shadow-xs hover:brightness-110'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-transparent hover:border-slate-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#222228] dark:hover:border-[#383842]'
+                    ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#222228]'
+                    : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222228]'
                 }`}
                 title={isCollapsed ? 'سنجاق کردن منو (همیشه باز بماند)' : 'برداشتن سنجاق (جمع‌شدن خودکار با کنار رفتن ماوس)'}
               >
                 <Pin 
-                  style={!isCollapsed ? { fill: 'var(--primary-600)' } : undefined}
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
                     !isCollapsed ? '-rotate-45' : 'rotate-0'
                   }`} 
-                  strokeWidth={1.9} 
+                  strokeWidth={1.8} 
                 />
               </button>
             </div>
@@ -457,31 +487,59 @@ export default function Sidebar({
                     {visibleReceptionSubItems.map(subItem => {
                       const SubIcon = subItem.icon;
                       const isSubActive = activeView === subItem.id;
+                      const isPinned = pinnedTaskIds?.includes(subItem.id) ?? false;
                       return (
-                        <button
+                        <div
                           key={subItem.id}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleNavigate(subItem.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleNavigate(subItem.id);
+                            }
+                          }}
                           style={getActiveItemStyle(isSubActive)}
-                          className={`w-full min-w-0 h-8 flex items-center gap-2 px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
+                          className={`w-full min-w-0 h-8 flex items-center justify-between px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
                             isSubActive
                               ? 'border shadow-xs dark:bg-transparent text-black dark:text-white'
                               : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#25252c] hover:text-black dark:hover:text-white border border-transparent hover:border-slate-200 dark:hover:border-[#3a3a44]'
                           }`}
                         >
-                          <SubIcon 
-                            style={getActiveIconStyle(isSubActive)}
-                            className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
-                            strokeWidth={1.8} 
-                          />
-                          <span className={`truncate font-normal transition-colors duration-150 ${
-                            isSubActive 
-                              ? 'text-black dark:text-white' 
-                              : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
-                          }`}>
-                            {subItem.label}
-                          </span>
-                        </button>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <SubIcon 
+                              style={getActiveIconStyle(isSubActive)}
+                              className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
+                              strokeWidth={1.8} 
+                            />
+                            <span className={`truncate font-normal transition-colors duration-150 ${
+                              isSubActive 
+                                ? 'text-black dark:text-white' 
+                                : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
+                            }`}>
+                              {subItem.label}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTogglePinTask?.(subItem.id);
+                            }}
+                            title={isPinned ? 'حذف از داشبورد (سنجاق شده)' : 'سنجاق به داشبورد'}
+                            className={`w-5 h-5 rounded flex items-center justify-center transition-all shrink-0 cursor-pointer ${
+                              isPinned 
+                                ? 'text-indigo-600 dark:text-indigo-400 opacity-100' 
+                                : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover/subitem:opacity-100 max-md:opacity-60 hover:bg-slate-200/50 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            <Pin 
+                              className={`w-2.5 h-2.5 transition-transform ${isPinned ? '-rotate-45' : 'rotate-0'}`} 
+                              strokeWidth={1.8}
+                            />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -570,36 +628,66 @@ export default function Sidebar({
                     {visibleDefinitionSubItems.map(subItem => {
                       const SubIcon = subItem.icon;
                       const isSubActive = activeView === subItem.id;
+                      const isPinned = pinnedTaskIds?.includes(subItem.id) ?? false;
                       return (
-                        <button
+                        <div
                           key={subItem.id}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleNavigate(subItem.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleNavigate(subItem.id);
+                            }
+                          }}
                           style={getActiveItemStyle(isSubActive)}
-                          className={`w-full min-w-0 h-8 flex items-center gap-2 px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
+                          className={`w-full min-w-0 h-8 flex items-center justify-between px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
                             isSubActive
                               ? 'border shadow-xs dark:bg-transparent text-black dark:text-white'
                               : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#25252c] hover:text-black dark:hover:text-white border border-transparent hover:border-slate-200 dark:hover:border-[#3a3a44]'
                           }`}
                         >
-                          <SubIcon 
-                            style={getActiveIconStyle(isSubActive)}
-                            className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
-                            strokeWidth={1.8} 
-                          />
-                          <span className={`truncate font-normal transition-colors duration-150 ${
-                            isSubActive 
-                              ? 'text-black dark:text-white' 
-                              : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
-                          }`}>
-                            {subItem.label}
-                          </span>
-                          {(subItem as any).badge && (
-                            <span className="mr-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                              {(subItem as any).badge}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <SubIcon 
+                              style={getActiveIconStyle(isSubActive)}
+                              className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
+                              strokeWidth={1.8} 
+                            />
+                            <span className={`truncate font-normal transition-colors duration-150 ${
+                              isSubActive 
+                                ? 'text-black dark:text-white' 
+                                : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
+                            }`}>
+                              {subItem.label}
                             </span>
-                          )}
-                        </button>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {(subItem as any).badge && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                {(subItem as any).badge}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTogglePinTask?.(subItem.id);
+                              }}
+                              title={isPinned ? 'حذف از داشبورد (سنجاق شده)' : 'سنجاق به داشبورد'}
+                              className={`w-5 h-5 rounded flex items-center justify-center transition-all cursor-pointer ${
+                                isPinned 
+                                  ? 'text-indigo-600 dark:text-indigo-400 opacity-100' 
+                                  : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover/subitem:opacity-100 max-md:opacity-60 hover:bg-slate-200/50 dark:hover:bg-white/10'
+                              }`}
+                            >
+                              <Pin 
+                                className={`w-2.5 h-2.5 transition-transform ${isPinned ? '-rotate-45' : 'rotate-0'}`} 
+                                strokeWidth={1.8}
+                              />
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -691,31 +779,59 @@ export default function Sidebar({
                     {visibleReportSubItems.map(subItem => {
                       const SubIcon = subItem.icon;
                       const isSubActive = activeView === subItem.id;
+                      const isPinned = pinnedTaskIds?.includes(subItem.id) ?? false;
                       return (
-                        <button
+                        <div
                           key={subItem.id}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleNavigate(subItem.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleNavigate(subItem.id);
+                            }
+                          }}
                           style={getActiveItemStyle(isSubActive)}
-                          className={`w-full min-w-0 h-8 flex items-center gap-2 px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
+                          className={`w-full min-w-0 h-8 flex items-center justify-between px-2 text-[11px] rounded-lg transition-colors duration-150 cursor-pointer whitespace-nowrap overflow-hidden group/subitem ${
                             isSubActive
                               ? 'border shadow-xs dark:bg-transparent text-black dark:text-white'
                               : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#25252c] hover:text-black dark:hover:text-white border border-transparent hover:border-slate-200 dark:hover:border-[#3a3a44]'
                           }`}
                         >
-                          <SubIcon 
-                            style={getActiveIconStyle(isSubActive)}
-                            className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
-                            strokeWidth={1.8} 
-                          />
-                          <span className={`truncate font-normal transition-colors duration-150 ${
-                            isSubActive 
-                              ? 'text-black dark:text-white' 
-                              : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
-                          }`}>
-                            {subItem.label}
-                          </span>
-                        </button>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <SubIcon 
+                              style={getActiveIconStyle(isSubActive)}
+                              className={`w-3.5 h-3.5 shrink-0 transition-colors duration-150 ${isSubActive ? 'text-black dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover/subitem:text-black dark:group-hover/subitem:text-white'}`} 
+                              strokeWidth={1.8} 
+                            />
+                            <span className={`truncate font-normal transition-colors duration-150 ${
+                              isSubActive 
+                                ? 'text-black dark:text-white' 
+                                : 'text-slate-800 dark:text-slate-200 group-hover/subitem:text-black dark:group-hover/subitem:text-white'
+                            }`}>
+                              {subItem.label}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTogglePinTask?.(subItem.id);
+                            }}
+                            title={isPinned ? 'حذف از داشبورد (سنجاق شده)' : 'سنجاق به داشبورد'}
+                            className={`w-5 h-5 rounded flex items-center justify-center transition-all shrink-0 cursor-pointer ${
+                              isPinned 
+                                ? 'text-indigo-600 dark:text-indigo-400 opacity-100' 
+                                : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover/subitem:opacity-100 max-md:opacity-60 hover:bg-slate-200/50 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            <Pin 
+                              className={`w-2.5 h-2.5 transition-transform ${isPinned ? '-rotate-45' : 'rotate-0'}`} 
+                              strokeWidth={1.8}
+                            />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

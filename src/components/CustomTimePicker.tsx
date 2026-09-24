@@ -15,6 +15,8 @@ interface CustomTimePickerProps {
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  buttonClassName?: string;
+  inputClassName?: string;
 }
 
 export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
@@ -22,7 +24,9 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   onChange,
   placeholder = 'انتخاب ساعت...',
   disabled = false,
-  className = ''
+  className = '',
+  buttonClassName = '',
+  inputClassName = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -164,18 +168,28 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   return (
     <div className={`relative w-full ${className}`} ref={containerRef}>
       {/* دکمه بازکردن انتخابگر ساعت */}
-      <button
-        type="button"
-        disabled={disabled}
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
         onClick={() => {
           if (!disabled) {
             updatePosition();
             setIsOpen(!isOpen);
           }
         }}
-        className={`w-full bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] hover:border-indigo-500 dark:hover:border-indigo-500 rounded-lg px-3 py-2 text-xs font-mono flex items-center justify-between transition-all cursor-pointer shadow-2xs focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            updatePosition();
+            setIsOpen(!isOpen);
+          }
+        }}
+        className={`w-full h-[38px] box-border bg-white dark:bg-[#1a1a1c] text-slate-900 dark:text-white border border-slate-300 dark:border-[#2d2d30] hover:border-indigo-500 dark:hover:border-indigo-500 rounded-lg px-3 py-1.5 text-xs font-mono flex items-center justify-between transition-all select-none cursor-pointer shadow-2xs focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+          disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+        } ${
           isOpen ? 'ring-1 ring-indigo-500 border-indigo-500' : ''
-        }`}
+        } ${buttonClassName} ${inputClassName}`}
       >
         <div className="flex items-center gap-2">
           <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -191,7 +205,7 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
                 e.stopPropagation();
                 onChange('');
               }}
-              className="p-0.5 hover:text-rose-500 text-slate-400 rounded transition-colors"
+              className="p-0.5 hover:text-rose-500 text-slate-400 rounded transition-colors cursor-pointer"
               title="پاک کردن ساعت"
             >
               <X className="w-3 h-3" />
@@ -199,7 +213,7 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
           )}
           <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${isOpen ? 'rotate-180 text-indigo-500' : ''}`} />
         </div>
-      </button>
+      </div>
 
       {/* پنجره بازشونده انتخابگر پورتال‌شده بدون مشکل برش و لبه‌ها */}
       {isOpen && typeof document !== 'undefined' && createPortal(

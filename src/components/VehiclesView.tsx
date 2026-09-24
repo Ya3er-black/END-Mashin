@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Plus, Search, Edit2, Trash2, FileText, 
   Check, X, Truck, ChevronDown, History, Clock, ArrowLeftRight,
@@ -61,34 +62,56 @@ function SearchableSelect({
   const [coords, setCoords] = useState<{ top: number; left: number; width: number; openUpward: boolean } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleToggle = () => {
-    if (!isOpen && buttonRef.current) {
+  const updatePosition = () => {
+    if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const openUpward = rect.bottom + 220 > window.innerHeight && rect.top > 220;
       setCoords({
         top: openUpward ? rect.top - 4 : rect.bottom + 4,
         left: rect.left,
-        width: Math.max(rect.width, 180),
+        width: rect.width,
         openUpward
       });
+    }
+  };
+
+  const handleToggle = () => {
+    if (!isOpen) {
+      updatePosition();
     }
     setIsOpen(!isOpen);
   };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
       if (
         containerRef.current && 
-        !containerRef.current.contains(event.target as Node) &&
-        !(event.target as HTMLElement)?.closest?.('.searchable-select-menu')
+        !containerRef.current.contains(target) &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
     }
+
+    const handleScrollOrResize = () => {
+      if (isOpen) {
+        updatePosition();
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isOpen]);
 
   const selectedOption = options.find(o => o.value === value);
   const selectedLabel = selectedOption ? selectedOption.label : (value && value !== 'ثبت نشده' ? value : emptyOptionLabel);
@@ -125,23 +148,24 @@ function SearchableSelect({
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="h-6 bg-white dark:bg-[#1a1a1c] text-[10px] text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-[#2d2d30] rounded px-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none w-full font-bold flex items-center justify-between gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-[#222225] transition-colors"
+        className="h-6 bg-white dark:bg-[#1a1a1c] text-[10px] text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-[#2d2d30] rounded px-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none w-full font-bold flex items-center justify-between gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-[#222225] transition-colors shadow-2xs"
       >
         <span className="truncate leading-none">{selectedLabel}</span>
-        <ChevronDown className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400 shrink-0" />
+        <ChevronDown className={`w-2.5 h-2.5 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180 text-indigo-500' : ''}`} />
       </button>
 
-      {isOpen && coords && (
+      {isOpen && coords && typeof document !== 'undefined' && createPortal(
         <div 
+          ref={menuRef}
           style={{
             position: 'fixed',
             top: coords.openUpward ? undefined : `${coords.top}px`,
             bottom: coords.openUpward ? `${Math.max(4, window.innerHeight - coords.top)}px` : undefined,
             left: `${coords.left}px`,
             width: `${coords.width}px`,
-            zIndex: 99999
+            zIndex: 999999
           }}
-          className="searchable-select-menu bg-white dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded-lg shadow-2xl overflow-hidden p-1.5 space-y-1.5"
+          className="searchable-select-menu bg-white dark:bg-[#1a1a1c] border border-slate-200 dark:border-[#2d2d30] rounded-lg shadow-2xl overflow-hidden p-1.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="relative">
             <Search className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-2 top-2" />
@@ -173,37 +197,33 @@ function SearchableSelect({
               {(!value || value === 'ثبت نشده') && <Check className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />}
             </button>
 
-            {filteredOptions.length === 0 ? (
-              <div className="text-[10px] text-slate-500 text-center py-2 font-sans">موردی یافت نشد</div>
-            ) : (
-              filteredOptions.map((opt) => {
-                const isSelected = opt.value === value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      onChange(opt.value);
-                      setIsOpen(false);
-                      setSearch('');
-                    }}
-                    className={`w-full text-right px-2 py-1 text-[10px] rounded transition-colors flex items-center justify-between gap-1.5 ${
-                      isSelected 
-                        ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold' 
-                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528] hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <div className="truncate">
-                      <div>{opt.label}</div>
-                      {opt.sublabel && opt.sublabel !== 'راننده ناوگان' && opt.sublabel !== 'راننده' && (
-                        <div className={`text-[9px] ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{opt.sublabel}</div>
-                      )}
-                    </div>
-                    {isSelected && <Check className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />}
-                  </button>
-                );
-              })
-            )}
+            {filteredOptions.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-right px-2 py-1 text-[10px] rounded transition-colors flex items-center justify-between gap-1.5 ${
+                    isSelected 
+                      ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold' 
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528] hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <div className="truncate">
+                    <div>{opt.label}</div>
+                    {opt.sublabel && opt.sublabel !== 'راننده ناوگان' && opt.sublabel !== 'راننده' && (
+                      <div className={`text-[9px] ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{opt.sublabel}</div>
+                    )}
+                  </div>
+                  {isSelected && <Check className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                </button>
+              );
+            })}
           </div>
 
           {(onAddNew || quickAddType) && (
@@ -218,36 +238,41 @@ function SearchableSelect({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
 function formatTextPlate(plaqueStr: string) {
+  if (!plaqueStr || !plaqueStr.trim() || plaqueStr === '-' || plaqueStr === '—') {
+    return <span className="text-slate-400 font-normal">ثبت نشده</span>;
+  }
   const parts = (plaqueStr || '').trim().split(/\s+/);
-  let p1 = parts[0] || '۱۲';
-  let lettr = parts[1] || 'ب';
-  let p2 = parts[2] || '۳۶۵';
-  let p3 = parts[parts.length - 1] || '۱۱';
+  let p1 = parts[0] || '';
+  let lettr = parts[1] || '';
+  let p2 = parts[2] || '';
+  let p3 = parts[parts.length - 1] || '';
   if (parts.length >= 5 && parts[3] === 'ایران') {
-    p3 = parts[4] || '۱۱';
+    p3 = parts[4] || '';
   }
   return (
     <span dir="ltr" className="inline-block font-mono text-left tracking-wider" style={{ direction: 'ltr' }}>
-      {toPersianDigits(p1)} {lettr} {toPersianDigits(p2)} | ایران {toPersianDigits(p3)}
+      {p1 ? toPersianDigits(p1) : ''} {lettr} {p2 ? toPersianDigits(p2) : ''} {p3 ? `| ایران ${toPersianDigits(p3)}` : ''}
     </span>
   );
 }
 
 function renderIranianPlate(
-  plaqueInput: string | { p1: string; lettr: string; p2: string; p3: string },
+  plaqueInput: string | { p1: string; lettr: string; p2: string; p3: string } | undefined | null,
   size: 'sm' | 'md' = 'sm'
 ) {
-  let p1 = '', lettr = 'ب', p2 = '', p3 = '';
-  if (typeof plaqueInput === 'object' && plaqueInput !== null) {
+  let p1 = '', lettr = '', p2 = '', p3 = '';
+  const isObject = typeof plaqueInput === 'object' && plaqueInput !== null;
+  if (isObject) {
     p1 = plaqueInput.p1 !== undefined ? plaqueInput.p1 : '';
-    lettr = plaqueInput.lettr || 'ب';
+    lettr = plaqueInput.lettr || '';
     p2 = plaqueInput.p2 !== undefined ? plaqueInput.p2 : '';
     p3 = plaqueInput.p3 !== undefined ? plaqueInput.p3 : '';
   } else {
@@ -255,7 +280,7 @@ function renderIranianPlate(
     const parts = str.trim().split(/\s+/);
     if (parts.length >= 4) {
       p1 = parts[0] || '';
-      lettr = parts[1] || 'ب';
+      lettr = parts[1] || '';
       p2 = parts[2] || '';
       p3 = parts[parts.length - 1] || '';
       if (parts.length >= 5 && parts[3] === 'ایران') {
@@ -264,9 +289,14 @@ function renderIranianPlate(
     }
   }
 
-  const displayP1 = p1 !== '' ? toPersianDigits(p1) : '۱۲';
-  const displayP2 = p2 !== '' ? toPersianDigits(p2) : '۳۶۵';
-  const displayP3 = p3 !== '' ? toPersianDigits(p3) : '۱۱';
+  // اگر پلاک متنی است و کاملاً خالی یا خط تیره است
+  if (!isObject && (!p1 && !p2 && !p3)) {
+    return <span className="text-slate-400 dark:text-slate-500 font-mono text-xs">ثبت نشده</span>;
+  }
+
+  const displayP1 = p1 !== '' ? toPersianDigits(p1) : '';
+  const displayP2 = p2 !== '' ? toPersianDigits(p2) : '';
+  const displayP3 = p3 !== '' ? toPersianDigits(p3) : '';
 
   const isMd = size === 'md';
 
@@ -310,9 +340,9 @@ function renderIranianPlate(
 
         {/* Main Number Section */}
         <div className={`flex items-center justify-around flex-1 px-1 ${isMd ? 'text-[12px]' : 'text-[11px]'} font-extrabold text-black bg-white font-mono`} style={{ direction: 'ltr' }}>
-          <span className={`w-5 text-center ${p1 === '' ? 'text-slate-400' : ''}`}>{displayP1}</span>
-          <span className={`text-emerald-800 font-bold px-0.5 font-sans ${isMd ? 'text-[11px]' : 'text-[10px]'} w-4 text-center`}>{lettr || 'ب'}</span>
-          <span className={`w-9 text-center ${p2 === '' ? 'text-slate-400' : ''}`}>{displayP2}</span>
+          <span className={`w-5 text-center ${p1 === '' ? 'text-slate-300' : ''}`}>{displayP1 || '- -'}</span>
+          <span className={`text-emerald-800 font-bold px-0.5 font-sans ${isMd ? 'text-[11px]' : 'text-[10px]'} w-4 text-center`}>{lettr || '-'}</span>
+          <span className={`w-9 text-center ${p2 === '' ? 'text-slate-300' : ''}`}>{displayP2 || '- - -'}</span>
         </div>
 
         {/* Vertical Divider */}
@@ -321,7 +351,7 @@ function renderIranianPlate(
         {/* Right Iran Region Code Box */}
         <div className={`flex flex-col items-center justify-center bg-white ${isMd ? 'w-7' : 'w-7'} h-full shrink-0`}>
           <span className={`${isMd ? 'text-[6px]' : 'text-[5px]'} text-slate-800 font-extrabold leading-none mb-0.5 font-sans`}>ایران</span>
-          <span className={`${isMd ? 'text-[11px]' : 'text-[10px]'} font-mono font-bold leading-none ${p3 === '' ? 'text-slate-400' : 'text-slate-900'}`}>{displayP3}</span>
+          <span className={`${isMd ? 'text-[11px]' : 'text-[10px]'} font-mono font-bold leading-none ${p3 === '' ? 'text-slate-300' : 'text-slate-900'}`}>{displayP3 || '- -'}</span>
         </div>
       </div>
     </div>
@@ -373,10 +403,10 @@ export default function VehiclesView({
   const [currentKm, setCurrentKm] = useState<number>(0);
   const [formCompany, setFormCompany] = useState('');
   const [formDriverName, setFormDriverName] = useState('');
-  const [platePart1, setPlatePart1] = useState('۱۲');
+  const [platePart1, setPlatePart1] = useState('');
   const [plateLetter, setPlateLetter] = useState('ب');
-  const [platePart2, setPlatePart2] = useState('۳۶۵');
-  const [platePart3, setPlatePart3] = useState('۱۱');
+  const [platePart2, setPlatePart2] = useState('');
+  const [platePart3, setPlatePart3] = useState('');
 
   // مودال‌های جزئیات و تاریخچه
   const [infoModalVehicle, setInfoModalVehicle] = useState<Vehicle | null>(null);
@@ -606,10 +636,10 @@ export default function VehiclesView({
     setCurrentKm(0);
     setFormCompany(currentUser?.company || (companies.length > 0 ? companies[0].name : ''));
     setFormDriverName('');
-    setPlatePart1('۱۲');
+    setPlatePart1('');
     setPlateLetter('ب');
-    setPlatePart2('۳۶۵');
-    setPlatePart3('۱۱');
+    setPlatePart2('');
+    setPlatePart3('');
     setIsFormOpen(true);
   };
 
@@ -646,15 +676,18 @@ export default function VehiclesView({
     
     const parts = (v.plaque || '').trim().split(/\s+/);
     if (parts.length >= 4) {
-      setPlatePart1(parts[0] || '۱۲');
+      setPlatePart1(parts[0] || '');
       setPlateLetter(parts[1] || 'ب');
-      setPlatePart2(parts[2] || '۳۶۵');
-      setPlatePart3(parts[parts.length - 1] || '۱۱');
+      setPlatePart2(parts[2] || '');
+      setPlatePart3(parts[parts.length - 1] || '');
+      if (parts.length >= 5 && parts[3] === 'ایران') {
+        setPlatePart3(parts[4] || '');
+      }
     } else {
-      setPlatePart1('۱۲');
+      setPlatePart1('');
       setPlateLetter('ب');
-      setPlatePart2('۳۶۵');
-      setPlatePart3('۱۱');
+      setPlatePart2('');
+      setPlatePart3('');
     }
 
     setIsFormOpen(true);
@@ -667,7 +700,10 @@ export default function VehiclesView({
       return;
     }
 
-    const plaque = `${platePart1} ${plateLetter} ${platePart2} ایران ${platePart3}`;
+    const hasAnyPlate = platePart1.trim() || platePart2.trim() || platePart3.trim();
+    const plaque = hasAnyPlate
+      ? `${platePart1.trim()} ${plateLetter} ${platePart2.trim()} ایران ${platePart3.trim()}`.trim()
+      : '';
 
     const matchedPerson = persons.find(p => p.fullName === formDriverName);
     const resolvedPhone = matchedPerson?.phone || (editingVehicleId ? (vehicles.find(v => v.id === editingVehicleId)?.driverPhone || '-') : '-');
@@ -865,7 +901,8 @@ export default function VehiclesView({
                       <CustomSelect
                         value={plateLetter}
                         onChange={(val) => setPlateLetter(val)}
-                        searchable={true}
+                        searchable={false}
+                        matchTriggerWidth={true}
                         size="8"
                         options={['ب', 'الف', 'ج', 'د', 'ر', 'ز', 'س', 'ش', 'ص', 'ط', 'ع', 'ف', 'ق', 'ک', 'ل', 'م', 'ن', 'و', 'ه', 'ی', 'پ', 'ت', 'ژ', 'معلولین', 'تشریفات'].map(l => ({ value: l, label: l }))}
                       />
@@ -1107,7 +1144,7 @@ export default function VehiclesView({
                   onSort={handleSort}
                   isFiltered={!!columnFilters['company']}
                   onOpenFilter={handleOpenFilterMenu}
-                  width="160px"
+                  width="200px"
                 />
 
                 <TableColumnHeader
@@ -1118,7 +1155,7 @@ export default function VehiclesView({
                   onSort={handleSort}
                   isFiltered={!!columnFilters['driverName']}
                   onOpenFilter={handleOpenFilterMenu}
-                  width="180px"
+                  width="220px"
                 />
               </tr>
             </thead>
@@ -1175,7 +1212,7 @@ export default function VehiclesView({
                     </td>
 
                     {/* انتخاب شرکت */}
-                    <td className="py-1 px-2.5" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                    <td className="py-1.5 px-2.5 min-w-[200px]" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                       <SearchableSelect
                         value={v.company || ''}
                         placeholder="جستجوی شرکت..."
@@ -1205,7 +1242,7 @@ export default function VehiclesView({
                     </td>
 
                     {/* انتخاب راننده و دکمه‌های عملیات شناور */}
-                    <td className="py-1 px-2.5 relative" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                    <td className="py-1.5 px-2.5 min-w-[220px] relative" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                       <div className="w-full">
                         <SearchableSelect
                           value={v.driverName || ''}

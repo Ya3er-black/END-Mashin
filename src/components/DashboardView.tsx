@@ -5,13 +5,11 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  Car, AlertTriangle, ArrowLeft, ArrowUpRight, Calendar, Clock, CheckCircle2, 
-  TrendingUp, PhoneCall, Gauge, Wrench, Package, ShieldCheck, 
-  FileText, Sparkles, ChevronRight, X, BarChart3, Users,
-  Layers, ShieldAlert, Check, Filter, SlidersHorizontal, Eye,
-  Building, Activity, Zap, Info, ChevronDown, ChevronUp,
-  RotateCcw, History, ArrowDownRight, AlertCircle, FileSpreadsheet,
-  Wallet, CalendarClock, Search
+  Car, AlertTriangle, ArrowLeft, CheckCircle2, 
+  TrendingUp, Wrench, ShieldCheck, 
+  BarChart3, ShieldAlert, Check, Eye,
+  Building, Activity, ChevronDown,
+  History, Wallet, CalendarClock, Search
 } from 'lucide-react';
 import { 
   Vehicle, PeriodicService, Insurance, TechnicalInspection, 
@@ -21,7 +19,7 @@ import {
 import { toPersianDigits, formatPrice, formatNumber } from '../utils/numberUtils';
 import { getCurrentJalaliDate, jalaliDayDifference, toJalaliDate, formatRelativeDays } from '../utils/date';
 import { calculateComprehensiveServiceHealth } from '../utils/serviceMatching';
-import DashboardQuickTasksSection from './DashboardQuickTasksSection';
+import { getTaskById } from '../utils/dashboardTaskRegistry';
 
 interface DashboardViewProps {
   vehicles: Vehicle[];
@@ -38,6 +36,8 @@ interface DashboardViewProps {
   onNavigate: (view: string) => void;
   selectedCompany?: string;
   onSelectCompany?: (company: string) => void;
+  pinnedTaskIds?: string[];
+  onTogglePinTask?: (taskId: string) => void;
 }
 
 type DashboardTab = 'alerts' | 'activities' | 'watchlist' | 'analytics';
@@ -56,7 +56,9 @@ export default function DashboardView({
   odometerLogs = [],
   onNavigate,
   selectedCompany,
-  onSelectCompany
+  onSelectCompany,
+  pinnedTaskIds = [],
+  onTogglePinTask
 }: DashboardViewProps) {
   const [activeTab, setActiveTab] = useState<DashboardTab>('alerts');
   const [internalCompanyFilter, setInternalCompanyFilter] = useState<string>('all');
@@ -96,9 +98,6 @@ export default function DashboardView({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isCompanyDropdownOpen]);
-
-  const [showCustomShortcuts, setShowCustomShortcuts] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const todayJalali = getCurrentJalaliDate();
   const now = new Date();
@@ -146,8 +145,6 @@ export default function DashboardView({
   const unavailableVehicles = inRepairVehicles + brokenVehicles;
 
   const activePercent = totalVehicles > 0 ? Math.round((activeVehicles / totalVehicles) * 100) : 0;
-  const inRepairPercent = totalVehicles > 0 ? Math.round((inRepairVehicles / totalVehicles) * 100) : 0;
-  const brokenPercent = totalVehicles > 0 ? Math.round((brokenVehicles / totalVehicles) * 100) : 0;
 
   // هزینه‌های ماه جاری ناوگان
   const currentMonth = now.getMonth();
@@ -468,89 +465,13 @@ export default function DashboardView({
       .slice(0, 5);
   }, [filteredExpenses, filteredVehicles]);
 
-  // ۷. میانبرهای عملیاتی جامع و استاندارد
-  const COMMAND_SHORTCUTS = [
-    {
-      id: 'odometer',
-      title: 'استعلام کارکرد تلفنی',
-      subtitle: 'ثبت کیلومتر روزانه و پیش‌بینی موعد تعویض',
-      icon: PhoneCall,
-      color: 'indigo',
-      badge: 'روزانه'
-    },
-    {
-      id: 'services',
-      title: 'سرویس‌های دوره‌ای',
-      subtitle: 'ثبت روغن، فیلترها، لنت و پایش هشدارهای کیلومتری',
-      icon: Wrench,
-      color: 'amber',
-      badge: urgentServicesList.length > 0 ? `${toPersianDigits(urgentServicesList.length)} هشدار` : undefined,
-      badgeColor: 'bg-amber-500 text-white'
-    },
-    {
-      id: 'failures',
-      title: 'تعمیرگاه و پذیرش خرابی',
-      subtitle: 'مدیریت عیب‌یابی، تخصیص مکانیک و حواله ترخیص',
-      icon: AlertTriangle,
-      color: 'rose',
-      badge: activeFailuresList.length > 0 ? `${toPersianDigits(activeFailuresList.length)} پذیرش فعال` : undefined,
-      badgeColor: 'bg-rose-500 text-white'
-    },
-    {
-      id: 'parts',
-      title: 'انبار قطعات یدکی',
-      subtitle: 'مدیریت کاردکس کالا، رسید خرید و حواله مصرف',
-      icon: Package,
-      color: 'emerald'
-    },
-    {
-      id: 'accounting',
-      title: 'حسابداری و ثبت هزینه‌ها',
-      subtitle: 'فاکتورهای مالی، مخارج سوخت و تراز هزینه‌ها',
-      icon: TrendingUp,
-      color: 'cyan'
-    },
-    {
-      id: 'vehicles',
-      title: 'بانک پرونده ناوگان',
-      subtitle: 'مشخصات فنی، راننده، VIN، پلاک و محل استقرار',
-      icon: Car,
-      color: 'violet',
-      badge: `${toPersianDigits(totalVehicles)} دستگاه`
-    },
-    {
-      id: 'insurance',
-      title: 'بیمه‌نامه‌ها و معاینه فنی',
-      subtitle: 'پایش موعد انقضای ثالث، بدنه و کارت معاینه',
-      icon: ShieldCheck,
-      color: 'blue',
-      badge: (urgentInsurancesList.length + urgentInspectionsList.length) > 0 
-        ? `${toPersianDigits(urgentInsurancesList.length + urgentInspectionsList.length)} انقضا` 
-        : undefined,
-      badgeColor: 'bg-rose-500 text-white'
-    },
-    {
-      id: 'reports',
-      title: 'شناسنامه و گزارش‌های تحلیلی',
-      subtitle: 'پرونده جامع، گزارشات مدیریتی و خروجی اکسل/PDF',
-      icon: FileText,
-      color: 'slate'
-    },
-    {
-      id: 'service_definitions',
-      title: 'استاندارد خدمات و دوره‌ها',
-      subtitle: 'تعریف استانداردهای کیلومتری و آستانه هشدارها',
-      icon: SlidersHorizontal,
-      color: 'teal'
-    },
-    {
-      id: 'persons',
-      title: 'رانندگان و پرسنل ناوگان',
-      subtitle: 'اطلاعات پرسنلی، شماره تماس و سوابق رانندگی',
-      icon: Users,
-      color: 'orange'
-    }
-  ];
+  // ۸. تسک‌های برگزیده و سنجاق‌شده از سایدبار
+  const pinnedTasks = useMemo(() => {
+    if (!pinnedTaskIds || pinnedTaskIds.length === 0) return [];
+    return pinnedTaskIds
+      .map(id => getTaskById(id))
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+  }, [pinnedTaskIds]);
 
   return (
     <div className="space-y-4 w-full animate-in fade-in duration-300 pb-12">
@@ -691,71 +612,55 @@ export default function DashboardView({
           </div>
 
         </div>
-
-        {/* نوار توزیع و سلامت ناوگان (Fleet Health & Readiness Track) */}
-        {totalVehicles > 0 && (
-          <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-[#202024] space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-              <span className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-[11px]">
-                <span>ضریب آمادگی عملیاتی ناوگان:</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-black font-mono">
-                  {toPersianDigits(activePercent)}٪
-                </span>
-              </span>
-
-              <div className="flex items-center gap-3 sm:gap-4 text-[11px] font-bold flex-wrap">
-                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>آماده به‌کار ({formatNumber(activeVehicles)})</span>
-                </span>
-                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span>در تعمیرگاه ({formatNumber(inRepairVehicles)})</span>
-                </span>
-                <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  <span>متوقف ({formatNumber(brokenVehicles)})</span>
-                </span>
-              </div>
-            </div>
-
-            {/* نوار پیشرفت افقی چندبخشی */}
-            <div className="w-full h-2.5 bg-slate-100 dark:bg-[#1d1d21] rounded-full overflow-hidden flex gap-0.5 p-0.5 shadow-inner">
-              <div 
-                className="bg-emerald-500 rounded-full h-full transition-all duration-500" 
-                style={{ width: `${activePercent}%` }} 
-                title={`آماده به‌کار: ${activePercent}٪`}
-              />
-              <div 
-                className="bg-amber-500 rounded-full h-full transition-all duration-500" 
-                style={{ width: `${inRepairPercent}%` }} 
-                title={`در تعمیرگاه: ${inRepairPercent}٪`}
-              />
-              <div 
-                className="bg-rose-500 rounded-full h-full transition-all duration-500" 
-                style={{ width: `${brokenPercent}%` }} 
-                title={`متوقف: ${brokenPercent}٪`}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ۲. کارت‌های آماری خلاصه عملکرد ناوگان (Executive Summary Statistics Grid - 6 کارت شاخص) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* ۲. بخش دسترسی سریع (Neo-Minimal Quick Access Card) */}
+      {pinnedTasks.length > 0 && (
+        <div className="bg-white dark:bg-[#111114] rounded-xl border border-slate-200 dark:border-[#27272a] p-2.5 sm:px-3.5 sm:py-2.5 shadow-xs flex items-center justify-between flex-wrap gap-2.5">
+          <div className="flex items-center gap-2 select-none shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400"></span>
+            <span className="text-xs font-bold text-slate-800 dark:text-white tracking-tight">
+              دسترسی سریع
+            </span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-[#1e1e24] text-slate-600 dark:text-slate-400 font-mono">
+              {toPersianDigits(pinnedTasks.length)}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 flex-1 justify-start md:justify-end">
+            {pinnedTasks.map(task => {
+              const TaskIcon = task.icon;
+              return (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => onNavigate(task.id)}
+                  className="group inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#18181c] hover:bg-indigo-50/70 dark:hover:bg-indigo-950/30 border border-slate-200/70 dark:border-[#242429] hover:border-indigo-300 dark:hover:border-indigo-500/40 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all duration-150 cursor-pointer text-xs font-medium"
+                >
+                  <TaskIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" strokeWidth={1.8} />
+                  <span>{task.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ۳. کارت‌های آماری شاخص‌های عملکرد ناوگان (Executive KPI Grid - ۵ کارت متوازن) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         
-        {/* ۱. تعداد کل خودروها */}
+        {/* ۱. کل ناوگان خودروها */}
         <div 
           onClick={() => onNavigate('vehicles')}
           className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-indigo-400 dark:hover:border-indigo-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">تعداد کل خودروها</span>
+            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">کل ناوگان خودروها</span>
             <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
               <Car className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
+          <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               {formatNumber(totalVehicles)}
               <span className="text-xs font-normal text-slate-400 mr-1">خودرو</span>
@@ -766,10 +671,6 @@ export default function DashboardView({
           </div>
           <div className="mt-1 text-[10px] text-slate-400 truncate">
             {formatNumber(activeVehicles)} آماده / {formatNumber(unavailableVehicles)} متوقف
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-indigo-600 dark:text-indigo-400 font-bold group-hover:underline">
-            <span>بانک خودروها</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
           </div>
         </div>
 
@@ -788,7 +689,7 @@ export default function DashboardView({
               <CalendarClock className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
+          <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               {formatNumber(pendingServicesData.totalPending)}
               <span className="text-xs font-normal text-slate-400 mr-1">مورد</span>
@@ -804,41 +705,11 @@ export default function DashboardView({
             )}
           </div>
           <div className="mt-1 text-[10px] text-slate-400 truncate">
-            {toPersianDigits(pendingServicesData.overdueCount)} منقضی / {toPersianDigits(pendingServicesData.upcomingCount)} موعد در ۱۵ روز
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-amber-600 dark:text-amber-400 font-bold group-hover:underline">
-            <span>مدیریت سرویس‌ها</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
+            {toPersianDigits(pendingServicesData.overdueCount)} منقضی / {toPersianDigits(pendingServicesData.upcomingCount)} موعد نزدیک
           </div>
         </div>
 
-        {/* ۳. وضعیت کلی هزینه‌ها */}
-        <div 
-          onClick={() => onNavigate('accounting')}
-          className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-emerald-400 dark:hover:border-emerald-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">وضعیت کلی هزینه‌ها</span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
-              {formatPrice(overallExpensesData.totalCost)}
-            </span>
-            <span className="text-[10px] text-slate-400 font-bold mr-1">ریال</span>
-          </div>
-          <div className="mt-1 text-[10px] text-slate-400 truncate">
-            ماه جاری: {formatPrice(monthlyCost)} ریال ({toPersianDigits(monthlyExpensesCount)} فاکتور)
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-emerald-600 dark:text-emerald-400 font-bold group-hover:underline">
-            <span>حسابداری و مخارج</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
-          </div>
-        </div>
-
-        {/* ۴. پذیرش‌های فعال تعمیرگاه */}
+        {/* ۳. پذیرش‌های تعمیرگاه */}
         <div 
           onClick={() => onNavigate('failures')}
           className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-rose-400 dark:hover:border-rose-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
@@ -853,7 +724,7 @@ export default function DashboardView({
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
+          <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               {formatNumber(activeFailuresList.length)}
               <span className="text-xs font-normal text-slate-400 mr-1">پذیرش</span>
@@ -871,13 +742,9 @@ export default function DashboardView({
           <div className="mt-1 text-[10px] text-slate-400 truncate">
             {formatNumber(inRepairVehicles)} در تعمیر / {formatNumber(brokenVehicles)} متوقف
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-rose-600 dark:text-rose-400 font-bold group-hover:underline">
-            <span>گردش کار تعمیرگاه</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
-          </div>
         </div>
 
-        {/* ۵. بیمه‌نامه‌ها و معاینه فنی */}
+        {/* ۴. بیمه‌نامه‌ها و معاینه فنی */}
         <div 
           onClick={() => onNavigate('insurance')}
           className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-blue-400 dark:hover:border-blue-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
@@ -888,7 +755,7 @@ export default function DashboardView({
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
+          <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               {formatNumber(urgentInsurancesList.length + urgentInspectionsList.length)}
               <span className="text-xs font-normal text-slate-400 mr-1">سررسید</span>
@@ -906,49 +773,33 @@ export default function DashboardView({
           <div className="mt-1 text-[10px] text-slate-400 truncate">
             {toPersianDigits(urgentInsurancesList.length)} بیمه‌نامه / {toPersianDigits(urgentInspectionsList.length)} معاینه فنی
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-blue-600 dark:text-blue-400 font-bold group-hover:underline">
-            <span>پایش بیمه و معاینه</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
-          </div>
         </div>
 
-        {/* ۶. ضریب آمادگی عملیاتی ناوگان */}
+        {/* ۵. مخارج و هزینه‌های ناوگان */}
         <div 
-          onClick={() => setActiveTab('watchlist')}
-          className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-violet-400 dark:hover:border-violet-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
+          onClick={() => onNavigate('accounting')}
+          className="group bg-white dark:bg-[#111114] p-3.5 rounded-xl border border-slate-200 dark:border-[#27272a] hover:border-emerald-400 dark:hover:border-emerald-500/50 shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">ضریب آمادگی ناوگان</span>
-            <div className="p-1.5 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 group-hover:bg-violet-600 group-hover:text-white transition-colors">
-              <Activity className="w-4 h-4" />
+            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">هزینه‌های ماه جاری</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {toPersianDigits(activePercent)}٪
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
+              {formatPrice(monthlyCost)}
             </span>
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-              activePercent >= 80 
-                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' 
-                : activePercent >= 60 
-                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300' 
-                : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300'
-            }`}>
-              {activePercent >= 80 ? 'مطلوب' : activePercent >= 60 ? 'متوسط' : 'نیاز به توجه'}
-            </span>
+            <span className="text-[10px] text-slate-400 font-bold mr-1">ریال</span>
           </div>
           <div className="mt-1 text-[10px] text-slate-400 truncate">
-            {formatNumber(activeVehicles)} خودروی فعال از {formatNumber(totalVehicles)}
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1d1d21] flex items-center justify-between text-[10px] text-violet-600 dark:text-violet-400 font-bold group-hover:underline">
-            <span>دیده‌بان ناوگان</span>
-            <ArrowLeft className="w-2.5 h-2.5" />
+            کل مخارج: {formatPrice(overallExpensesData.totalCost)} ریال
           </div>
         </div>
 
       </div>
 
-      {/* ۳. بخش تب‌بندی تعاملی پایش ناوگان (Operational Matrix & Action Center) */}
+      {/* ۴. بخش تب‌بندی تعاملی پایش ناوگان (Operational Matrix & Action Center) */}
       <div className="bg-white dark:bg-[#111114] rounded-xl border border-slate-200 dark:border-[#27272a] shadow-xs overflow-hidden">
         
         {/* نوار سربرگ تب‌ها */}
@@ -1299,81 +1150,6 @@ export default function DashboardView({
 
         </div>
 
-      </div>
-
-      {/* ۴. مرکز عملیات و دسترسی سریع به بخش‌های اصلی سامانه (Quick Command Center) */}
-      <div className="bg-white dark:bg-[#111114] p-4 rounded-xl border border-slate-200 dark:border-[#27272a] shadow-xs space-y-3">
-        <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-[#202024]">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-indigo-500" />
-            <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
-              دسترسی سریع به بخش‌های عملیاتی سامانه
-            </h2>
-          </div>
-          <span className="text-[11px] text-slate-400 font-medium">انتقال مستقیم با یک کلیک</span>
-        </div>
-
-        {/* گرید دسترسی سریع متناسب با دستگاه‌های مختلف */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {COMMAND_SHORTCUTS.map(item => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate(item.id)}
-                className="group text-right p-3 rounded-xl border border-slate-200 dark:border-[#252529] hover:border-indigo-400 dark:hover:border-indigo-500/50 bg-slate-50/50 dark:bg-[#151518] hover:bg-white dark:hover:bg-[#1a1a1e] transition-all duration-150 flex items-center justify-between cursor-pointer hover:shadow-xs hover:-translate-y-0.5"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-2 rounded-lg bg-white dark:bg-[#1d1d21] border border-slate-200 dark:border-[#2a2a30] text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all shrink-0">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                      {item.title}
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      {item.subtitle}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0 mr-2">
-                  {item.badge && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-extrabold ${item.badgeColor || 'bg-slate-200 dark:bg-[#28282d] text-slate-700 dark:text-slate-300'}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                  <ArrowLeft className="w-3.5 h-3.5 text-slate-400 opacity-60 group-hover:opacity-100 group-hover:-translate-x-1 transition-all" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ۵. بخش سفارشی‌سازی میانبرها (قابلیت جمع‌شونده برای سادگی و زیبایی) */}
-      <div className="bg-white dark:bg-[#111114] rounded-xl border border-slate-200 dark:border-[#27272a] shadow-xs overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowCustomShortcuts(!showCustomShortcuts)}
-          className="w-full px-4 py-3 flex items-center justify-between text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#161619] transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-indigo-500" />
-            <span>سفارشی‌سازی و مدیریت میانبرهای اختصاصی داشبورد</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
-            <span>{showCustomShortcuts ? 'بستن تنظیمات' : 'تنظیم و چیدمان دلخواه'}</span>
-            {showCustomShortcuts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </button>
-
-        {showCustomShortcuts && (
-          <div className="p-4 border-t border-slate-100 dark:border-[#202024] bg-slate-50/50 dark:bg-[#141417]/40">
-            <DashboardQuickTasksSection onNavigate={onNavigate} />
-          </div>
-        )}
       </div>
 
     </div>
