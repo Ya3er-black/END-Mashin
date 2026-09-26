@@ -10,7 +10,7 @@ import {
   Check, X, Truck, ChevronDown, History, Clock, ArrowLeftRight,
   ArrowUpDown, ArrowUp, ArrowDown, Filter, List, FileSpreadsheet, Printer, Upload
 } from 'lucide-react';
-import { Vehicle, VehicleStatus, User as SystemUser, Company, VehicleHistoryEntry, Person } from '../types';
+import { Vehicle, VehicleStatus, User as SystemUser, Company, VehicleHistoryEntry, Person, OdometerLog, PeriodicService, VehicleFailure } from '../types';
 import { toPersianDigits, toJalaliDate, parsePersianNumber, formatNumber } from '../utils/numberUtils';
 import { sortData, SortDirection } from '../utils/sortUtils';
 import { Pagination } from './Pagination';
@@ -20,6 +20,7 @@ import { returnToOriginView, peekNavigationOrigin, openQuickEntityModal, QuickEn
 import { exportToCsv, printTableReport } from '../utils/exportPrintUtils';
 import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { getLatestVehicleKm } from '../utils/serviceMatching';
 
 interface VehiclesViewProps {
   vehicles: Vehicle[];
@@ -28,6 +29,9 @@ interface VehiclesViewProps {
   persons?: Person[];
   users?: SystemUser[];
   currentUser?: SystemUser | null;
+  odometerLogs?: OdometerLog[];
+  services?: PeriodicService[];
+  failures?: VehicleFailure[];
   onAddVehicle: (vehicle: Omit<Vehicle, 'id' | 'createdAt'>) => Promise<void>;
   onEditVehicle: (id: number, vehicle: Partial<Vehicle>) => Promise<void>;
   onDeleteVehicle: (id: number) => Promise<void>;
@@ -365,6 +369,9 @@ export default function VehiclesView({
   persons = [],
   users = [],
   currentUser,
+  odometerLogs = [],
+  services = [],
+  failures = [],
   onAddVehicle,
   onEditVehicle,
   onDeleteVehicle,
@@ -670,7 +677,8 @@ export default function VehiclesView({
     setCode(v.code || '');
     setName(v.name);
     setProductionYear(v.productionYear || 1402);
-    setCurrentKm(v.currentKm || 0);
+    const latestKm = getLatestVehicleKm(v, odometerLogs, services, failures);
+    setCurrentKm(latestKm > 0 ? latestKm : (v.currentKm || 0));
     setFormCompany(v.company || '');
     setFormDriverName(v.driverName || '');
     
@@ -838,7 +846,23 @@ export default function VehiclesView({
 
               {/* شرکت منتسب */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">شرکت منتسب</label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">شرکت منتسب</label>
+                  {!currentUser?.company && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openQuickEntityModal('company', (c) => {
+                          if (c?.name) setFormCompany(c.name);
+                        });
+                      }}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>افزودن شرکت جدید</span>
+                    </button>
+                  )}
+                </div>
                 {currentUser?.company ? (
                   <div className="w-full bg-slate-100 dark:bg-[#1a1a1c] text-amber-500 dark:text-amber-400 border border-slate-300 dark:border-[#2d2d30] rounded-lg px-3 py-2.5 text-xs font-bold">
                     {currentUser.company} (قفل شده)
@@ -860,7 +884,21 @@ export default function VehiclesView({
 
               {/* راننده منتسب */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">راننده منتسب</label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">راننده منتسب</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openQuickEntityModal('driver', (d) => {
+                        if (d?.fullName) setFormDriverName(d.fullName);
+                      });
+                    }}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>افزودن راننده جدید</span>
+                  </button>
+                </div>
                 <CustomSelect
                   value={formDriverName}
                   onChange={(val) => setFormDriverName(val)}

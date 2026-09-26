@@ -19,7 +19,7 @@ import { JalaliDatePicker } from './JalaliDatePicker';
 import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { sortData, SortDirection } from '../utils/sortUtils';
-import { calculateComprehensiveServiceHealth, ComprehensiveServiceHealth, findLastServiceOrRepairEvent } from '../utils/serviceMatching';
+import { calculateComprehensiveServiceHealth, ComprehensiveServiceHealth, findLastServiceOrRepairEvent, getLatestVehicleKm } from '../utils/serviceMatching';
 import { CustomSelect } from './CustomSelect';
 import SmsRemindersTab from './SmsRemindersTab';
 import { OdometerInquiryFormView } from './OdometerInquiryFormView';
@@ -289,8 +289,14 @@ export default function OdometerTrackingView({
 
   const activeVehicle = useMemo(() => {
     if (!vehicleFilter || vehicleFilter === 'all') return null;
-    return vehicles.find(v => v.id.toString() === vehicleFilter) || null;
-  }, [vehicles, vehicleFilter]);
+    const raw = vehicles.find(v => v.id.toString() === vehicleFilter);
+    if (!raw) return null;
+    const latestKm = getLatestVehicleKm(raw, odometerLogs, services, failures) || raw.currentKm || 0;
+    return {
+      ...raw,
+      currentKm: latestKm
+    };
+  }, [vehicles, vehicleFilter, odometerLogs, services, failures]);
 
   const handleSelectVehicle = (v: Vehicle) => {
     setVehicleFilter(v.id.toString());
@@ -485,13 +491,14 @@ export default function OdometerTrackingView({
   const handleOpenAddModal = (vehicleIdToPreselect?: number) => {
     const vId = vehicleIdToPreselect || (currentSelectedVehicle ? currentSelectedVehicle.id : (vehicles[0]?.id || 0));
     const targetV = vehicles.find(v => v.id === vId);
+    const targetLatestKm = targetV ? getLatestVehicleKm(targetV, odometerLogs, services, failures) : '';
 
     setEditingLog(null);
     setFormVehicleId(vId);
     setFormInquiryDate(getCurrentJalaliDate());
     const now = new Date();
     setFormInquiryTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
-    setFormOdometerKm(targetV?.currentKm ? targetV.currentKm : '');
+    setFormOdometerKm(targetLatestKm || (targetV?.currentKm ? targetV.currentKm : ''));
     setFormNotes('');
     setFormError('');
     setIsModalOpen(true);
@@ -541,12 +548,13 @@ export default function OdometerTrackingView({
           notes: formNotes
         });
       } else {
+        const prevRecordedKm = selectedV ? (getLatestVehicleKm(selectedV, odometerLogs, services, failures) || selectedV.currentKm || 0) : 0;
         await onAddOdometerLog({
           vehicleId: formVehicleId,
           inquiryDate: formInquiryDate,
           inquiryTime: timeToSend,
           odometerKm: enteredKm,
-          previousKm: selectedV?.currentKm || 0,
+          previousKm: prevRecordedKm,
           driverName: selectedV?.driverName,
           driverPhone: selectedV?.driverPhone,
           company: selectedV?.company,
@@ -572,11 +580,16 @@ export default function OdometerTrackingView({
     return vehicles.map(v => {
       const vLogs = odometerLogs.filter(l => l.vehicleId === v.id);
       const latestLog = vLogs[0];
+      const vehicleLatestKm = getLatestVehicleKm(v, odometerLogs, services, failures) || v.currentKm || 0;
+      const vWithLatestKm = {
+        ...v,
+        currentKm: vehicleLatestKm
+      };
 
       // محاسبه وضعیت کلیه سرویس‌ها برای این خودرو
       const serviceItems = serviceDefinitions.map(def => {
         return calculateComprehensiveServiceHealth(
-          v,
+          vWithLatestKm,
           def,
           services,
           failures,
@@ -612,10 +625,31 @@ export default function OdometerTrackingView({
             : `${nextPrediction.serviceType} (موعد: ${nextPrediction.estimatedDate || 'نامشخص'} - ${nextPrediction.remainingKm} km مانده)`)
         : 'سالم / بدون سررسید فوری';
 
+      // محاسبه آخرین سرویس دوره‌ای و تاخیر از آخرین مراجعه به سرویس
+      const vServices = (services || [])
+        .filter(s => Number(s.vehicleId) === Number(v.id) && s.status !== 'in_progress')
+        .sort((a, b) => {
+          const dDiff = String(b.serviceDate || '').localeCompare(String(a.serviceDate || ''));
+          if (dDiff !== 0) return dDiff;
+          return Number(b.id || 0) - Number(a.id || 0);
+        });
+      const lastService = vServices[0] || null;
+      const lastServiceDate = lastService?.serviceDate || 'بدون سابقه';
+      const daysSinceLastService = lastService?.serviceDate
+        ? Math.max(0, jalaliDayDifference(lastService.serviceDate, getCurrentJalaliDate()))
+        : null;
+      const serviceDelayText = daysSinceLastService !== null
+        ? `${daysSinceLastService} روز تاخیر`
+        : 'بدون سابقه سرویس';
+
       return {
         ...v,
         latestLog,
         lastInquiryDate: latestLog ? latestLog.inquiryDate : 'بدون سابقه',
+        lastService,
+        lastServiceDate,
+        daysSinceLastService,
+        serviceDelayText,
         serviceItems,
         nextPrediction,
         urgentServiceText,
@@ -634,6 +668,8 @@ export default function OdometerTrackingView({
     if (colKey === 'driverPhone') return item.driverPhone ? toPersianDigits(item.driverPhone) : 'بدون تلفن';
     if (colKey === 'currentKm') return `${formatNumber(item.currentKm || 0)} km`;
     if (colKey === 'lastInquiryDate') return item.lastInquiryDate || 'بدون سابقه';
+    if (colKey === 'lastService') return item.lastServiceDate || 'بدون سابقه';
+    if (colKey === 'serviceDelay') return item.serviceDelayText || 'بدون سابقه';
     if (colKey === 'urgentService') return item.urgentServiceText || 'سالم';
     return String(item[colKey] ?? '');
   };
@@ -861,9 +897,11 @@ export default function OdometerTrackingView({
   const allDueAndWarningServices = useMemo<GlobalDueServiceItem[]>(() => {
     const result: GlobalDueServiceItem[] = [];
     vehicles.forEach(vehicle => {
+      const vLatestKm = getLatestVehicleKm(vehicle, odometerLogs, services, failures) || vehicle.currentKm || 0;
+      const vehicleWithLatest = { ...vehicle, currentKm: vLatestKm };
       serviceDefinitions.forEach(def => {
         const item = calculateComprehensiveServiceHealth(
-          vehicle,
+          vehicleWithLatest,
           def,
           services,
           failures,
@@ -882,7 +920,7 @@ export default function OdometerTrackingView({
             driverName: vehicle.driverName,
             driverPhone: vehicle.driverPhone,
             company: vehicle.company,
-            currentKm: vehicle.currentKm || 0,
+            currentKm: vLatestKm,
             serviceType: item.serviceType,
             definitionId: item.definitionId,
             lastServicedKm: item.lastServicedKm,
@@ -1412,12 +1450,13 @@ export default function OdometerTrackingView({
             });
           } else {
             const selectedV = vehicles.find(v => v.id === data.vehicleId);
+            const prevRecordedKm = selectedV ? (getLatestVehicleKm(selectedV, odometerLogs, services, failures) || selectedV.currentKm || 0) : 0;
             await onAddOdometerLog({
               vehicleId: data.vehicleId,
               inquiryDate: data.inquiryDate,
               inquiryTime: data.inquiryTime,
               odometerKm: data.odometerKm,
-              previousKm: selectedV?.currentKm || 0,
+              previousKm: prevRecordedKm,
               driverName: selectedV?.driverName,
               driverPhone: selectedV?.driverPhone,
               company: selectedV?.company,
@@ -2357,12 +2396,22 @@ export default function OdometerTrackingView({
                       isFiltered={!!fleetColumnFilters['lastInquiryDate']}
                       onOpenFilter={handleOpenFleetFilterMenu}
                     />
+
+                    <TableColumnHeader
+                      title="آخرین سرویس و تاخیر"
+                      colKey="serviceDelay"
+                      sortKey={fleetSortKey}
+                      sortDirection={fleetSortDirection}
+                      onSort={handleSortFleet}
+                      isFiltered={!!fleetColumnFilters['serviceDelay']}
+                      onOpenFilter={handleOpenFleetFilterMenu}
+                    />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                   {paginatedFleetList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-500 text-[11px]">
+                      <td colSpan={9} className="py-8 text-center text-slate-500 text-[11px]">
                         هیچ خودرویی با این مشخصات در ناوگان یافت نشد.
                       </td>
                     </tr>
@@ -2413,33 +2462,28 @@ export default function OdometerTrackingView({
                               </span>
                             </div>
                           </td>
-                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] relative">
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
                             {v.latestLog ? toPersianDigits(v.latestLog.inquiryDate) : 'بدون سابقه'}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300 text-[11px] relative">
+                            {v.lastServiceDate !== 'بدون سابقه' ? (
+                              <span className="font-mono text-slate-900 dark:text-slate-100 font-bold">
+                                {toPersianDigits(v.lastServiceDate)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">بدون سابقه سرویس</span>
+                            )}
 
                             {/* دکمه‌های عملیات شناور - فقط هنگام بردن موس روی ردیف */}
                             <div className="absolute inset-y-0 left-0 pl-2.5 pr-14 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 via-slate-50 via-70% to-transparent dark:from-[#1a1a1c] dark:via-[#1a1a1c] dark:via-70% dark:to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-20 pointer-events-none group-hover:pointer-events-auto">
                               <button
                                 type="button"
                                 onClick={() => handleOpenAddModal(v.id)}
-                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap pointer-events-auto"
+                                className="h-6 px-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-bold transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap pointer-events-auto flex items-center justify-center leading-none"
                                 title="ثبت استعلام کارکرد جدید"
                               >
                                 ثبت استعلام
                               </button>
-
-                              {v.latestLog && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditModal(v.latestLog);
-                                  }}
-                                  className="p-1 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-[#1e1e24] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
-                                  title="ویرایش آخرین استعلام این خودرو"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
 
                               {v.latestLog && onDeleteOdometerLog && (
                                 <button
@@ -2454,7 +2498,7 @@ export default function OdometerTrackingView({
                                       }
                                     }
                                   }}
-                                  className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
+                                  className="h-6 w-6 p-0 flex items-center justify-center text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-white dark:bg-[#1e1e24] hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-[#2d2d30] rounded shadow-2xs transition-colors cursor-pointer pointer-events-auto"
                                   title="حذف آخرین استعلام کارکرد این خودرو"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -2464,7 +2508,7 @@ export default function OdometerTrackingView({
                               <button
                                 type="button"
                                 onClick={() => setSelectedFleetVehicleForDetails(v)}
-                                className={`w-5 h-5 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 pointer-events-auto ${
+                                className={`h-6 w-6 rounded flex items-center justify-center text-white transition-all shadow-xs cursor-pointer active:scale-90 pointer-events-auto ${
                                   v.needsService
                                     ? 'bg-rose-500 hover:bg-rose-600 border border-rose-400 dark:border-rose-500/50 ring-2 ring-rose-300/60 dark:ring-rose-900/60'
                                     : 'bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 dark:border-emerald-500/50 ring-2 ring-emerald-300/60 dark:ring-emerald-900/60'
@@ -3174,8 +3218,8 @@ export default function OdometerTrackingView({
                 </div>
               </div>
 
-              {/* کارت وضعیت سلامت کلی و آخرین استعلام */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl border ${
+              {/* کارت وضعیت سلامت کلی، آخرین استعلام و تاخیر از آخرین مراجعه به سرویس */}
+              <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl border ${
                 selectedFleetVehicleForDetails.needsService
                   ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-500/20'
                   : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-500/20'
@@ -3185,12 +3229,12 @@ export default function OdometerTrackingView({
                   {selectedFleetVehicleForDetails.needsService ? (
                     <strong className="text-rose-900 dark:text-rose-300 font-bold text-xs flex items-center gap-1.5">
                       <ShieldAlert className="w-4 h-4 text-rose-500" />
-                      <span>{toPersianDigits(selectedFleetVehicleForDetails.overdueCount)} قطعه منقضی، {toPersianDigits(selectedFleetVehicleForDetails.warningCount)} قطعه در آستانه تعویض</span>
+                      <span>{toPersianDigits(selectedFleetVehicleForDetails.overdueCount)} قطعه منقضی، {toPersianDigits(selectedFleetVehicleForDetails.warningCount)} در آستانه تعویض</span>
                     </strong>
                   ) : (
                     <strong className="text-emerald-900 dark:text-emerald-300 font-bold text-xs flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>کلیه قطعات و سرویس‌ها در وضعیت استاندارد و سالم</span>
+                      <span>کلیه قطعات و سرویس‌ها در وضعیت سالم</span>
                     </strong>
                   )}
                 </div>
@@ -3204,6 +3248,25 @@ export default function OdometerTrackingView({
                       </span>
                     )}
                   </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px] block mb-0.5">آخرین مراجعه به سرویس و تاخیر:</span>
+                  {selectedFleetVehicleForDetails.lastServiceDate !== 'بدون سابقه' ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+                        {toPersianDigits(selectedFleetVehicleForDetails.lastServiceDate)}
+                      </span>
+                      <span className={`text-[11px] font-bold ${
+                        (selectedFleetVehicleForDetails.daysSinceLastService || 0) > 30
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-amber-600 dark:text-amber-400'
+                      }`}>
+                        ({toPersianDigits(selectedFleetVehicleForDetails.daysSinceLastService)} روز تاخیر)
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-xs">بدون سابقه سرویس</span>
+                  )}
                 </div>
               </div>
 

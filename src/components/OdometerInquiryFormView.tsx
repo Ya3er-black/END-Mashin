@@ -14,6 +14,8 @@ import { JalaliDatePicker } from './JalaliDatePicker';
 import { CustomSelect } from './CustomSelect';
 import { calculateInquiryServicePrediction } from '../utils/predictionEngine';
 import { getVehicleDisplayName } from '../utils/vehicleUtils';
+import { jalaliDayDifference, getCurrentJalaliDate } from '../utils/date';
+import { getLatestVehicleKm } from '../utils/serviceMatching';
 
 interface OdometerInquiryFormViewProps {
   editingLog: OdometerLog | null;
@@ -54,7 +56,22 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
     return vehicles[0]?.id || 0;
   });
 
-  const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+  const rawSelectedVehicle = vehicles.find(v => v.id === vehicleId);
+
+  // محاسبه آخرین کارکرد ثبت‌شده خودرو در دیتابیس (استعلام‌ها، سرویس‌ها، تعمیرات و کیلومتر مبدا)
+  const latestDbKm = useMemo(() => {
+    if (!rawSelectedVehicle) return 0;
+    return getLatestVehicleKm(rawSelectedVehicle, odometerLogs, services, failures) || rawSelectedVehicle.currentKm || 0;
+  }, [rawSelectedVehicle, odometerLogs, services, failures]);
+
+  // تعریف خودرو مجهز به آخرین کارکرد ذخیره‌شده در دیتابیس جهت استفاده در محاسبات، تعاریف و پایش
+  const selectedVehicle = useMemo(() => {
+    if (!rawSelectedVehicle) return undefined;
+    return {
+      ...rawSelectedVehicle,
+      currentKm: latestDbKm
+    };
+  }, [rawSelectedVehicle, latestDbKm]);
 
   const [inquiryDate, setInquiryDate] = useState<string>(() => {
     if (editingLog) return editingLog.inquiryDate;
@@ -69,7 +86,12 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
 
   const [odometerKm, setOdometerKm] = useState<number | ''>(() => {
     if (editingLog) return editingLog.odometerKm;
-    if (selectedVehicle?.currentKm) return selectedVehicle.currentKm;
+    const initialId = initialVehicleId && initialVehicleId > 0 ? initialVehicleId : (vehicles[0]?.id || 0);
+    const target = vehicles.find(v => v.id === initialId);
+    if (target) {
+      const targetLatestKm = getLatestVehicleKm(target, odometerLogs, services, failures) || target.currentKm;
+      return targetLatestKm || '';
+    }
     return '';
   });
 
@@ -81,8 +103,11 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
     const newId = Number(val);
     setVehicleId(newId);
     const target = vehicles.find(v => v.id === newId);
-    if (target?.currentKm) {
-      setOdometerKm(target.currentKm);
+    if (target) {
+      const targetLatestKm = getLatestVehicleKm(target, odometerLogs, services, failures) || target.currentKm;
+      setOdometerKm(targetLatestKm || '');
+    } else {
+      setOdometerKm('');
     }
   };
 
@@ -113,7 +138,7 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
     }
   };
 
-  const prevKm = selectedVehicle?.currentKm || 0;
+  const prevKm = latestDbKm;
   const currentKmNum = odometerKm === '' ? 0 : Number(odometerKm);
   const diffKm = currentKmNum - prevKm;
 
@@ -145,6 +170,37 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
       });
     });
   }, [selectedVehicle, serviceDefinitions, services, failures, odometerLogs, inquiryDate, odometerKm]);
+
+  // آخرین سرویس دوره‌ای این خودرو برای محاسبه تاخیر از آخرین سرویس
+  const lastService = useMemo(() => {
+    if (!vehicleId || !services || services.length === 0) return null;
+    const vehicleServices = services.filter(
+      s => Number(s.vehicleId) === Number(vehicleId) && s.status !== 'in_progress'
+    );
+    if (vehicleServices.length === 0) return null;
+    return [...vehicleServices].sort((a, b) => {
+      const dateDiff = String(b.serviceDate || '').localeCompare(String(a.serviceDate || ''));
+      if (dateDiff !== 0) return dateDiff;
+      return Number(b.id || 0) - Number(a.id || 0);
+    })[0];
+  }, [vehicleId, services]);
+
+  // محاسبه تاخیر از آخرین مراجعه به سرویس دوره‌ای
+  const serviceDelayInfo = useMemo(() => {
+    if (!lastService || !lastService.serviceDate) return null;
+    const targetDate = inquiryDate || getCurrentJalaliDate();
+    const days = Math.max(0, jalaliDayDifference(lastService.serviceDate, targetDate));
+    const currentEnteredKm = odometerKm !== '' && Number(odometerKm) > 0 ? Number(odometerKm) : prevKm;
+    const kmPassed = lastService.currentKm ? Math.max(0, currentEnteredKm - Number(lastService.currentKm)) : null;
+
+    return {
+      lastServiceDate: lastService.serviceDate,
+      lastServiceKm: lastService.currentKm,
+      serviceType: lastService.serviceType,
+      daysPassed: days,
+      kmPassed
+    };
+  }, [lastService, inquiryDate, odometerKm, prevKm]);
 
   // بررسی وضعیت پیش‌بینی (قبل یا بعد از کیلومتر)
   const isAfterKmActive = livePredictions.some(p => p.state === 'after_km');
@@ -294,22 +350,22 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
               )}
             </div>
 
-            {/* کارت‌های خلاصه مشخصات و مقایسه */}
+            {/* کارت‌های خلاصه مشخصات، مقایسه کارکرد و تاخیر از آخرین سرویس */}
             {selectedVehicle ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
                 <div className="bg-white dark:bg-[#1a1a1c] p-2.5 rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col justify-center">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">نام راننده:</span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block mt-0.5">{selectedVehicle.driverName || 'بدون راننده'}</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block mt-0.5 truncate">{selectedVehicle.driverName || 'بدون راننده'}</span>
                 </div>
 
                 <div className="bg-white dark:bg-[#1a1a1c] p-2.5 rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col justify-center">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">شماره پلاک:</span>
-                  <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 block mt-0.5">{toPersianDigits(selectedVehicle.plaque)}</span>
+                  <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 block mt-0.5 truncate">{toPersianDigits(selectedVehicle.plaque)}</span>
                 </div>
 
                 <div className="bg-white dark:bg-[#1a1a1c] p-2.5 rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col justify-center">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">آخرین کارکرد ثبت‌شده:</span>
-                  <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 block mt-0.5">
+                  <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 block mt-0.5 truncate">
                     {toPersianDigits(formatNumber(prevKm))} کیلومتر
                   </span>
                 </div>
@@ -318,20 +374,58 @@ export const OdometerInquiryFormView: React.FC<OdometerInquiryFormViewProps> = (
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">وضعیت تغییر پیمایش:</span>
                   {odometerKm !== '' ? (
                     diffKm > 0 ? (
-                      <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 block mt-0.5">
-                        +{toPersianDigits(formatNumber(diffKm))} کیلومتر افزایش
+                      <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 block mt-0.5 truncate">
+                        +{toPersianDigits(formatNumber(diffKm))} km افزایش
                       </span>
                     ) : diffKm < 0 ? (
-                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block mt-0.5">
-                        {toPersianDigits(formatNumber(Math.abs(diffKm)))} کیلومتر کمتر از قبل!
+                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block mt-0.5 truncate">
+                        {toPersianDigits(formatNumber(Math.abs(diffKm)))} km کمتر!
                       </span>
                     ) : (
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block mt-0.5">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block mt-0.5 truncate">
                         بدون تغییر کارکرد
                       </span>
                     )
                   ) : (
-                    <span className="text-[11px] text-slate-400 block mt-0.5">در انتظار ورود کیلومتر</span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">در انتظار ورود</span>
+                  )}
+                </div>
+
+                <div className="bg-white dark:bg-[#1a1a1c] p-2.5 rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">آخرین مراجعه به سرویس:</span>
+                  {serviceDelayInfo ? (
+                    <div className="mt-0.5 truncate">
+                      <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        {toPersianDigits(serviceDelayInfo.lastServiceDate)}
+                      </span>
+                      {serviceDelayInfo.lastServiceKm && (
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          در {toPersianDigits(formatNumber(serviceDelayInfo.lastServiceKm))} km
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 block mt-0.5">بدون سابقه سرویس</span>
+                  )}
+                </div>
+
+                <div className="bg-white dark:bg-[#1a1a1c] p-2.5 rounded-lg border border-slate-200 dark:border-[#2d2d30] flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">تاخیر از آخرین سرویس:</span>
+                  {serviceDelayInfo ? (
+                    <div className="mt-0.5 truncate">
+                      <span className={`text-xs font-bold font-mono block ${
+                        serviceDelayInfo.daysPassed > 30 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'
+                      }`}>
+                        {toPersianDigits(serviceDelayInfo.daysPassed)} روز تاخیر
+                      </span>
+                      {serviceDelayInfo.kmPassed !== null && (
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          +{toPersianDigits(formatNumber(serviceDelayInfo.kmPassed))} km پیمایش
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 block mt-0.5">بدون سابقه</span>
                   )}
                 </div>
               </div>

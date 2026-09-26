@@ -1046,7 +1046,7 @@ export default function SmsRemindersTab({
                           <td className="py-2 px-3 text-center">
                             <span className="text-slate-800 dark:text-slate-200 block text-[11px]">{toPersianDigits(item.lastVisitDate)}</span>
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-[#1e1e24] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#2d2d30] inline-block mt-0.5">
-                              {item.lastVisitType === 'service' ? 'سرویس دوره‌ای' : item.lastVisitType === 'inquiry' ? 'استعلام قبلی' : 'اولیه'}
+                              {item.lastVisitType === 'service' ? 'سرویس دوره‌ای' : item.lastVisitType === 'inquiry' ? 'استعلام قبلی' : item.lastVisitType === 'registration' ? 'ثبت خودرو' : 'ثبت اولیه'}
                             </span>
                           </td>
                           <td className="py-2 px-3 text-center">

@@ -122,7 +122,8 @@ export default function DefinitionsExcelImportView({
     sheet: { sheetName: string; rows: any[]; headers: string[] },
     forcedType?: DefinitionEntityType
   ) => {
-    const detected = forcedType || detectEntityTypeFromColumns(sheet.headers, sheet.sheetName) || 'vehicles';
+    const autoDetected = detectEntityTypeFromColumns(sheet.headers, sheet.sheetName);
+    const detected = (!isModal && autoDetected) ? autoDetected : (forcedType || autoDetected || 'vehicles');
     const { items, mappedColumns, unmappedColumns } = mapExcelRowsToEntities(sheet.rows, detected);
 
     setPreviewData({
@@ -453,6 +454,16 @@ export default function DefinitionsExcelImportView({
                 );
               })}
             </div>
+            {previewData.unmappedColumns.length > 0 && (
+              <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-[#26262b] flex items-center gap-1.5 flex-wrap text-[10.5px]">
+                <span className="text-amber-600 dark:text-amber-400 font-medium">ستون‌های نادیده گرفته‌شده:</span>
+                {previewData.unmappedColumns.map(col => (
+                  <span key={col} className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-300">
+                    {col}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* جدول پیش‌نمایش رکوردها */}

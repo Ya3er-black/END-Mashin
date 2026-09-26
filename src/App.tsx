@@ -41,7 +41,7 @@ import RemindersView from './components/RemindersView';
 import GearLoading from './components/GearLoading';
 import GlobalEntityDefinitionModal from './components/GlobalEntityDefinitionModal';
 import { setCurrentActiveView, QuickEntityType } from './utils/navigation';
-import { calculateComprehensiveServiceHealth } from './utils/serviceMatching';
+import { calculateComprehensiveServiceHealth, getLatestVehicleKm } from './utils/serviceMatching';
 import { getCurrentJalaliDate, jalaliDayDifference } from './utils/date';
 
 export default function App() {
@@ -647,11 +647,20 @@ export default function App() {
   const activeCompany = userAssignedCompany || (adminCompanyFilter !== 'all' ? adminCompanyFilter : '');
   const isCompanyFiltered = Boolean(activeCompany);
 
-  // ۱. فیلتر کردن خودروهای ناوگان بر اساس شرکت کاربر
+  // ۱. فیلتر کردن خودروهای ناوگان بر اساس شرکت کاربر و همگام‌سازی کارکرد با آخرین رکورد دیتابیس
   const visibleVehicles = useMemo(() => {
-    if (!isCompanyFiltered) return vehicles;
-    return vehicles.filter(v => v.company === activeCompany);
-  }, [vehicles, isCompanyFiltered, activeCompany]);
+    const baseList = !isCompanyFiltered
+      ? vehicles
+      : vehicles.filter(v => v.company === activeCompany);
+
+    return baseList.map(v => {
+      const latestKm = getLatestVehicleKm(v, odometerLogs, services, failures);
+      return {
+        ...v,
+        currentKm: latestKm > 0 ? latestKm : (v.currentKm || 0)
+      };
+    });
+  }, [vehicles, isCompanyFiltered, activeCompany, odometerLogs, services, failures]);
 
   const visibleVehicleIds = useMemo(() => {
     return new Set(visibleVehicles.map(v => v.id));
@@ -1681,6 +1690,9 @@ export default function App() {
               persons={persons}
               users={users}
               currentUser={currentUser}
+              odometerLogs={visibleOdometerLogs}
+              services={visibleServices}
+              failures={visibleFailures}
               onAddVehicle={handleAddVehicle}
               onEditVehicle={handleUpdateVehicle}
               onDeleteVehicle={handleDeleteVehicle}

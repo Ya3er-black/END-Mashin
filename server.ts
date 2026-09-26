@@ -100,6 +100,83 @@ const defaultDb = {
   reminders: []
 };
 
+// استخراج آخرین کیلومتر ثبت‌شده برای خودرو بر اساس جدیدترین رویداد در دیتابیس لوکال
+function getVehicleLatestKmFromDb(db: any, vehicleId: number): number {
+  const vId = Number(vehicleId);
+  const vehicle = db.vehicles?.find((v: any) => Number(v.id) === vId);
+  if (!vehicle) return 0;
+
+  type Reading = { date: string; time: string; km: number; id: number };
+  const readings: Reading[] = [];
+
+  // ۱. استعلام‌های کارکرد ثبت‌شده (Odometer Logs)
+  (db.odometerLogs || []).forEach((l: any) => {
+    if (Number(l.vehicleId) === vId && Number(l.odometerKm) > 0) {
+      readings.push({
+        date: l.inquiryDate || '1300/01/01',
+        time: l.inquiryTime || '00:00',
+        km: Number(l.odometerKm),
+        id: Number(l.id) || 0
+      });
+    }
+  });
+
+  // ۲. سوابق سرویس‌های دوره‌ای (Periodic Services)
+  (db.periodicServices || []).forEach((s: any) => {
+    if (Number(s.vehicleId) === vId && Number(s.currentKm) > 0 && s.status !== 'in_progress') {
+      readings.push({
+        date: s.serviceDate || '1300/01/01',
+        time: '12:00',
+        km: Number(s.currentKm),
+        id: Number(s.id) || 0
+      });
+    }
+  });
+
+  // ۳. سوابق خرابی و تعمیرات خودرو (Vehicle Failures)
+  (db.vehicleFailures || []).forEach((f: any) => {
+    if (Number(f.vehicleId) === vId && Number(f.currentKm) > 0) {
+      readings.push({
+        date: f.failureDate || f.startDate || '1300/01/01',
+        time: '12:00',
+        km: Number(f.currentKm),
+        id: Number(f.id) || 0
+      });
+    }
+  });
+
+  const baseKm = Number(vehicle.currentKm) || 0;
+  if (readings.length === 0) {
+    return baseKm;
+  }
+
+  // مرتب‌سازی نزولی بر اساس تاریخ (جدیدترین رویداد اول)، سپس ساعت، سپس شناسه
+  readings.sort((a, b) => {
+    const dDiff = String(b.date).localeCompare(String(a.date));
+    if (dDiff !== 0) return dDiff;
+    const tDiff = String(b.time).localeCompare(String(a.time));
+    if (tDiff !== 0) return tDiff;
+    return b.id - a.id;
+  });
+
+  const latestReading = readings[0];
+  return Math.max(latestReading.km, baseKm);
+}
+
+// همگام‌سازی کیلومتر کلیه خودروها بر اساس آخرین رویدادهای ثبت‌شده در دیتابیس
+function syncAllVehiclesLatestKm(db: any): boolean {
+  if (!db.vehicles || !Array.isArray(db.vehicles)) return false;
+  let changed = false;
+  for (const v of db.vehicles) {
+    const latest = getVehicleLatestKmFromDb(db, v.id);
+    if (latest > 0 && latest !== Number(v.currentKm)) {
+      v.currentKm = latest;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 // خواندن دیتابیس لوکال
 function readDb() {
   if (!fs.existsSync(DB_FILE)) {
@@ -110,6 +187,9 @@ function readDb() {
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content);
     let changed = false;
+    if (syncAllVehiclesLatestKm(parsed)) {
+      changed = true;
+    }
     if (!parsed.reminders) {
       parsed.reminders = [];
       changed = true;
@@ -1018,6 +1098,9 @@ async function startServer() {
   // CRUD for Vehicles
   app.get('/api/vehicles', (req, res) => {
     const db = readDb();
+    if (syncAllVehiclesLatestKm(db)) {
+      writeDb(db);
+    }
     res.json(db.vehicles);
   });
 
@@ -1513,12 +1596,10 @@ async function startServer() {
     };
     db.periodicServices.push(newService);
 
-    // بروزرسانی کیلومتر کارکرد فعلی خودرو و آخرین سرویس در تعریف خدمات
+    // بروزرسانی کیلومتر کارکرد فعلی خودرو بر اساس آخرین رویدادهای دیتابیس
     const vehicleIdx = db.vehicles.findIndex((v: any) => v.id === Number(newService.vehicleId));
     if (vehicleIdx !== -1) {
-      if (!db.vehicles[vehicleIdx].currentKm || Number(newService.currentKm) > Number(db.vehicles[vehicleIdx].currentKm)) {
-        db.vehicles[vehicleIdx].currentKm = Number(newService.currentKm);
-      }
+      db.vehicles[vehicleIdx].currentKm = getVehicleLatestKmFromDb(db, db.vehicles[vehicleIdx].id);
     }
 
     if (!db.serviceDefinitions) db.serviceDefinitions = [];
@@ -1529,21 +1610,6 @@ async function startServer() {
       db.serviceDefinitions[defIdx].lastServicedKm = Number(newService.currentKm);
       db.serviceDefinitions[defIdx].currentKm = Number(newService.currentKm);
     }
-
-    // ثبت به عنوان هزینه خودرو
-    const newExpense = {
-      id: db.expenses.length > 0 ? Math.max(...db.expenses.map((e: any) => e.id)) + 1 : 1,
-      vehicleId: Number(newService.vehicleId),
-      driverName: newService.driverName,
-      company: newService.company,
-      plaque: newService.plaque,
-      expenseType: 'oil',
-      expenseDate: newService.serviceDate,
-      cost: Number(newService.cost),
-      description: `سرویس دوره‌ای: ${newService.serviceType}`,
-      createdAt: new Date().toISOString()
-    };
-    db.expenses.push(newExpense);
 
     // کسر خودکار کالا از انبار و صدور حواله خروج
     syncPeriodicServiceInventory(db, newService, false);
@@ -1577,11 +1643,12 @@ async function startServer() {
           : (vehicleChanged ? (v?.plaque || 'ثبت نشده') : (existing.plaque || 'ثبت نشده'))
       };
 
-      // بروزرسانی کیلومتر خودرو در صورت لزوم
-      if (req.body.vehicleId && req.body.currentKm) {
-        const vehicleIdx = db.vehicles.findIndex((veh: any) => veh.id === Number(req.body.vehicleId));
-        if (vehicleIdx !== -1 && Number(req.body.currentKm) > Number(db.vehicles[vehicleIdx].currentKm || 0)) {
-          db.vehicles[vehicleIdx].currentKm = Number(req.body.currentKm);
+      // بروزرسانی کیلومتر خودرو بر اساس آخرین رویدادهای دیتابیس
+      if (req.body.vehicleId || existing.vehicleId) {
+        const targetVId = Number(req.body.vehicleId || existing.vehicleId);
+        const vehicleIdx = db.vehicles.findIndex((veh: any) => veh.id === targetVId);
+        if (vehicleIdx !== -1) {
+          db.vehicles[vehicleIdx].currentKm = getVehicleLatestKmFromDb(db, targetVId);
         }
       }
 
@@ -1603,6 +1670,14 @@ async function startServer() {
     if (idx !== -1) {
       const removed = db.periodicServices.splice(idx, 1)[0];
       
+      // بروزرسانی کیلومتر خودرو بر اساس رویدادهای باقیمانده دیتابیس
+      if (removed.vehicleId) {
+        const vehicleIdx = db.vehicles.findIndex((veh: any) => veh.id === Number(removed.vehicleId));
+        if (vehicleIdx !== -1) {
+          db.vehicles[vehicleIdx].currentKm = getVehicleLatestKmFromDb(db, Number(removed.vehicleId));
+        }
+      }
+
       // لغو حواله خروج و بازگرداندن موجودی قطعه به انبار
       removePeriodicServiceInventory(db, Number(id));
 
@@ -1631,21 +1706,6 @@ async function startServer() {
       createdAt: new Date().toISOString()
     };
     db.insurances.push(newIns);
-
-    // ثبت در هزینه‌ها
-    const newExpense = {
-      id: db.expenses.length > 0 ? Math.max(...db.expenses.map((e: any) => e.id)) + 1 : 1,
-      vehicleId: Number(newIns.vehicleId),
-      driverName: newIns.driverName,
-      company: newIns.company,
-      plaque: newIns.plaque,
-      expenseType: 'insurance',
-      expenseDate: newIns.startDate,
-      cost: Number(newIns.cost),
-      description: `خرید بیمه‌نامه ${newIns.insuranceType === 'third_party' ? 'ثالث' : 'بدنه'} از شرکت ${newIns.insuranceCompany}`,
-      createdAt: new Date().toISOString()
-    };
-    db.expenses.push(newExpense);
 
     writeDb(db);
     logActivity(1, 'admin', 'ثبت بیمه‌نامه', `بیمه‌نامه جدید برای خودرو شناسه ${newIns.vehicleId} ثبت گردید.`);
@@ -1957,20 +2017,6 @@ async function startServer() {
           const expenseExists = db.expenses.some((e: any) => e.description === expenseDesc);
           
           if (!expenseExists) {
-            const veh = db.vehicles.find((v: any) => v.id === vehicleId);
-            db.expenses.push({
-              id: db.expenses.length > 0 ? Math.max(...db.expenses.map((e: any) => e.id)) + 1 : 1,
-              vehicleId: vehicleId,
-              driverName: veh?.driverName || 'ثبت نشده',
-              company: veh?.company || 'ثبت نشده',
-              plaque: veh?.plaque || 'ثبت نشده',
-              expenseType: 'repair',
-              expenseDate: workflow.endDate || new Date().toISOString().split('T')[0],
-              cost: Number(workflow.totalCost),
-              description: expenseDesc,
-              createdAt: new Date().toISOString()
-            });
-
             // کسر قطعات از انبار و صدور حواله خروج با آخرین قیمت انبار
             if (workflow.partsUsed) {
               syncRepairWorkflowInventory(db, failureId, workflow.partsUsed, vehicleId);
@@ -3260,13 +3306,11 @@ async function startServer() {
       const updatedLog = { ...oldLog, ...req.body };
       db.odometerLogs[idx] = updatedLog;
 
-      // اگر کیلومتر تغییر کرد، آخرین لاگ خودرو بررسی شود و currentKm آپدیت شود
+      // بروزرسانی کیلومتر جاری خودرو بر اساس آخرین رویدادهای دیتابیس
       if (req.body.odometerKm !== undefined) {
         const vehicle = db.vehicles.find((v: any) => v.id === oldLog.vehicleId);
         if (vehicle) {
-          const vehicleLogs = db.odometerLogs.filter((l: any) => l.vehicleId === vehicle.id);
-          const maxLog = vehicleLogs.reduce((prev: any, current: any) => (prev.id > current.id) ? prev : current, updatedLog);
-          vehicle.currentKm = Number(maxLog.odometerKm);
+          vehicle.currentKm = getVehicleLatestKmFromDb(db, vehicle.id);
         }
       }
 
@@ -3287,23 +3331,10 @@ async function startServer() {
     if (logItem) {
       db.odometerLogs = db.odometerLogs.filter((o: any) => o.id !== targetId && String(o.id) !== String(id));
       
-      // بازیابی آخرین کیلومتر باقیمانده برای خودرو
+      // بازیابی آخرین کیلومتر باقیمانده برای خودرو از کلیه منابع دیتابیس
       const vehicle = db.vehicles?.find((v: any) => v.id === logItem.vehicleId || String(v.id) === String(logItem.vehicleId));
       if (vehicle) {
-        const vehicleLogs = db.odometerLogs.filter((l: any) => l.vehicleId === vehicle.id || String(l.vehicleId) === String(vehicle.id));
-        if (vehicleLogs.length > 0) {
-          // مرتب‌سازی بر اساس تاریخ و سپس شناسه جهت اطمینان از دریافت جدیدترین استعلام
-          vehicleLogs.sort((a: any, b: any) => {
-            const dateDiff = String(b.inquiryDate || '').localeCompare(String(a.inquiryDate || ''));
-            if (dateDiff !== 0) return dateDiff;
-            return Number(b.id || 0) - Number(a.id || 0);
-          });
-          const latestLog = vehicleLogs[0];
-          vehicle.currentKm = Number(latestLog.odometerKm);
-        } else if (logItem.previousKm !== undefined && logItem.previousKm !== null) {
-          // در صورتی که هیچ استعلام دیگری باقی نماند، بازگشت به کیلومتر پیشین
-          vehicle.currentKm = Number(logItem.previousKm);
-        }
+        vehicle.currentKm = getVehicleLatestKmFromDb(db, vehicle.id);
       }
 
       writeDb(db);
@@ -4057,13 +4088,34 @@ async function startServer() {
   // --- پنل پیامک‌های یادآوری استعلام کارکرد / مراجعه پس از گذشت روزهای معین ---
   // =========================================================================
 
+  // نرمال‌سازی تاریخ به رشته استاندارد شمسی YYYY/MM/DD
+  function toStandardJalali(dateStr?: string): string {
+    if (!dateStr) return '';
+    const str = String(dateStr).trim();
+    if (/^(13|14)\d{2}[-/]\d{1,2}[-/]\d{1,2}/.test(str)) {
+      const clean = str.replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()).replace(/-/g, '/');
+      const parts = clean.split('/');
+      if (parts.length >= 3) {
+        const y = parts[0];
+        const m = parts[1].padStart(2, '0');
+        const d = parts[2].split('T')[0].split(' ')[0].padStart(2, '0');
+        return `${y}/${m}/${d}`;
+      }
+    }
+    try {
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('fa-IR-u-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      }
+    } catch {}
+    return '';
+  }
+
   // تبدیل تاریخ شمسی به تعداد روز از مبدا جهت محاسبه تفاوت روزها
   function calculateJalaliDaysFromEpoch(jalaliStr: string): number {
-    if (!jalaliStr) return 0;
-    const clean = jalaliStr.toString().trim()
-      .replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
-      .replace(/-/g, '/');
-    const parts = clean.split('/').map(Number);
+    const std = toStandardJalali(jalaliStr);
+    if (!std) return 0;
+    const parts = std.split('/').map(Number);
     if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return 0;
     let [y, m, d] = parts;
     let totalDays = d;
@@ -4082,10 +4134,11 @@ async function startServer() {
 
   // تفاوت روزها بین تاریخ معین و امروز
   function getDaysPassedFromDate(dateStr: string): number {
-    if (!dateStr) return 999;
+    if (!dateStr) return 0;
     const todayStr = getTodayJalaliString();
     const todayDays = calculateJalaliDaysFromEpoch(todayStr);
     const targetDays = calculateJalaliDaysFromEpoch(dateStr);
+    if (targetDays === 0) return 0;
     return Math.max(0, todayDays - targetDays);
   }
 
@@ -4110,7 +4163,7 @@ async function startServer() {
     const threshold = customThreshold !== undefined ? customThreshold : settings.daysThreshold;
     const vehicles = db.vehicles || [];
     const odometerLogs = db.odometerLogs || [];
-    const services = db.services || [];
+    const services = db.periodicServices || db.services || [];
     const outboundLogs = db.smsOutboundLogs || [];
 
     const now = new Date();
@@ -4118,25 +4171,25 @@ async function startServer() {
 
     vehicles.forEach((v: any) => {
       // پیدا کردن کلیه سرویس‌های دوره‌ای این خودرو و مرتب‌سازی دقیق به ترتیب جدیدترین تاریخ شمسی
-      const vServices = (services || []).filter((s: any) => s.vehicleId === v.id);
+      const vServices = (services || []).filter((s: any) => Number(s.vehicleId) === Number(v.id));
       vServices.sort((a: any, b: any) => {
-        const daysB = calculateJalaliDaysFromEpoch(b.serviceDate || '') || (b.createdAt ? new Date(b.createdAt).getTime() / (1000 * 86400) : 0);
-        const daysA = calculateJalaliDaysFromEpoch(a.serviceDate || '') || (a.createdAt ? new Date(a.createdAt).getTime() / (1000 * 86400) : 0);
-        return daysB - daysA;
+        const dDiff = String(b.serviceDate || '').localeCompare(String(a.serviceDate || ''));
+        if (dDiff !== 0) return dDiff;
+        return Number(b.id || 0) - Number(a.id || 0);
       });
-      const lastService = vServices[0];
+      const lastService = vServices[0] || null;
 
       // پیدا کردن آخرین استعلام تلفنی یا پیامکی (در صورت وجود)
-      const vOdoLogs = (odometerLogs || []).filter((o: any) => o.vehicleId === v.id);
+      const vOdoLogs = (odometerLogs || []).filter((o: any) => Number(o.vehicleId) === Number(v.id));
       vOdoLogs.sort((a: any, b: any) => {
-        const daysB = calculateJalaliDaysFromEpoch(b.inquiryDate || '') || (b.createdAt ? new Date(b.createdAt).getTime() / (1000 * 86400) : 0);
-        const daysA = calculateJalaliDaysFromEpoch(a.inquiryDate || '') || (a.createdAt ? new Date(a.createdAt).getTime() / (1000 * 86400) : 0);
-        return daysB - daysA;
+        const dDiff = String(b.inquiryDate || '').localeCompare(String(a.inquiryDate || ''));
+        if (dDiff !== 0) return dDiff;
+        return Number(b.id || 0) - Number(a.id || 0);
       });
-      const lastOdoLog = vOdoLogs[0];
+      const lastOdoLog = vOdoLogs[0] || null;
 
       let lastVisitDate = '';
-      let lastVisitType: 'service' | 'inquiry' | 'none' = 'none';
+      let lastVisitType: 'service' | 'inquiry' | 'registration' | 'none' = 'none';
 
       const checkMode = settings.checkBasedOn || 'last_service';
 
@@ -4149,6 +4202,9 @@ async function startServer() {
           // در صورت عدم ثبت سرویس دوره‌ای، fallback به آخرین استعلام
           lastVisitDate = lastOdoLog.inquiryDate;
           lastVisitType = 'inquiry';
+        } else if (v.createdAt) {
+          lastVisitDate = toStandardJalali(v.createdAt);
+          lastVisitType = 'registration';
         }
       } else if (checkMode === 'last_inquiry') {
         if (lastOdoLog && lastOdoLog.inquiryDate) {
@@ -4157,11 +4213,14 @@ async function startServer() {
         } else if (lastService && lastService.serviceDate) {
           lastVisitDate = lastService.serviceDate;
           lastVisitType = 'service';
+        } else if (v.createdAt) {
+          lastVisitDate = toStandardJalali(v.createdAt);
+          lastVisitType = 'registration';
         }
       } else {
         // هرکدام که جدیدتر است (در حالت انتخاب شده توسط کاربر)
-        const odoDays = lastOdoLog ? getDaysPassedFromDate(lastOdoLog.inquiryDate) : 999;
-        const srvDays = lastService ? getDaysPassedFromDate(lastService.serviceDate) : 999;
+        const odoDays = lastOdoLog ? getDaysPassedFromDate(lastOdoLog.inquiryDate) : 999999;
+        const srvDays = lastService ? getDaysPassedFromDate(lastService.serviceDate) : 999999;
 
         if (srvDays <= odoDays && lastService) {
           lastVisitDate = lastService.serviceDate;
@@ -4172,13 +4231,17 @@ async function startServer() {
         } else if (lastService) {
           lastVisitDate = lastService.serviceDate;
           lastVisitType = 'service';
+        } else if (v.createdAt) {
+          lastVisitDate = toStandardJalali(v.createdAt);
+          lastVisitType = 'registration';
         }
       }
 
-      const daysPassed = lastVisitDate ? getDaysPassedFromDate(lastVisitDate) : 99;
+      // محاسبه روزهای گذشته: اگر هیچ سابقه و تاریخی نیست، صفر روز است نه ۹۹ روز!
+      const daysPassed = lastVisitDate ? getDaysPassedFromDate(lastVisitDate) : 0;
 
       // بررسی آخرین پیامک ارسالی به این خودرو برای جلوگیری از ارسال مکرر
-      const vOutbounds = outboundLogs.filter((o: any) => o.vehicleId === v.id && o.status === 'sent');
+      const vOutbounds = outboundLogs.filter((o: any) => Number(o.vehicleId) === Number(v.id) && o.status === 'sent');
       vOutbounds.sort((a: any, b: any) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
       const lastOutbound = vOutbounds[0];
 

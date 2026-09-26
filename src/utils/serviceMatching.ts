@@ -347,6 +347,13 @@ export function calculateComprehensiveServiceHealth(
   dailyRate: number = 75,
   odometerLogs: OdometerLog[] = []
 ): ComprehensiveServiceHealth {
+  // اطمینان از استفاده از آخرین کیلومتر ذخیره‌شده برای ماشین در دیتابیس (استعلام‌ها، سرویس‌ها، تعمیرات یا کیلومتر پایه)
+  const latestKm = getLatestVehicleKm(vehicle, odometerLogs, services, failures);
+  const vehicleWithLatestKm: Vehicle = {
+    ...vehicle,
+    currentKm: latestKm > 0 ? latestKm : (vehicle.currentKm || 0)
+  };
+
   const lastEvent = findLastServiceOrRepairEvent(
     vehicle.id,
     serviceDef,
@@ -358,7 +365,7 @@ export function calculateComprehensiveServiceHealth(
 
   // محاسبه پیش‌بینی بر اساس منطق دو وضعیتی استعلام (Prediction Engine)
   const pred = calculateInquiryServicePrediction({
-    vehicle,
+    vehicle: vehicleWithLatestKm,
     serviceDef,
     services,
     failures,
@@ -451,4 +458,76 @@ export function findMatchingServiceDef(
   }
 
   return undefined;
+}
+
+/**
+ * استخراج آخرین کیلومتر ثبت‌شده برای خودرو در دیتابیس
+ * بررسی همه‌جانبه بر اساس جدیدترین استعلام، آخرین سرویس دوره‌ای، تعمیرات و کیلومتر خودرو
+ */
+export function getLatestVehicleKm(
+  vehicle: Vehicle | { id: number; currentKm?: number; createdAt?: string } | null | undefined,
+  odometerLogs: OdometerLog[] = [],
+  services: PeriodicService[] = [],
+  failures: VehicleFailure[] = []
+): number {
+  if (!vehicle) return 0;
+  const vId = Number(vehicle.id);
+
+  type Reading = { date: string; time: string; km: number; id: number };
+  const readings: Reading[] = [];
+
+  // ۱. استعلام‌های کارکرد ثبت‌شده (Odometer Logs)
+  (odometerLogs || []).forEach(log => {
+    if (Number(log.vehicleId) === vId && Number(log.odometerKm) > 0) {
+      readings.push({
+        date: log.inquiryDate || '1300/01/01',
+        time: log.inquiryTime || '00:00',
+        km: Number(log.odometerKm),
+        id: Number(log.id) || 0
+      });
+    }
+  });
+
+  // ۲. سوابق سرویس‌های دوره‌ای (Periodic Services)
+  (services || []).forEach(s => {
+    if (Number(s.vehicleId) === vId && Number(s.currentKm) > 0 && s.status !== 'in_progress') {
+      readings.push({
+        date: s.serviceDate || '1300/01/01',
+        time: '12:00',
+        km: Number(s.currentKm),
+        id: Number(s.id) || 0
+      });
+    }
+  });
+
+  // ۳. سوابق خرابی و تعمیرات خودرو (Vehicle Failures)
+  (failures || []).forEach(f => {
+    const fKm = Number((f as any).currentKm) || Number(f.odometer) || 0;
+    if (Number(f.vehicleId) === vId && fKm > 0) {
+      readings.push({
+        date: f.failureDate || (f as any).startDate || '1300/01/01',
+        time: f.failureTime || '12:00',
+        km: fKm,
+        id: Number(f.id) || 0
+      });
+    }
+  });
+
+  const baseKm = Number(vehicle.currentKm) || 0;
+
+  if (readings.length === 0) {
+    return baseKm;
+  }
+
+  // مرتب‌سازی نزولی بر اساس تاریخ (جدیدترین اول)، سپس ساعت و سپس شناسه
+  readings.sort((a, b) => {
+    const dDiff = String(b.date).localeCompare(String(a.date));
+    if (dDiff !== 0) return dDiff;
+    const tDiff = String(b.time).localeCompare(String(a.time));
+    if (tDiff !== 0) return tDiff;
+    return b.id - a.id;
+  });
+
+  const latestReading = readings[0];
+  return Math.max(latestReading.km, baseKm);
 }

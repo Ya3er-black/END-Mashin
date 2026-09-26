@@ -455,7 +455,7 @@ export interface OverdueDriverItem {
   driverName: string;
   driverPhone: string;
   lastVisitDate: string;
-  lastVisitType: 'inquiry' | 'service' | 'none';
+  lastVisitType: 'inquiry' | 'service' | 'registration' | 'none';
   daysPassed: number;
   currentKm: number;
   lastSmsSentAt?: string;

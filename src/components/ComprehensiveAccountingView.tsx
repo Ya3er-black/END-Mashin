@@ -337,6 +337,15 @@ export const ComprehensiveAccountingView: React.FC<ComprehensiveAccountingViewPr
 
       // هزینه‌های جانبی و عمومی خودرو
       expenses.filter(e => e.vehicleId === v.id || (e.debitPartyType === 'vehicle' && e.debitPartyId === v.id.toString())).forEach(e => {
+        const dDesc = e.description || '';
+        if (
+          dDesc.startsWith('سرویس دوره‌ای:') ||
+          dDesc.startsWith('خرید بیمه‌نامه') ||
+          dDesc.startsWith('تعمیرات خرابی کد')
+        ) {
+          return;
+        }
+
         const eDate = e.expenseDate ? toJalaliStandardString(e.expenseDate) : getCurrentJalaliDate();
         if (!isDateInRange(eDate)) return;
         const cost = Number(e.cost) || 0;

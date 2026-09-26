@@ -149,10 +149,10 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
     setEditingItem(item);
     setEditTitle(item.title || '');
     setEditDate(item.date || getCurrentJalaliDate());
-    setEditWages(item.wages ? String(item.wages) : '');
-    setEditShopPartsCost(item.shopPartsCost ? String(item.shopPartsCost) : '');
-    setEditDebitAmount(item.debitAmount ? String(item.debitAmount) : '');
-    setEditCreditAmount(item.creditAmount ? String(item.creditAmount) : '');
+    setEditWages(item.wages ? formatPrice(Number(item.wages)) : '');
+    setEditShopPartsCost(item.shopPartsCost ? formatPrice(Number(item.shopPartsCost)) : '');
+    setEditDebitAmount(item.debitAmount ? formatPrice(Number(item.debitAmount)) : '');
+    setEditCreditAmount(item.creditAmount ? formatPrice(Number(item.creditAmount)) : '');
     setEditReference(item.reference || '');
     setEditDescription(item.description || '');
   };
@@ -1495,13 +1495,15 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editWages}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setEditWages(val);
                           const w = parsePersianNumber(val) || 0;
+                          setEditWages(val ? formatPrice(w) : '');
                           const p = parsePersianNumber(editShopPartsCost) || 0;
-                          setEditCreditAmount(String(w + p));
+                          const total = Number(w) + Number(p);
+                          setEditCreditAmount(total > 0 ? formatPrice(total) : '');
                         }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-bold text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
@@ -1513,13 +1515,15 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editShopPartsCost}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setEditShopPartsCost(val);
                           const p = parsePersianNumber(val) || 0;
+                          setEditShopPartsCost(val ? formatPrice(p) : '');
                           const w = parsePersianNumber(editWages) || 0;
-                          setEditCreditAmount(String(w + p));
+                          const total = Number(w) + Number(p);
+                          setEditCreditAmount(total > 0 ? formatPrice(total) : '');
                         }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-bold text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
@@ -1531,8 +1535,13 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editCreditAmount}
-                        onChange={(e) => setEditCreditAmount(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const c = parsePersianNumber(val) || 0;
+                          setEditCreditAmount(val ? formatPrice(c) : '');
+                        }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-black text-amber-600 dark:text-amber-400 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
                     </div>
@@ -1545,8 +1554,13 @@ export const MechanicAccountingView: React.FC<MechanicAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editDebitAmount}
-                        onChange={(e) => setEditDebitAmount(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const d = parsePersianNumber(val) || 0;
+                          setEditDebitAmount(val ? formatPrice(d) : '');
+                        }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                         required
                       />

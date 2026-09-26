@@ -22,6 +22,7 @@ import { Pagination } from './Pagination';
 import { TableColumnHeader, ColumnFilterMenu, FilterMenuState } from './TableFilterSort';
 import { findLastServiceOrRepairEvent, findMatchingServiceDef } from '../utils/serviceMatching';
 import { getVehicleDisplayName, matchesVehicleSearch } from '../utils/vehicleUtils';
+import { openQuickEntityModal } from '../utils/navigation';
 
 interface ServicesViewProps {
   vehicles: Vehicle[];
@@ -2630,15 +2631,32 @@ export default function ServicesView({
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
               {/* انتخاب خودرو */}
               <div className="md:col-span-6 space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
-                  نام ماشین (جستجو و انتخاب) <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block text-[11px]">
+                    نام ماشین (جستجو و انتخاب) <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openQuickEntityModal('vehicle', (createdVehicle) => {
+                        if (createdVehicle?.id) {
+                          handleVehicleChangeInForm(String(createdVehicle.id));
+                        }
+                      });
+                    }}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>تعریف ماشین جدید</span>
+                  </button>
+                </div>
                 <CustomSelect
                   value={vehicleId}
                   onChange={(val) => handleVehicleChangeInForm(String(val))}
                   placeholder="جستجو و انتخاب خودرو از لیست..."
                   searchable={true}
                   quickAddType="vehicle"
+                  addNewLabel="تعریف ماشین جدید..."
                   options={vehicles.map(v => ({
                     value: v.id.toString(),
                     label: getVehicleDisplayName(v)

@@ -151,9 +151,9 @@ export const SupplierAccountingView: React.FC<SupplierAccountingViewProps> = ({
     setEditDate(merged.date || getCurrentJalaliDate());
     setEditTitle(merged.partName || merged.title || '');
     setEditQuantity(merged.quantity ? String(merged.quantity) : '1');
-    setEditUnitPrice(merged.unitPrice ? String(merged.unitPrice) : '0');
-    setEditCreditAmount(merged.creditAmount ? String(merged.creditAmount) : '0');
-    setEditDebitAmount(merged.debitAmount ? String(merged.debitAmount) : '0');
+    setEditUnitPrice(merged.unitPrice ? formatPrice(Number(merged.unitPrice)) : '0');
+    setEditCreditAmount(merged.creditAmount ? formatPrice(Number(merged.creditAmount)) : '0');
+    setEditDebitAmount(merged.debitAmount ? formatPrice(Number(merged.debitAmount)) : '0');
     setEditReference(merged.reference || '');
     setEditDestination(merged.destination || 'انبار مرکزی قطعات');
     setEditDescription(merged.description || '');
@@ -1470,13 +1470,15 @@ export const SupplierAccountingView: React.FC<SupplierAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editQuantity}
                         onChange={(e) => {
                           const val = e.target.value;
                           setEditQuantity(val);
                           const q = parsePersianNumber(val) || 0;
                           const p = parsePersianNumber(editUnitPrice) || 0;
-                          if (p > 0) setEditCreditAmount(String(q * p));
+                          const total = Number(q) * Number(p);
+                          if (p > 0) setEditCreditAmount(total > 0 ? formatPrice(total) : '0');
                         }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-bold text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
@@ -1488,13 +1490,15 @@ export const SupplierAccountingView: React.FC<SupplierAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editUnitPrice}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setEditUnitPrice(val);
                           const p = parsePersianNumber(val) || 0;
+                          setEditUnitPrice(val ? formatPrice(p) : '');
                           const q = parsePersianNumber(editQuantity) || 0;
-                          if (q > 0) setEditCreditAmount(String(q * p));
+                          const total = Number(q) * Number(p);
+                          if (q > 0) setEditCreditAmount(total > 0 ? formatPrice(total) : '0');
                         }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-bold text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
@@ -1506,8 +1510,13 @@ export const SupplierAccountingView: React.FC<SupplierAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editCreditAmount}
-                        onChange={(e) => setEditCreditAmount(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const c = parsePersianNumber(val) || 0;
+                          setEditCreditAmount(val ? formatPrice(c) : '');
+                        }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
                     </div>
@@ -1520,8 +1529,13 @@ export const SupplierAccountingView: React.FC<SupplierAccountingViewProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={editDebitAmount}
-                        onChange={(e) => setEditDebitAmount(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const d = parsePersianNumber(val) || 0;
+                          setEditDebitAmount(val ? formatPrice(d) : '');
+                        }}
                         className="w-full h-[38px] px-3 border border-slate-300 dark:border-[#2d2d30] rounded-lg bg-white dark:bg-[#1a1a1c] font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         required
                       />

@@ -557,6 +557,16 @@ export default function AccountingView({
 
     // ۴. هزینه‌های جاری متفرقه، سوخت و اسناد دوطرفه (Expenses)
     expenses.forEach((e, idx) => {
+      // جلوگیری از ثبت تکراری اگر این هزینه قبلاً به عنوان سرویس دوره‌ای، بیمه یا تعمیرات فاکتور شده باشد
+      const dDesc = e.description || '';
+      if (
+        dDesc.startsWith('سرویس دوره‌ای:') ||
+        dDesc.startsWith('خرید بیمه‌نامه') ||
+        dDesc.startsWith('تعمیرات خرابی کد')
+      ) {
+        return;
+      }
+
       const v = vehicles.find(veh => veh.id === e.vehicleId);
       const expTypeMap: Record<string, string> = {
         fuel: 'سوخت (بنزین/گازوئیل)',
