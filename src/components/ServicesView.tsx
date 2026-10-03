@@ -8,8 +8,9 @@ import {
   Plus, Search, Wrench, Calendar, DollarSign, Clock, List,
   CheckCircle, CheckCircle2, FileText, X, AlertCircle, RefreshCw, AlertTriangle, ShieldAlert, Check, ChevronRight, CheckSquare, Square, Package, Printer,
   ArrowUpDown, ArrowUp, ArrowDown, Trash2, Edit2, Eye, Truck, FileSpreadsheet, Store, Receipt, Save, Info, Gauge, History, TrendingUp, Layers,
-  ShieldCheck, ExternalLink, Shield
+  ShieldCheck, ExternalLink, Shield, Upload
 } from 'lucide-react';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Vehicle, PeriodicService, ServiceDefinition, PartInventory, Mechanic, VehicleFailure, RepairWorkflow, Supplier, Person, Insurance, TechnicalInspection } from '../types';
 import { toJalaliDate, getCurrentJalaliDate, addDaysToJalaliDate, calculateNextServiceDate, toJalaliStandardString, jalaliDayDifference } from '../utils/date';
@@ -40,6 +41,7 @@ interface ServicesViewProps {
   onAddService: (service: Omit<PeriodicService, 'id' | 'createdAt'>) => Promise<void>;
   onEditService?: (id: number, service: Partial<PeriodicService>) => Promise<void>;
   onDeleteService?: (id: number) => Promise<void>;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 interface ServiceRowItem {
@@ -160,9 +162,11 @@ export default function ServicesView({
   onNavigate,
   onAddService,
   onEditService,
-  onDeleteService
+  onDeleteService,
+  onBulkImportSuccess
 }: ServicesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -2350,42 +2354,62 @@ export default function ServicesView({
 
       const headers = [
         'ردیف',
-        'تاریخ سرویس',
+        'تاریخ انجام / پذیرش',
         'کد خودرو',
         'نام خودرو',
         'پلاک خودرو',
         'راننده',
         'شرکت',
-        'کیلومتر ثبت شده',
-        'تعداد خدمات',
-        'شرح خدمات و قطعات',
+        'کیلومتر پذیرش',
+        'نوع سرویس / خدمت',
+        'نام قطعه مصرفی',
+        'محل تأمین قطعه',
+        'فروشگاه / تامین‌کننده قطعه',
+        'اجرت و دستمزد (ریال)',
         'هزینه فاکتور (ریال)',
+        'شماره فاکتور',
         'توضیحات'
       ];
 
       const rows = itemsToExport.map((sess, idx) => {
         const v = vehicles.find(veh => String(veh.id) === String(sess.vehicleId) || Number(veh.id) === Number(sess.vehicleId));
-        const serviceTitles = sess.items.map(it => {
-          const partName = it.partId ? parts?.find(p => p.id === it.partId)?.partName : '';
-          return partName ? `${it.serviceType} (${partName})` : it.serviceType;
-        }).join('، ');
+        const serviceTitles = sess.items.map(it => it.serviceType).join('، ');
+        const partNames = sess.items.map(it => {
+          const p = it.partId ? parts?.find(prt => prt.id === it.partId) : null;
+          return p ? p.partName : (it.partName || '');
+        }).filter(Boolean).join('، ');
+
+        const partSources = sess.items.map(it => {
+          if (it.partSource === 'warehouse') return 'انبار شرکت';
+          if (it.partSource === 'supplier') return 'تامین‌کننده / فروشگاه';
+          return '';
+        }).filter(Boolean).join('، ');
+
+        const supplierNames = sess.items.map(it => it.supplierName).filter(Boolean).join('، ');
+        const totalWages = sess.items.reduce((acc, it) => acc + (Number(it.wages) || 0), 0);
 
         const sessionDriver = sess.driverName || (sess.items && sess.items[0]?.driverName) || v?.driverName || '—';
         const sessionCompany = sess.company || (sess.items && sess.items[0]?.company) || v?.company || '—';
         const sessionPlaque = sess.plaque || (sess.items && sess.items[0]?.plaque) || v?.plaque || '—';
+        const sessionCode = v?.code || (sess as any).code || '—';
+        const sessionName = v?.name || (sess as any).vehicleName || '—';
 
         return [
           idx + 1,
           toJalaliDate(sess.serviceDate),
-          v?.code || '—',
-          v ? `${v.name} - پلاک [${toPersianDigits(v.plaque)}]` : (sessionPlaque !== '—' ? `پلاک [${toPersianDigits(sessionPlaque)}]` : '—'),
+          sessionCode,
+          sessionName,
           sessionPlaque,
           sessionDriver,
           sessionCompany,
           sess.currentKm || 0,
-          sess.items.length,
           serviceTitles || '—',
+          partNames || '—',
+          partSources || '—',
+          supplierNames || '—',
+          totalWages || 0,
           sess.totalCost || 0,
+          sess.items[0]?.invoiceNumber || '—',
           sess.notes || '—'
         ];
       });
@@ -3734,6 +3758,16 @@ export default function ServicesView({
             />
           </div>
 
+          {/* دکمه بارگذاری / ورود از اکسل */}
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+            title="بارگذاری فایل اکسل و ثبت دسته‌جمعی پذیرش و سرویس‌های دوره‌ای"
+          >
+            <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+          </button>
+
           {/* دکمه خروجی اکسل */}
           <button
             type="button"
@@ -3784,9 +3818,9 @@ export default function ServicesView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
               <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                   <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
                     <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                     
@@ -3848,7 +3882,7 @@ export default function ServicesView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                  {paginatedSessions.length === 0 ? (
+                  {sortedSessions.length === 0 ? (
                     <tr>
                       <td colSpan={activeTab === 'completed' ? 6 : 5} className="text-center py-8 text-slate-500 text-[11px]">
                         {activeTab === 'in_progress' 
@@ -3857,7 +3891,7 @@ export default function ServicesView({
                       </td>
                     </tr>
                   ) : (
-                    paginatedSessions.map((session, index) => {
+                    sortedSessions.map((session, index) => {
                       const v = vehicles.find(veh => String(veh.id) === String(session.vehicleId) || Number(veh.id) === Number(session.vehicleId));
                       const itemCount = session.items.length;
                       
@@ -3869,7 +3903,7 @@ export default function ServicesView({
                           className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                         >
                           <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle">
-                            {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                            {toPersianDigits(index + 1)}
                           </td>
                           <td className="py-1 px-3 text-slate-700 dark:text-slate-300 text-[11px] align-middle">
                             {toJalaliDate(session.serviceDate)}
@@ -3982,17 +4016,6 @@ export default function ServicesView({
                 </tbody>
               </table>
             </div>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={sortedSessions.length}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(newSize) => {
-                setPageSize(newSize);
-                setCurrentPage(1);
-              }}
-            />
           </div>
         </motion.div>
       </AnimatePresence>
@@ -4286,6 +4309,15 @@ export default function ServicesView({
       )}
 
       {renderPrintableInvoice()}
+
+      {/* پنجره پاپ‌آپ بارگذاری و ثبت دسته‌جمعی پذیرش و سرویس‌ها از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="services"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+        onNavigate={onNavigate}
+      />
 
       {/* منوی فیلتر ستون سبک اکسل */}
       <ColumnFilterMenu

@@ -562,9 +562,9 @@ export default function SuppliersView({
             </span>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161619]">
               <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161619] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                 <TableColumnHeader
@@ -597,14 +597,14 @@ export default function SuppliersView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-              {paginatedSuppliers.length === 0 ? (
+              {sortedSuppliers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-slate-500 text-[11px]">
                     هیچ تامین‌کننده‌ای با شرایط مورد نظر یافت نشد.
                   </td>
                 </tr>
               ) : (
-                paginatedSuppliers.map((s, index) => (
+                sortedSuppliers.map((s, index) => (
                   <tr 
                     key={s.id} 
                     onClick={() => handleOpenEditForm(s)}
@@ -612,7 +612,7 @@ export default function SuppliersView({
                     className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                   >
                     <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
-                      {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                      {toPersianDigits(index + 1)}
                     </td>
                     <td className="py-1.5 px-3">
                       <span className="text-slate-900 dark:text-white text-[11px]">{s.name}</span>
@@ -644,14 +644,6 @@ export default function SuppliersView({
             </tbody>
           </table>
         </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={filteredSuppliers.length}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
       </div>
 
       {filterMenu && (

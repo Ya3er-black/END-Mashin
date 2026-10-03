@@ -1,0 +1,25 @@
+# Apache Configuration for Transportation Management System on Shared Hosting
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # هدایت درخواست‌های وب‌هوک و کران پیامک به فایل cron.php
+  RewriteRule ^api/sms/inbound$ cron.php?action=webhook [QSA,L]
+  RewriteRule ^api/sms/sync-inbound$ cron.php [QSA,L]
+  RewriteRule ^api/cron$ cron.php [QSA,L]
+
+  # اجازه اجرای مستقیم فایل‌های php و فایل‌های واقعی استاتیک
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # هدایت سایر صفحات به برنامه تک‌صفحه‌ای React (SPA)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# حفاظت از فایل دیتابیس JSON در برابر دسترسی مستقیم مرورگر
+<Files "fleet_db.json">
+  Order Allow,Deny
+  Deny from all
+</Files>

@@ -783,9 +783,9 @@ export default function FailureDefinitionsView({
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
                 <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                     <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
                       <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -816,14 +816,14 @@ export default function FailureDefinitionsView({
                   </thead>
 
                   <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                    {paginatedDefinitions.length === 0 ? (
+                    {sortedDefinitions.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="text-center py-8 text-slate-500 text-[11px]">
                           هیچ تعریف خرابی منطبق با فیلتر یافت نشد.
                         </td>
                       </tr>
                     ) : (
-                      paginatedDefinitions.map((def, index) => (
+                      sortedDefinitions.map((def, index) => (
                         <tr
                           key={def.id}
                           onClick={() => handleOpenEditForm(def)}
@@ -831,7 +831,7 @@ export default function FailureDefinitionsView({
                           className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                         >
                           <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle font-mono">
-                            {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                            {toPersianDigits(index + 1)}
                           </td>
 
                           <td className="py-1 px-3 whitespace-nowrap align-middle">
@@ -872,18 +872,6 @@ export default function FailureDefinitionsView({
                   </tbody>
                 </table>
               </div>
-
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={filteredDefinitions.length}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(newSize) => {
-                  setPageSize(newSize);
-                  setCurrentPage(1);
-                }}
-              />
             </div>
           ) : (
             /* جدول دسته‌بندی‌های خرابی با استایل یکپارچه پذیرش خودرو */

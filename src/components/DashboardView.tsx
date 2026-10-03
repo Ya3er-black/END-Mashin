@@ -102,6 +102,27 @@ export default function DashboardView({
   const todayJalali = getCurrentJalaliDate();
   const now = new Date();
 
+  // لیست جامع و پویای تمامی شرکت‌ها (از تعاریف، ناوگان، سرویس‌ها، خرابی‌ها و هزینه‌ها)
+  const allAvailableCompanies = useMemo(() => {
+    const map = new Map<string, { id: number | string; name: string }>();
+    (companies || []).forEach(c => {
+      if (c && c.name && c.name.trim()) {
+        map.set(c.name.trim(), { id: c.id, name: c.name.trim() });
+      }
+    });
+    (vehicles || []).forEach(v => {
+      if (v && v.company && v.company.trim() && !map.has(v.company.trim())) {
+        map.set(v.company.trim(), { id: `veh_${v.company.trim()}`, name: v.company.trim() });
+      }
+    });
+    [...(services || []), ...(failures || []), ...(expenses || [])].forEach(item => {
+      if (item && item.company && item.company.trim() && !map.has(item.company.trim())) {
+        map.set(item.company.trim(), { id: `item_${item.company.trim()}`, name: item.company.trim() });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+  }, [companies, vehicles, services, failures, expenses]);
+
   // ۱. فیلتر ناوگان بر اساس شرکت انتخابی (در صورت انتخاب کاربر)
   const filteredVehicles = useMemo(() => {
     if (selectedCompanyFilter === 'all') return vehicles;
@@ -497,39 +518,43 @@ export default function DashboardView({
 
           {/* فیلتر مرتب و خلوت شرکت */}
           <div className="flex items-center gap-2 flex-wrap self-start md:self-auto shrink-0">
-            {companies.length > 0 && (
-              <div ref={companyDropdownRef} className="relative">
+            {allAvailableCompanies.length > 0 && (
+              <div ref={companyDropdownRef} className="relative w-56 sm:w-64 max-w-full">
                 <button
                   type="button"
                   onClick={() => setIsCompanyDropdownOpen(!isCompanyDropdownOpen)}
                   aria-expanded={isCompanyDropdownOpen}
                   aria-label="انتخاب فیلتر شرکت"
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer select-none max-w-full ${
+                  className={`w-full flex items-center justify-between gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer select-none ${
                     selectedCompanyFilter !== 'all'
                       ? 'bg-indigo-50/80 dark:bg-indigo-500/15 border-indigo-300 dark:border-indigo-500/40 text-indigo-900 dark:text-indigo-200 shadow-2xs'
                       : 'bg-white dark:bg-[#18181b] border-slate-200 dark:border-[#27272a] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#35353c]'
                   }`}
                 >
-                  <Building className={`w-3.5 h-3.5 shrink-0 ${selectedCompanyFilter !== 'all' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`} />
-                  <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">شرکت:</span>
-                  <span className="text-[11px] font-bold truncate max-w-[130px] sm:max-w-[160px]">
-                    {selectedCompanyFilter === 'all' ? 'همه شرکت‌ها' : selectedCompanyFilter}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono font-normal">
-                    ({toPersianDigits(filteredVehicles.length)})
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <Building className={`w-3.5 h-3.5 shrink-0 ${selectedCompanyFilter !== 'all' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`} />
+                    <span className="text-[11px] text-slate-400 font-normal shrink-0">شرکت:</span>
+                    <span className="text-[11px] font-bold truncate">
+                      {selectedCompanyFilter === 'all' ? 'همه شرکت‌ها' : selectedCompanyFilter}
+                    </span>
+                  </div>
 
-                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 mr-0.5 shrink-0 ${
-                    isCompanyDropdownOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
-                  }`} />
+                  <div className="flex items-center gap-1 shrink-0 mr-1">
+                    <span className="text-[10px] text-slate-400 font-mono font-normal">
+                      ({toPersianDigits(filteredVehicles.length)})
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                      isCompanyDropdownOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
+                    }`} />
+                  </div>
                 </button>
 
-                {/* منوی بازشونده مرتب، مینیمال و تراز شده با لبه‌ها در موبایل و دسکتاپ */}
+                {/* منوی بازشونده مرتب با عرض دقیقاً منطبق با طول فیلد */}
                 {isCompanyDropdownOpen && (
-                  <div className="absolute right-0 md:right-auto md:left-0 mt-1 w-56 sm:w-60 max-w-[calc(100vw-2.5rem)] bg-white dark:bg-[#151518] border border-slate-200 dark:border-[#28282d] rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 left-0 w-full mt-1 bg-white dark:bg-[#151518] border border-slate-200 dark:border-[#28282d] rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                     
                     {/* فیلد جستجوی ساده و جمع‌وجور (در صورت تعداد بالای شرکت‌ها) */}
-                    {companies.length > 5 && (
+                    {allAvailableCompanies.length > 5 && (
                       <div className="p-1.5 border-b border-slate-100 dark:border-[#222227]">
                         <div className="relative">
                           <Search className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -574,7 +599,7 @@ export default function DashboardView({
                       <div className="my-1 border-t border-slate-100 dark:border-[#202025]"></div>
 
                       {/* گزینه‌های شرکت‌ها */}
-                      {companies
+                      {allAvailableCompanies
                         .filter(c => !companySearchQuery.trim() || c.name.toLowerCase().includes(companySearchQuery.trim().toLowerCase()))
                         .map(c => {
                           const isSelected = selectedCompanyFilter === c.name;

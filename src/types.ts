@@ -87,6 +87,8 @@ export interface ServiceDefinition {
 export interface PeriodicService {
   id: number;
   vehicleId: number;
+  code?: string;
+  vehicleName?: string;
   driverName?: string; // اسنپ‌شات نام راننده در زمان ثبت
   company?: string; // اسنپ‌شات شرکت در زمان ثبت
   plaque?: string; // اسنپ‌شات پلاک در زمان ثبت
@@ -96,6 +98,7 @@ export interface PeriodicService {
   nextKm: number; // کیلومتر بعدی
   nextDate: string; // تاریخ بعدی
   cost: number; // هزینه کل
+  partsCost?: number; // هزینه قطعات
   quantity?: number; // مقدار / تعداد کالا
   unitPrice?: number; // قیمت واحد
   partSource?: 'warehouse' | 'supplier' | 'none'; // منبع قطعه مصرفی: انبار شرکت، خرید از تامین‌کننده خارجی یا بدون قطعه
@@ -107,6 +110,7 @@ export interface PeriodicService {
   mechanicName?: string; // نام تعمیرکار مجری
   repairShopName?: string; // نام تعمیرگاه
   wages?: number; // اجرت تعمیرکار
+  invoiceNumber?: string; // شماره فاکتور
   status?: 'in_progress' | 'completed'; // وضعیت سرویس: پذیرش شده/در حال انجام یا تکمیل‌شده
   invoiceImage?: string; // تصویر فاکتور
   notes?: string; // توضیحات
@@ -187,11 +191,14 @@ export interface FailureItem {
 export interface VehicleFailure {
   id: number;
   vehicleId: number;
+  code?: string;
+  vehicleName?: string;
   driverId?: number;
   driverName?: string;
   company?: string;
   plaque?: string;
   failureDate: string;
+  dischargeDate?: string;
   failureTime: string;
   odometer: number;
   description: string;
@@ -202,10 +209,17 @@ export interface VehicleFailure {
   repairShopName?: string;
   startDate?: string;
   endDate?: string;
-  attachmentUrl?: string;
-  satisfactionLevel?: SatisfactionLevel;
+  partName?: string;
+  partSource?: string;
+  supplierName?: string;
+  quantity?: number;
+  unitPrice?: number;
+  partsCost?: number;
   wages?: number;
   totalCost?: number;
+  invoiceNumber?: string;
+  attachmentUrl?: string;
+  satisfactionLevel?: SatisfactionLevel;
   partsUsed?: Record<string, number>;
   shopPartsUsed?: Array<{ name: string; quantity: number; unitPrice: number; totalPrice: number }>;
   replacedServiceTypes?: string[];

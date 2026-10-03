@@ -1384,9 +1384,9 @@ export default function InsuranceView({
                   </span>
                 </div>
               </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
             <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                 <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                   <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                   
@@ -1463,14 +1463,14 @@ export default function InsuranceView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/60 dark:divide-[#2d2d30]/60">
-                {paginatedInsurances.length === 0 ? (
+                {sortedInsurances.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-8 text-slate-500 text-[11px]">
                       هیچ بیمه‌نامه‌ای یافت نشد.
                     </td>
                   </tr>
                 ) : (
-                  paginatedInsurances.map((ins, index) => {
+                  sortedInsurances.map((ins, index) => {
                     const v = vehicles.find(veh => String(veh.id) === String(ins.vehicleId) || Number(veh.id) === Number(ins.vehicleId));
                     const today = getCurrentJalaliDate();
                     const diffDays = jalaliDayDifference(today, ins.endDate);
@@ -1479,7 +1479,7 @@ export default function InsuranceView({
                     return (
                       <tr key={ins.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors text-[11px]">
                         <td className="py-1.5 px-3 text-center text-slate-500 dark:text-slate-400 text-[11px]">
-                          {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                          {toPersianDigits(index + 1)}
                         </td>
                         <td className="py-1.5 px-3">
                           <div className="font-medium text-slate-900 dark:text-white">{v ? `${v.name} - پلاک [${toPersianDigits(v.plaque)}]` : '—'}</div>
@@ -1524,14 +1524,6 @@ export default function InsuranceView({
               </tbody>
             </table>
           </div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPagesIns}
-            pageSize={pageSize}
-            totalItems={sortedInsurances.length}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
         </div>
       ) : (
         <div className="bg-white dark:bg-[#111113] rounded-lg border border-slate-200 dark:border-[#2d2d30] shadow-2xs overflow-hidden">
@@ -1546,9 +1538,9 @@ export default function InsuranceView({
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
             <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                 <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                   <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                   
@@ -1613,14 +1605,14 @@ export default function InsuranceView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/60 dark:divide-[#2d2d30]/60">
-                {paginatedInspections.length === 0 ? (
+                {sortedInspections.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-8 text-slate-500 text-[11px]">
                       هیچ برچسب معاینه فنی یافت نشد.
                     </td>
                   </tr>
                 ) : (
-                  paginatedInspections.map((insp, index) => {
+                  sortedInspections.map((insp, index) => {
                     const v = vehicles.find(veh => String(veh.id) === String(insp.vehicleId) || Number(veh.id) === Number(insp.vehicleId));
                     const today = getCurrentJalaliDate();
                     const diffDays = jalaliDayDifference(today, insp.expiryDate);
@@ -1629,7 +1621,7 @@ export default function InsuranceView({
                     return (
                       <tr key={insp.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors text-[11px]">
                         <td className="py-1.5 px-3 text-center text-slate-500 dark:text-slate-400 text-[11px]">
-                          {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                          {toPersianDigits(index + 1)}
                         </td>
                         <td className="py-1.5 px-3">
                           <div className="font-medium text-slate-900 dark:text-white">{v ? `${v.name} - پلاک [${toPersianDigits(v.plaque)}]` : '—'}</div>
@@ -1661,14 +1653,6 @@ export default function InsuranceView({
               </tbody>
             </table>
           </div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPagesInsp}
-            pageSize={pageSize}
-            totalItems={sortedInspections.length}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
         </div>
       )}
         </motion.div>

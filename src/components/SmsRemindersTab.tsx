@@ -484,6 +484,7 @@ export default function SmsRemindersTab({
 
       const headers = [
         'ردیف',
+        'کد خودرو',
         'نام خودرو',
         'پلاک خودرو',
         'شرکت',
@@ -498,8 +499,10 @@ export default function SmsRemindersTab({
       ];
 
       const rows = sortedOverdueDrivers.map((item, idx) => {
+        const v = vehicles.find(veh => veh.id === item.vehicleId);
         return [
           idx + 1,
+          v?.code || '---',
           item.vehicleName,
           item.vehiclePlaque,
           item.company || 'ثبت‌نشده',

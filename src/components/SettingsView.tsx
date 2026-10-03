@@ -837,9 +837,9 @@ export default function SettingsView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
               <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                   <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
                     <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                     <th 
@@ -877,14 +877,14 @@ export default function SettingsView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                  {paginatedUsers.length === 0 ? (
+                  {sortedUsers.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-8 text-slate-500 text-[11px]">
                         هیچ کاربری با این مشخصات یافت نشد.
                       </td>
                     </tr>
                   ) : (
-                    paginatedUsers.map((u, index) => {
+                    sortedUsers.map((u, index) => {
                       const userViews = u.role === 'admin' ? ALL_SUBTASK_IDS : (u.allowedViews || []);
                       return (
                         <tr 
@@ -894,7 +894,7 @@ export default function SettingsView({
                           className="h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                         >
                           <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle">
-                            {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                            {toPersianDigits(index + 1)}
                           </td>
                           <td className="py-1 px-3 whitespace-nowrap align-middle">
                             <div className="flex items-center gap-1.5">
@@ -941,14 +941,6 @@ export default function SettingsView({
                 </tbody>
               </table>
             </div>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={filteredUsers.length}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
-            />
           </div>
         </div>
       ) : (

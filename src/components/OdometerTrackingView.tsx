@@ -1778,9 +1778,9 @@ export default function OdometerTrackingView({
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
                   <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -1868,18 +1868,18 @@ export default function OdometerTrackingView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                      {paginatedMatrixList.length === 0 ? (
+                      {filteredMatrixList.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="py-8 text-center text-slate-500 text-[11px]">
                             هیچ خدمتی مطابق فیلترهای انتخابی یافت نشد.
                           </td>
                         </tr>
                       ) : (
-                        paginatedMatrixList.map((item, idx) => {
+                        filteredMatrixList.map((item, idx) => {
                           const isNoHistory = !item.hasHistory || item.status === 'no_history';
                           const isOverdue = !isNoHistory && item.status === 'overdue';
                           const isWarning = !isNoHistory && item.status === 'warning';
-                          const rowNumber = (matrixPage - 1) * matrixPageSize + idx + 1;
+                          const rowNumber = idx + 1;
 
                           return (
                             <tr 
@@ -2039,18 +2039,6 @@ export default function OdometerTrackingView({
                     </tbody>
                   </table>
                 </div>
-
-                <Pagination
-                  currentPage={matrixPage}
-                  totalPages={totalMatrixPages}
-                  pageSize={matrixPageSize}
-                  totalItems={filteredMatrixList.length}
-                  onPageChange={setMatrixPage}
-                  onPageSizeChange={(size) => {
-                    setMatrixPageSize(size);
-                    setMatrixPage(1);
-                  }}
-                />
               </>
             )}
           </div>
@@ -2085,9 +2073,9 @@ export default function OdometerTrackingView({
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
                   <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161619]">
                       <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161619] text-slate-600 dark:text-slate-400 font-medium text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -2186,8 +2174,8 @@ export default function OdometerTrackingView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#202024]">
-                      {paginatedDueList.map((item, idx) => {
-                        const globalIndex = (duePage - 1) * duePageSize + idx + 1;
+                      {filteredDueList.map((item, idx) => {
+                        const globalIndex = idx + 1;
                         const isOverdue = item.status === 'overdue';
 
                         return (
@@ -2286,18 +2274,6 @@ export default function OdometerTrackingView({
                     </tbody>
                   </table>
                 </div>
-
-                <Pagination
-                  currentPage={duePage}
-                  totalPages={totalDuePages}
-                  pageSize={duePageSize}
-                  totalItems={filteredDueList.length}
-                  onPageChange={setDuePage}
-                  onPageSizeChange={(size) => {
-                    setDuePageSize(size);
-                    setDuePage(1);
-                  }}
-                />
               </>
             )}
           </div>
@@ -2321,9 +2297,9 @@ export default function OdometerTrackingView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
               <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161619]">
                   <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161619] text-slate-600 dark:text-slate-400 font-medium text-xs">
                     <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -2409,21 +2385,21 @@ export default function OdometerTrackingView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                  {paginatedFleetList.length === 0 ? (
+                  {sortedFleetList.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="py-8 text-center text-slate-500 text-[11px]">
                         هیچ خودرویی با این مشخصات در ناوگان یافت نشد.
                       </td>
                     </tr>
                   ) : (
-                    paginatedFleetList.map((v, index) => {
+                    sortedFleetList.map((v, index) => {
                       return (
                         <tr
                           key={v.id}
                           className="group relative hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors text-[11px]"
                         >
                           <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
-                            {toPersianDigits((fleetPage - 1) * fleetPageSize + index + 1)}
+                            {toPersianDigits(index + 1)}
                           </td>
                           <td className="py-1.5 px-3">
                             <span className="text-slate-900 dark:text-white text-[11px]">
@@ -2534,18 +2510,6 @@ export default function OdometerTrackingView({
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              currentPage={fleetPage}
-              totalPages={totalFleetPages}
-              pageSize={fleetPageSize}
-              totalItems={sortedFleetList.length}
-              onPageChange={setFleetPage}
-              onPageSizeChange={(size) => {
-                setFleetPageSize(size);
-                setFleetPage(1);
-              }}
-            />
           </div>
         </div>
       )}
@@ -2576,9 +2540,9 @@ export default function OdometerTrackingView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
               <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161619]">
                   <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161619] text-slate-600 dark:text-slate-400 font-medium text-xs">
                     <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -2668,15 +2632,15 @@ export default function OdometerTrackingView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-                  {paginatedInquiryLogs.length === 0 ? (
+                  {sortedInquiryLogs.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-8 text-center text-slate-500 text-[11px]">
                         هیچ استعلام کارکردی با این مشخصات در سوابق یافت نشد.
                       </td>
                     </tr>
                   ) : (
-                    paginatedInquiryLogs.map((logItem, idx) => {
-                      const rowNum = (inquiryLogsPage - 1) * inquiryLogsPageSize + idx + 1;
+                    sortedInquiryLogs.map((logItem, idx) => {
+                      const rowNum = idx + 1;
                       const isSmsSource = logItem.source === 'sms';
 
                       return (
@@ -2809,18 +2773,6 @@ export default function OdometerTrackingView({
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              currentPage={inquiryLogsPage}
-              totalPages={totalInquiryPages}
-              pageSize={inquiryLogsPageSize}
-              totalItems={sortedInquiryLogs.length}
-              onPageChange={setInquiryLogsPage}
-              onPageSizeChange={(size) => {
-                setInquiryLogsPageSize(size);
-                setInquiryLogsPage(1);
-              }}
-            />
           </div>
         </div>
       )}

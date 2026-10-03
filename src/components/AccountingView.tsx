@@ -1226,6 +1226,9 @@ export default function AccountingView({
 
       const headers = [
         'ردیف',
+        'کد خودرو',
+        'نام خودرو',
+        'پلاک خودرو',
         'تاریخ',
         'ملاحظات و شرح',
         'نام خدمت / سرفصل',
@@ -1237,6 +1240,9 @@ export default function AccountingView({
 
       const rows = itemsToExport.map((item, idx) => [
         idx + 1,
+        activeVehicle?.code || (item as any).code || (item as any).vehicleCode || '---',
+        activeVehicle?.name || (item as any).vehicleName || '---',
+        activeVehicle?.plaque || (item as any).plaque || '---',
         toJalaliDate(item.date),
         item.description || (item.details?.notes ? `${item.details.notes}` : `سند ${item.categoryLabel} خودرو ${item.vehicleName || ''}`),
         item.title || item.categoryLabel,

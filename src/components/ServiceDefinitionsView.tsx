@@ -507,9 +507,9 @@ export default function ServiceDefinitionsView({
           <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{toPersianDigits(sortedDefinitions.length)} مورد</span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
               <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 w-12 text-center text-xs font-medium">ردیف</th>
                 <TableColumnHeader
@@ -542,14 +542,14 @@ export default function ServiceDefinitionsView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-              {paginatedDefinitions.length === 0 ? (
+              {sortedDefinitions.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ آیتم خدمتی یافت نشد.
                   </td>
                 </tr>
               ) : (
-                paginatedDefinitions.map((def, index) => (
+                sortedDefinitions.map((def, index) => (
                   <tr 
                     key={def.id} 
                     onClick={() => handleOpenEditModal(def)}
@@ -559,7 +559,7 @@ export default function ServiceDefinitionsView({
                     
                     {/* ردیف */}
                     <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
-                      {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                      {toPersianDigits(index + 1)}
                     </td>
 
                     {/* عنوان خدمت */}
@@ -604,14 +604,6 @@ export default function ServiceDefinitionsView({
             </tbody>
           </table>
         </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={filteredDefinitions.length}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
       </div>
 
       {filterMenu && (

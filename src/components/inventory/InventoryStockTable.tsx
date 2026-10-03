@@ -399,9 +399,9 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead className="bg-slate-50 dark:bg-[#161618]">
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
               <tr className="border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -490,14 +490,14 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-[#2d2d30]/60">
-              {tablePaginatedParts.length === 0 ? (
+              {sortedParts.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-slate-500 dark:text-slate-400 text-xs">
                     هیچ کالا یا قطعه‌ای در انبار با این مشخصات یافت نشد.
                   </td>
                 </tr>
               ) : (
-                tablePaginatedParts.map((p, index) => {
+                sortedParts.map((p, index) => {
                   const isLowStock = p.quantity <= p.minQuantity && p.quantity > 0;
                   const isCritical = p.quantity === 0;
                   const currentBuyPrice = p.buyPrice ?? p.unitPrice ?? 0;
@@ -514,7 +514,7 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
                     >
                       {/* ردیف */}
                       <td className="py-1 px-3 text-center text-slate-500 dark:text-slate-400 text-[11px] align-middle font-mono">
-                        {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                        {toPersianDigits(index + 1)}
                       </td>
 
                       {/* نام قطعه */}
@@ -584,14 +584,6 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
             </tbody>
           </table>
         </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={effectiveTotalPages}
-          pageSize={pageSize}
-          totalItems={effectiveTotalItems}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-        />
       </div>
 
       {/* مدال مشاهده جزئیات کامل محل استقرار کالا در انبار - هماهنگ و یکپارچه با مدال جزئیات پذیرش */}

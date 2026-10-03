@@ -635,6 +635,9 @@ export default function App() {
       if (Array.isArray(data.failureCategories)) setFailureCategories(data.failureCategories);
       if (Array.isArray(data.mechanics)) setMechanics(data.mechanics);
       if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
+      if (Array.isArray(data.periodicServices)) setServices(data.periodicServices);
+      if (Array.isArray(data.vehicleFailures)) setFailures(data.vehicleFailures);
+      if (Array.isArray(data.repairWorkflows)) setWorkflows(data.repairWorkflows);
     }
     fetchAllData();
   }, [fetchAllData]);
@@ -716,6 +719,20 @@ export default function App() {
     if (!userAssignedCompany) return companies;
     return companies.filter(c => c.name === userAssignedCompany);
   }, [companies, userAssignedCompany]);
+
+  // فهرست جامع تمام شرکت‌های موجود در سامانه (از تعاریف شرکت‌ها و ناوگان)
+  const allSystemCompanies = useMemo(() => {
+    const map = new Map<string, { id: number | string; name: string }>();
+    (companies || []).forEach(c => {
+      if (c && c.name && c.name.trim()) map.set(c.name.trim(), { id: c.id, name: c.name.trim() });
+    });
+    (vehicles || []).forEach(v => {
+      if (v && v.company && v.company.trim() && !map.has(v.company.trim())) {
+        map.set(v.company.trim(), { id: `veh_${v.company.trim()}`, name: v.company.trim() });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+  }, [companies, vehicles]);
 
   // ۱۰. فیلتر کردن استعلام‌های کیلومتر کارکرد
   const visibleOdometerLogs = useMemo(() => {
@@ -1605,7 +1622,7 @@ export default function App() {
                 </span>
               </div>
 
-              {/* وضعیت تفکیک شرکت در صورت انتساب کاربر به شرکت خاص */}
+              {/* وضعیت تفکیک شرکت فقط در صورت انتساب کاربر به شرکت خاص */}
               {userAssignedCompany && (
                 <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-400 text-xs font-extrabold shadow-xs shrink-0">
                   <Building className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -1669,7 +1686,7 @@ export default function App() {
               inspections={userAssignedCompany ? visibleInspections : inspections}
               failures={userAssignedCompany ? visibleFailures : failures}
               expenses={userAssignedCompany ? visibleExpenses : expenses}
-              companies={visibleCompanies}
+              companies={allSystemCompanies as any}
               serviceDefinitions={serviceDefinitions}
               workflows={userAssignedCompany ? visibleWorkflows : workflows}
               parts={parts}
@@ -1747,6 +1764,7 @@ export default function App() {
               onAddService={handleAddService}
               onEditService={handleEditService}
               onDeleteService={handleDeleteService}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 
@@ -1803,6 +1821,7 @@ export default function App() {
               onDeleteFailure={handleDeleteFailure}
               onUpdateWorkflow={handleUpdateWorkflow}
               onNavigate={handleNavigate}
+              onBulkImportSuccess={handleBulkImportSuccess}
             />
           )}
 

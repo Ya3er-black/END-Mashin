@@ -73,9 +73,9 @@ export default function LogsView({ logs }: LogsViewProps) {
           <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{toPersianDigits(filteredLogs.length)} مورد</span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
               <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 w-12 text-center text-xs font-medium">ردیف</th>
                 <th className="py-2 px-3 w-36 text-xs font-medium">تاریخ و زمان</th>
@@ -86,21 +86,21 @@ export default function LogsView({ logs }: LogsViewProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-              {paginatedLogs.length === 0 ? (
+              {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ رویداد سیستمی ثبت نشده است.
                   </td>
                 </tr>
               ) : (
-                paginatedLogs.map((log, index) => {
+                filteredLogs.map((log, index) => {
                   const formattedDate = new Date(log.createdAt).toLocaleString('fa-IR');
                   const isDanger = log.action.includes('حذف') || log.action.includes('مسدود');
 
                   return (
                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors text-[11px]">
                       <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
-                        {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                        {toPersianDigits(index + 1)}
                       </td>
                       <td className="py-1.5 px-3 text-slate-500 dark:text-slate-400 text-[11px]">
                         {toPersianDigits(formattedDate)}
@@ -130,14 +130,6 @@ export default function LogsView({ logs }: LogsViewProps) {
             </tbody>
           </table>
         </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={filteredLogs.length}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
       </div>
     </div>
   );

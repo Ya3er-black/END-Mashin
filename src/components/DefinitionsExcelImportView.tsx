@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Info,
   Check,
-  ChevronLeft
+  ChevronLeft,
+  ClipboardList
 } from 'lucide-react';
 import { 
   DefinitionEntityType, 
@@ -73,9 +74,11 @@ export default function DefinitionsExcelImportView({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const entityTabs: { id: DefinitionEntityType; label: string; icon: any }[] = [
+    { id: 'services', label: 'پذیرش و سرویس‌ها', icon: ClipboardList },
+    { id: 'failures', label: 'پذیرش خرابی‌ها', icon: AlertTriangle },
     { id: 'vehicles', label: 'خودروها', icon: Car },
-    { id: 'service_definitions', label: 'سرویس‌ها', icon: Settings },
-    { id: 'failure_definitions', label: 'انواع خرابی', icon: AlertTriangle },
+    { id: 'service_definitions', label: 'تعاریف سرویس', icon: Settings },
+    { id: 'failure_definitions', label: 'تعاریف خرابی', icon: Wrench },
     { id: 'companies', label: 'شرکت‌ها', icon: Building2 },
     { id: 'persons', label: 'رانندگان', icon: Users },
     { id: 'mechanics', label: 'تعمیرکاران', icon: Wrench },
@@ -106,8 +109,9 @@ export default function DefinitionsExcelImportView({
       setParsedSheets(sheets);
       setActiveSheetIndex(0);
 
-      // تجزیه شیت اول
-      processSheet(sheets[0], selectedType !== 'multi' ? selectedType : undefined);
+      // اگر در مودال اختصاصی هستیم، نوع اولیه را اعمال می‌کنیم، در غیر این صورت از تشخیص هوشمند یا تب فعال استفاده می‌شود
+      const forced = isModal ? initialType : (selectedType !== 'multi' && selectedType !== 'vehicles' ? selectedType : undefined);
+      processSheet(sheets[0], forced);
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err?.message || 'خطا در خواندن فایل اکسل.');
@@ -123,7 +127,7 @@ export default function DefinitionsExcelImportView({
     forcedType?: DefinitionEntityType
   ) => {
     const autoDetected = detectEntityTypeFromColumns(sheet.headers, sheet.sheetName);
-    const detected = (!isModal && autoDetected) ? autoDetected : (forcedType || autoDetected || 'vehicles');
+    const detected: DefinitionEntityType = forcedType || autoDetected || (selectedType !== 'multi' ? selectedType : 'vehicles');
     const { items, mappedColumns, unmappedColumns } = mapExcelRowsToEntities(sheet.rows, detected);
 
     setPreviewData({
@@ -384,11 +388,25 @@ export default function DefinitionsExcelImportView({
                     {toPersianDigits(previewData.items.length)} ردیف
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  <span>نوع تشخیص داده شده:</span>
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                    {DEFINITION_COLUMNS_CONFIG[previewData.detectedType]?.title || previewData.detectedType}
-                  </span>
+                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-slate-400 mt-1">
+                  <span>موضوع تعریف:</span>
+                  <select
+                    value={previewData.detectedType}
+                    onChange={(e) => {
+                      const newType = e.target.value as DefinitionEntityType;
+                      if (parsedSheets.length > 0 && parsedSheets[activeSheetIndex]) {
+                        processSheet(parsedSheets[activeSheetIndex], newType);
+                      }
+                    }}
+                    className="h-6 px-2 py-0 rounded text-[10.5px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    title="تغییر نوع موجودیت جهت تطبیق ستون‌ها"
+                  >
+                    {entityTabs.map(t => (
+                      <option key={t.id} value={t.id} className="bg-white dark:bg-[#1a1a20] text-slate-900 dark:text-white">
+                        {t.label} ({DEFINITION_COLUMNS_CONFIG[t.id]?.title})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -614,7 +632,9 @@ export default function DefinitionsExcelImportView({
               <button
                 type="button"
                 onClick={() => {
-                  const targetView = previewData?.detectedType === 'vehicles' ? 'vehicles' :
+                  const targetView = previewData?.detectedType === 'services' ? 'services' :
+                                    previewData?.detectedType === 'failures' ? 'failures' :
+                                    previewData?.detectedType === 'vehicles' ? 'vehicles' :
                                     previewData?.detectedType === 'persons' ? 'persons' :
                                     previewData?.detectedType === 'companies' ? 'companies' :
                                     previewData?.detectedType === 'service_definitions' ? 'service_definitions' :
@@ -625,7 +645,11 @@ export default function DefinitionsExcelImportView({
                 }}
                 className="h-8 px-3.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
               >
-                <span>مشاهده در جدول تعاریف</span>
+                <span>
+                  {previewData?.detectedType === 'services' ? 'مشاهده در جدول سرویس‌ها' :
+                   previewData?.detectedType === 'failures' ? 'مشاهده در جدول پذیرش خرابی‌ها' :
+                   'مشاهده در جدول تعاریف'}
+                </span>
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             )}
@@ -649,10 +673,12 @@ export default function DefinitionsExcelImportView({
           <Info className="w-3.5 h-3.5 text-indigo-500" />
           <span>نکات کلیدی جهت بارگذاری بدون نقص فایل اکسل:</span>
         </div>
-        <ul className="list-disc list-inside space-y-0.5 text-[10.5px] text-slate-500 dark:text-slate-400 pr-1">
-          <li>سطر اول فایل اکسل باید حاوی عناوین ستون‌ها (مانند پلاک، نام خودرو، راننده، شماره تماس و...) باشد.</li>
-          <li>برای تسریع کار، می‌توانید ابتدا دکمه «دانلود قالب اکسل» را زده و اطلاعات خود را در آن وارد کنید.</li>
-          <li>اعداد به دو صورت ارقام فارسی و انگلیسی به درستی پشتیبانی می‌شوند.</li>
+        <ul className="list-disc list-inside space-y-1 text-[10.5px] text-slate-500 dark:text-slate-400 pr-1">
+          <li>سطر اول فایل اکسل باید حاوی عناوین ستون‌ها باشد. برای هماهنگی کامل می‌توانید از دکمه «دانلود قالب اکسل» استفاده نمایید.</li>
+          <li>ستون‌های «کد خودرو»، «نام خودرو» و «شماره پلاک» به صورت ۳ ستون کاملاً مجزا و تفکیک‌شده پشتیبانی و ثبت می‌شوند.</li>
+          <li>در بخش خرابی‌ها، هر دو ستون «تاریخ ارجاع» (شروع تعمیر/پذیرش) و «تاریخ ترخیص» (اتمام و تحویل) به صورت مستقل تعریف شده‌اند.</li>
+          <li>تمامی فیلدهای مربوط به قطعات، شامل: «نام قطعه مصرفی»، «محل تأمین قطعه» (انبار/تامین‌کننده/تعمیرگاه)، «فروشگاه / تامین‌کننده قطعه»، «تعداد قطعه»، «اجرت و دستمزد»، «هزینه کل فاکتور» و «شماره فاکتور» به طور کامل قابل بارگذاری هستند.</li>
+          <li>اعداد، مبالغ ریالی و تاریخ‌ها به دو صورت ارقام فارسی و انگلیسی به درستی پشتیبانی و پردازش می‌شوند.</li>
         </ul>
       </div>
     </div>

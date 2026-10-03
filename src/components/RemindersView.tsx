@@ -806,9 +806,9 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
               <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
 
@@ -868,14 +868,14 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-              {paginatedReminders.length === 0 ? (
+              {sortedReminders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-slate-500 text-[11px]">
                     هیچ موردی با شرایط انتخابی یافت نشد.
                   </td>
                 </tr>
               ) : (
-                paginatedReminders.map((r, idx) => {
+                sortedReminders.map((r, idx) => {
                   const diffDays = jalaliDayDifference(r.reminderDate, todayJalali);
                   const isToday = diffDays === 0;
                   const isOverdue = diffDays < 0 && r.status !== 'completed';
@@ -889,7 +889,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     >
                       {/* ردیف */}
                       <td className="py-1.5 px-3 text-center text-slate-500 text-[11px]">
-                        {toPersianDigits((currentPage - 1) * pageSize + idx + 1)}
+                        {toPersianDigits(idx + 1)}
                       </td>
 
                       {/* موضوع */}
@@ -983,16 +983,6 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             </tbody>
           </table>
         </div>
-
-        {/* صفحه‌بندی */}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={Math.ceil(sortedReminders.length / pageSize) || 1}
-          pageSize={pageSize}
-          totalItems={sortedReminders.length}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
       </div>
 
       {/* مدال ثبت / ویرایش یادآوری */}

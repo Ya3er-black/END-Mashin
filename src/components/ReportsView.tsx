@@ -100,9 +100,17 @@ export default function ReportsView({
 
   // دریافت اطلاعات راننده و شرکت در زمان رویداد
   const getItemDriverAndCompany = (item: any, vehicleId: number) => {
-    const v = vehicles.find(veh => veh.id === vehicleId);
-    const driver = item.driverName || v?.driverName || 'ثبت نشده';
-    const company = item.company || v?.company || 'ثبت نشده';
+    let v = vehicles.find(veh => veh.id === vehicleId);
+    if (!v && item?.code) {
+      const codeStr = String(item.code).trim().toLowerCase();
+      v = vehicles.find(veh => veh.code && String(veh.code).trim().toLowerCase() === codeStr);
+    }
+    if (!v && item?.plaque) {
+      const plaqueStr = String(item.plaque).trim();
+      v = vehicles.find(veh => veh.plaque && String(veh.plaque).trim() === plaqueStr);
+    }
+    const driver = item?.driverName || v?.driverName || 'ثبت نشده';
+    const company = item?.company || v?.company || 'ثبت نشده';
     return { driver, company, vehicle: v };
   };
 
@@ -203,17 +211,21 @@ export default function ReportsView({
 
       if (selectedModule === 'failures') {
         fileName = 'گزارش_سوابق_و_هزینه_خرابی';
-        headers = ['ردیف', 'پلاک خودرو', 'نام خودرو', 'راننده در زمان وقوع', 'شرکت / پروژه', 'بخش آسیب‌دیده', 'تاریخ وقوع', 'شرح عیب', 'وضعیت گردش کار', 'هزینه فاکتور (ریال)'];
+        headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'راننده در زمان وقوع', 'شرکت / پروژه', 'بخش آسیب‌دیده / قطعه', 'تاریخ ارجاع', 'تاریخ ترخیص', 'شرح عیب', 'وضعیت گردش کار', 'هزینه فاکتور (ریال)'];
         rows = (rawReportData as VehicleFailure[]).map((f, idx) => {
           const { driver, company, vehicle: v } = getItemDriverAndCompany(f, f.vehicleId);
+          const wf = (workflows || []).find(w => w.failureId === f.id);
+          const dischargeDate = f.dischargeDate || f.endDate || wf?.endDate || '';
           return [
             idx + 1,
-            v ? v.plaque : '---',
-            v ? v.name : '---',
+            v?.code || (f as any).code || '---',
+            v ? v.name : ((f as any).vehicleName || '---'),
+            v ? v.plaque : (f.plaque || '---'),
             driver,
             company,
             f.failureType || '---',
             toJalaliDate(f.failureDate),
+            dischargeDate ? toJalaliDate(dischargeDate) : '---',
             f.description || '---',
             f.status || '---',
             getFailureCost(f)
@@ -221,13 +233,14 @@ export default function ReportsView({
         });
       } else if (selectedModule === 'services') {
         fileName = 'گزارش_سوابق_خدمات_دوره_ای';
-        headers = ['ردیف', 'پلاک خودرو', 'نام خودرو', 'راننده در زمان انجام', 'شرکت / پروژه', 'نوع خدمات', 'تاریخ انجام', 'کیلومتر فعلی', 'هزینه فاکتور (ریال)', 'توضیحات'];
+        headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'راننده در زمان انجام', 'شرکت / پروژه', 'نوع خدمات', 'تاریخ انجام', 'کیلومتر فعلی', 'هزینه فاکتور (ریال)', 'توضیحات'];
         rows = (rawReportData as PeriodicService[]).map((s, idx) => {
           const { driver, company, vehicle: v } = getItemDriverAndCompany(s, s.vehicleId);
           return [
             idx + 1,
-            v ? v.plaque : '---',
-            v ? v.name : '---',
+            v?.code || (s as any).code || '---',
+            v ? v.name : ((s as any).vehicleName || '---'),
+            v ? v.plaque : (s.plaque || '---'),
             driver,
             company,
             s.serviceType || '---',
@@ -239,13 +252,14 @@ export default function ReportsView({
         });
       } else if (selectedModule === 'expenses') {
         fileName = 'گزارش_مخارج_و_اسناد_مالی';
-        headers = ['ردیف', 'پلاک خودرو', 'نام خودرو', 'راننده', 'شرکت / پروژه', 'نوع هزینه', 'تاریخ سند', 'شرح تراکنش', 'مبلغ (ریال)'];
+        headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'راننده', 'شرکت / پروژه', 'نوع هزینه', 'تاریخ سند', 'شرح تراکنش', 'مبلغ (ریال)'];
         rows = (rawReportData as Expense[]).map((e, idx) => {
           const { driver, company, vehicle: v } = getItemDriverAndCompany(e, e.vehicleId);
           return [
             idx + 1,
-            v ? v.plaque : '---',
+            v?.code || (e as any).code || '---',
             v ? v.name : '---',
+            v ? v.plaque : '---',
             driver,
             company,
             e.expenseType || '---',
@@ -256,13 +270,14 @@ export default function ReportsView({
         });
       } else if (selectedModule === 'insurance') {
         fileName = 'گزارش_بیمه_نامه_ها';
-        headers = ['ردیف', 'پلاک خودرو', 'نام خودرو', 'راننده فعلی', 'شرکت / پروژه', 'نوع بیمه', 'شرکت بیمه‌گر', 'شماره بیمه‌نامه', 'تاریخ شروع', 'تاریخ پایان اعتبار', 'مبلغ کل (ریال)'];
+        headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'راننده فعلی', 'شرکت / پروژه', 'نوع بیمه', 'شرکت بیمه‌گر', 'شماره بیمه‌نامه', 'تاریخ شروع', 'تاریخ پایان اعتبار', 'مبلغ کل (ریال)'];
         rows = (rawReportData as Insurance[]).map((i, idx) => {
           const { driver, company, vehicle: v } = getItemDriverAndCompany(i, i.vehicleId);
           return [
             idx + 1,
-            v ? v.plaque : '---',
+            v?.code || (i as any).code || '---',
             v ? v.name : '---',
+            v ? v.plaque : (i.plaque || '---'),
             driver,
             company,
             i.insuranceType === 'third_party' ? 'شخص ثالث' : 'بدنه',
@@ -275,13 +290,13 @@ export default function ReportsView({
         });
       } else if (selectedModule === 'vehicles') {
         fileName = 'فهرست_جامع_ناوگان_خودرویی';
-        headers = ['ردیف', 'پلاک ملی', 'نام خودرو', 'برند و مدل', 'کد سازمانی', 'راننده منتسب', 'شرکت / پروژه', 'وضعیت'];
+        headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک ملی', 'برند و مدل', 'راننده منتسب', 'شرکت / پروژه', 'وضعیت'];
         rows = (rawReportData as Vehicle[]).map((v, idx) => [
           idx + 1,
-          v.plaque,
-          v.name,
-          `${v.brand || ''} ${v.model || ''}`,
           v.code || '---',
+          v.name,
+          v.plaque,
+          `${v.brand || ''} ${v.model || ''}`.trim() || '---',
           v.driverName || 'بدون راننده',
           v.company || 'ثبت نشده',
           v.status === 'active' ? 'آماده خدمت' : v.status === 'in_repair' ? 'در حال تعمیر' : v.status === 'broken' ? 'دارای نقص فنی' : 'آماده سرویس'
@@ -312,7 +327,17 @@ export default function ReportsView({
         fileName = 'گزارش_تحلیلی_و_رتبه_بندی_ناوگان';
         headers = ['ردیف', 'عنوان / نام', 'تعداد رویدادها'];
         if (analyticsViewMode === 'vehicles') {
-          rows = sortedVehicleFailures.map(([name, count], idx) => [idx + 1, name, count]);
+          headers = ['ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'تعداد خرابی‌های ثبت‌شده'];
+          rows = sortedVehicleFailures.map(([name, count], idx) => {
+            const matchedV = vehicles.find(v => (v.code && name.includes(v.code)) || (v.plaque && name.includes(v.plaque)) || (v.name && name.includes(v.name)));
+            return [
+              idx + 1,
+              matchedV?.code || '---',
+              matchedV?.name || name,
+              matchedV?.plaque || '---',
+              count
+            ];
+          });
         } else if (analyticsViewMode === 'companies') {
           headers = ['ردیف', 'نام شرکت / پروژه', 'تعداد خرابی‌ها', 'تعداد سرویس‌ها', 'مجموع'];
           rows = sortedCompanies.map(([name, s], idx) => [idx + 1, name, s.failures, s.services, s.failures + s.services]);
@@ -324,22 +349,22 @@ export default function ReportsView({
         }
       } else {
         fileName = 'پرونده_جامع_۳۶۰_درجه_خودرو';
-        headers = ['بخش', 'ردیف', 'عنوان خودرو / پلاک', 'شرح رویداد', 'تاریخ', 'راننده', 'شرکت', 'مبلغ فاکتور (ریال)'];
+        headers = ['بخش', 'ردیف', 'کد خودرو', 'نام خودرو', 'پلاک خودرو', 'شرح رویداد', 'تاریخ', 'راننده', 'شرکت', 'مبلغ فاکتور (ریال)'];
         (rawReportData as Vehicle[]).forEach(v => {
           const vFailures = failures.filter(f => f.vehicleId === v.id);
           const vServices = services.filter(s => s.vehicleId === v.id);
           const vExpenses = expenses.filter(e => e.vehicleId === v.id);
           vFailures.forEach((f, i) => {
             const { driver, company } = getItemDriverAndCompany(f, v.id);
-            rows.push(['خرابی و تعمیرات', i + 1, `${v.name} (${v.plaque})`, f.failureType, toJalaliDate(f.failureDate), driver, company, getFailureCost(f)]);
+            rows.push(['خرابی و تعمیرات', i + 1, v.code || '---', v.name, v.plaque, f.failureType, toJalaliDate(f.failureDate), driver, company, getFailureCost(f)]);
           });
           vServices.forEach((s, i) => {
             const { driver, company } = getItemDriverAndCompany(s, v.id);
-            rows.push(['سرویس دوره‌ای', i + 1, `${v.name} (${v.plaque})`, s.serviceType, toJalaliDate(s.serviceDate), driver, company, s.cost || 0]);
+            rows.push(['سرویس دوره‌ای', i + 1, v.code || '---', v.name, v.plaque, s.serviceType, toJalaliDate(s.serviceDate), driver, company, s.cost || 0]);
           });
           vExpenses.forEach((e, i) => {
             const { driver, company } = getItemDriverAndCompany(e, v.id);
-            rows.push(['مخارج مالی', i + 1, `${v.name} (${v.plaque})`, e.expenseType, toJalaliDate(e.expenseDate), driver, company, e.cost || 0]);
+            rows.push(['مخارج مالی', i + 1, v.code || '---', v.name, v.plaque, e.expenseType, toJalaliDate(e.expenseDate), driver, company, e.cost || 0]);
           });
         });
       }
@@ -593,8 +618,11 @@ export default function ReportsView({
     if (!item) return '-';
     if (module === 'failures') {
       const { driver, company, vehicle: v } = getItemDriverAndCompany(item, item.vehicleId);
+      const vehicleCode = v?.code || (item as any).code || '';
+      const vehicleName = v ? v.name : ((item as any).vehicleName || 'نامشخص');
       switch (colKey) {
-        case 'vehicle': return v ? `${v.name} (${v.plaque})` : 'نامشخص';
+        case 'vehicle': return vehicleCode ? `${vehicleName} (${vehicleCode})` : vehicleName;
+        case 'plaque': return v ? v.plaque : (item.plaque || '-');
         case 'driverName': return driver;
         case 'company': return company;
         case 'failureType': return item.failureType || 'نامشخص';
@@ -606,8 +634,11 @@ export default function ReportsView({
       }
     } else if (module === 'services') {
       const { driver, company, vehicle: v } = getItemDriverAndCompany(item, item.vehicleId);
+      const vehicleCode = v?.code || (item as any).code || '';
+      const vehicleName = v ? v.name : ((item as any).vehicleName || 'نامشخص');
       switch (colKey) {
-        case 'vehicle': return v ? `${v.name} (${v.plaque})` : 'نامشخص';
+        case 'vehicle': return vehicleCode ? `${vehicleName} (${vehicleCode})` : vehicleName;
+        case 'plaque': return v ? v.plaque : (item.plaque || '-');
         case 'driverName': return driver;
         case 'company': return company;
         case 'serviceType': return item.serviceType || 'نامشخص';
@@ -618,8 +649,11 @@ export default function ReportsView({
       }
     } else if (module === 'expenses') {
       const { driver, company, vehicle: v } = getItemDriverAndCompany(item, item.vehicleId);
+      const vehicleCode = v?.code || (item as any).code || '';
+      const vehicleName = v ? v.name : ((item as any).vehicleName || 'نامشخص');
       switch (colKey) {
-        case 'vehicle': return v ? `${v.name} (${v.plaque})` : 'نامشخص';
+        case 'vehicle': return vehicleCode ? `${vehicleName} (${vehicleCode})` : vehicleName;
+        case 'plaque': return v ? v.plaque : (item.plaque || '-');
         case 'driverName': return driver;
         case 'company': return company;
         case 'expenseType': return item.expenseType || 'نامشخص';
@@ -630,8 +664,11 @@ export default function ReportsView({
       }
     } else if (module === 'insurance') {
       const { driver, company, vehicle: v } = getItemDriverAndCompany(item, item.vehicleId);
+      const vehicleCode = v?.code || (item as any).code || '';
+      const vehicleName = v ? v.name : ((item as any).vehicleName || 'نامشخص');
       switch (colKey) {
-        case 'vehicle': return v ? `${v.name} (${v.plaque})` : 'نامشخص';
+        case 'vehicle': return vehicleCode ? `${vehicleName} (${vehicleCode})` : vehicleName;
+        case 'plaque': return v ? v.plaque : (item.plaque || '-');
         case 'driverName': return driver;
         case 'company': return company;
         case 'insuranceType': return item.insuranceType === 'third_party' ? 'شخص ثالث' : 'بدنه';
@@ -643,7 +680,7 @@ export default function ReportsView({
     } else if (module === 'vehicles') {
       switch (colKey) {
         case 'plaque': return item.plaque || 'نامشخص';
-        case 'name': return `${item.name || ''} ${item.brand || ''} ${item.model || ''}`.trim();
+        case 'name': return `${item.name || ''}${item.code ? ` (${item.code})` : ''} ${item.brand || ''} ${item.model || ''}`.trim();
         case 'driverName': return item.driverName || 'ثبت نشده';
         case 'company': return item.company || 'ثبت نشده';
         case 'type': return item.type === 'light' ? 'سواری سبک' : 'سنگین ترابری';
@@ -839,10 +876,7 @@ export default function ReportsView({
     });
   }, [columnFilteredReportData, sortKey, sortDirection, selectedModule, workflows]);
 
-  const totalPages = Math.ceil(sortedReportData.length / pageSize) || 1;
-  const reportData = useMemo(() => {
-    return sortedReportData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  }, [sortedReportData, currentPage, pageSize]);
+  const reportData = sortedReportData;
 
   // تعاریف عناوین و توضیحات هر گزارش
   const reportDetails: Record<ReportModule, { title: string; subtitle: string; icon: any }> = {
@@ -1681,14 +1715,15 @@ export default function ReportsView({
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{toPersianDigits(rawReportData.length)} مورد</span>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
                 {/* ۱. گزارش خرابی‌ها */}
                 {selectedModule === 'failures' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
-                        <TableColumnHeader colKey="vehicle" title="خودرو" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="vehicle" title="نام خودرو (کد)" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="plaque" title="پلاک خودرو" align="center" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="driverName" title="راننده زمان وقوع" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['driverName']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="company" title="شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['company']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="failureType" title="بخش آسیب‌دیده / قطعه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['failureType']} onOpenFilter={handleOpenFilterMenu} />
@@ -1701,19 +1736,24 @@ export default function ReportsView({
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                       {reportData.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="text-center py-8 text-slate-500 font-bold">
+                          <td colSpan={10} className="text-center py-8 text-slate-500 font-bold">
                             هیچ رکوردی برای نمایش یافت نشد.
                           </td>
                         </tr>
                       ) : (
                         reportData.map((f: any, index: number) => {
                           const { driver, company, vehicle: v } = getItemDriverAndCompany(f, f.vehicleId);
+                          const vehicleCode = v?.code || (f as any).code || '';
+                          const vehicleName = v ? v.name : ((f as any).vehicleName || 'N/A');
+                          const plaqueNumber = v ? v.plaque : (f.plaque || '---');
                           return (
                             <tr key={f.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits((currentPage - 1) * pageSize + index + 1)}</td>
-                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold">
-                                <div>{v ? v.name : 'N/A'}</div>
-                                {v && <div className="text-[10px] text-slate-400 font-mono">{v.plaque}</div>}
+                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits(index + 1)}</td>
+                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold whitespace-nowrap">
+                                {vehicleName}{vehicleCode ? ` (${vehicleCode})` : ''}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[11px] whitespace-nowrap">
+                                {plaqueNumber}
                               </td>
                               <td className="py-1.5 px-3 text-emerald-600 dark:text-emerald-300 font-bold">{driver}</td>
                               <td className="py-1.5 px-3 text-amber-600 dark:text-amber-300 font-bold">{company}</td>
@@ -1743,10 +1783,11 @@ export default function ReportsView({
                 {/* ۲. گزارش خدمات دوره‌ای */}
                 {selectedModule === 'services' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
-                        <TableColumnHeader colKey="vehicle" title="خودرو" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="vehicle" title="نام خودرو (کد)" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="plaque" title="پلاک خودرو" align="center" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="driverName" title="راننده زمان انجام" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['driverName']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="company" title="شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['company']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="serviceType" title="نوع خدمات دوره‌ای" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['serviceType']} onOpenFilter={handleOpenFilterMenu} />
@@ -1758,19 +1799,24 @@ export default function ReportsView({
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                       {reportData.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center py-8 text-slate-500 font-bold">
+                          <td colSpan={9} className="text-center py-8 text-slate-500 font-bold">
                             هیچ رکوردی برای نمایش یافت نشد.
                           </td>
                         </tr>
                       ) : (
                         reportData.map((s: any, index: number) => {
                           const { driver, company, vehicle: v } = getItemDriverAndCompany(s, s.vehicleId);
+                          const vehicleCode = v?.code || (s as any).code || '';
+                          const vehicleName = v ? v.name : ((s as any).vehicleName || 'N/A');
+                          const plaqueNumber = v ? v.plaque : (s.plaque || '---');
                           return (
                             <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits((currentPage - 1) * pageSize + index + 1)}</td>
-                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold">
-                                <div>{v ? v.name : 'N/A'}</div>
-                                {v && <div className="text-[10px] text-slate-400 font-mono">{v.plaque}</div>}
+                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits(index + 1)}</td>
+                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold whitespace-nowrap">
+                                {vehicleName}{vehicleCode ? ` (${vehicleCode})` : ''}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[11px] whitespace-nowrap">
+                                {plaqueNumber}
                               </td>
                               <td className="py-1.5 px-3 text-emerald-600 dark:text-emerald-300 font-bold">{driver}</td>
                               <td className="py-1.5 px-3 text-amber-600 dark:text-amber-300 font-bold">{company}</td>
@@ -1793,10 +1839,11 @@ export default function ReportsView({
                 {/* ۳. گزارش هزینه‌ها و مخارج */}
                 {selectedModule === 'expenses' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
-                        <TableColumnHeader colKey="vehicle" title="خودرو" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="vehicle" title="نام خودرو (کد)" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="plaque" title="پلاک خودرو" align="center" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="driverName" title="راننده زمان سند" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['driverName']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="company" title="شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['company']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="expenseType" title="نوع هزینه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['expenseType']} onOpenFilter={handleOpenFilterMenu} />
@@ -1808,19 +1855,24 @@ export default function ReportsView({
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                       {reportData.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center py-8 text-slate-500 font-bold">
+                          <td colSpan={9} className="text-center py-8 text-slate-500 font-bold">
                             هیچ رکوردی برای نمایش یافت نشد.
                           </td>
                         </tr>
                       ) : (
                         reportData.map((e: any, index: number) => {
                           const { driver, company, vehicle: v } = getItemDriverAndCompany(e, e.vehicleId);
+                          const vehicleCode = v?.code || (e as any).code || '';
+                          const vehicleName = v ? v.name : ((e as any).vehicleName || 'N/A');
+                          const plaqueNumber = v ? v.plaque : (e.plaque || '---');
                           return (
                             <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits((currentPage - 1) * pageSize + index + 1)}</td>
-                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold">
-                                <div>{v ? v.name : 'N/A'}</div>
-                                {v && <div className="text-[10px] text-slate-400 font-mono">{v.plaque}</div>}
+                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits(index + 1)}</td>
+                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold whitespace-nowrap">
+                                {vehicleName}{vehicleCode ? ` (${vehicleCode})` : ''}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[11px] whitespace-nowrap">
+                                {plaqueNumber}
                               </td>
                               <td className="py-1.5 px-3 text-emerald-600 dark:text-emerald-300 font-bold">{driver}</td>
                               <td className="py-1.5 px-3 text-amber-600 dark:text-amber-300 font-bold">{company}</td>
@@ -1843,10 +1895,11 @@ export default function ReportsView({
                 {/* ۴. گزارش بیمه‌نامه‌ها */}
                 {selectedModule === 'insurance' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
-                        <TableColumnHeader colKey="vehicle" title="خودرو" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="vehicle" title="نام خودرو (کد)" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['vehicle']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="plaque" title="پلاک خودرو" align="center" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="driverName" title="راننده فعلی" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['driverName']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="company" title="شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['company']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="insuranceType" title="نوع بیمه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['insuranceType']} onOpenFilter={handleOpenFilterMenu} />
@@ -1858,19 +1911,24 @@ export default function ReportsView({
                     <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
                       {reportData.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center py-8 text-slate-500 font-bold">
+                          <td colSpan={9} className="text-center py-8 text-slate-500 font-bold">
                             هیچ رکوردی برای نمایش یافت نشد.
                           </td>
                         </tr>
                       ) : (
                         reportData.map((i: any, index: number) => {
                           const { driver, company, vehicle: v } = getItemDriverAndCompany(i, i.vehicleId);
+                          const vehicleCode = v?.code || (i as any).code || '';
+                          const vehicleName = v ? v.name : ((i as any).vehicleName || 'N/A');
+                          const plaqueNumber = v ? v.plaque : (i.plaque || '---');
                           return (
                             <tr key={i.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits((currentPage - 1) * pageSize + index + 1)}</td>
-                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold">
-                                <div>{v ? v.name : 'N/A'}</div>
-                                {v && <div className="text-[10px] text-slate-400 font-mono">{v.plaque}</div>}
+                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits(index + 1)}</td>
+                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold whitespace-nowrap">
+                                {vehicleName}{vehicleCode ? ` (${vehicleCode})` : ''}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[11px] whitespace-nowrap">
+                                {plaqueNumber}
                               </td>
                               <td className="py-1.5 px-3 text-emerald-600 dark:text-emerald-300 font-bold">{driver}</td>
                               <td className="py-1.5 px-3 text-amber-600 dark:text-amber-300 font-bold">{company}</td>
@@ -1893,11 +1951,11 @@ export default function ReportsView({
                 {/* ۵. گزارش ناوگان خودرویی */}
                 {selectedModule === 'vehicles' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
-                        <TableColumnHeader colKey="plaque" title="پلاک ملی خودرو" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
-                        <TableColumnHeader colKey="name" title="نام تجاری و مدل" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['name']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="name" title="نام خودرو (کد)" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['name']} onOpenFilter={handleOpenFilterMenu} />
+                        <TableColumnHeader colKey="plaque" title="پلاک ملی خودرو" align="center" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['plaque']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="driverName" title="راننده منتسب فعلی" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['driverName']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="company" title="شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['company']} onOpenFilter={handleOpenFilterMenu} />
                         <TableColumnHeader colKey="type" title="نوع کاربری" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['type']} onOpenFilter={handleOpenFilterMenu} />
@@ -1915,9 +1973,13 @@ export default function ReportsView({
                         reportData.map((v: any, index: number) => {
                           return (
                             <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits((currentPage - 1) * pageSize + index + 1)}</td>
-                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[12px]">{v.plaque}</td>
-                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold">{v.name} {v.brand && `(${v.brand} ${v.model || ''})`}</td>
+                              <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">{toPersianDigits(index + 1)}</td>
+                              <td className="py-1.5 px-3 text-slate-900 dark:text-white font-bold whitespace-nowrap">
+                                {v.name} {v.code ? `(${v.code})` : ''} {v.brand ? `(${v.brand} ${v.model || ''})` : ''}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-800 dark:text-slate-200 font-mono text-center font-bold text-[12px] whitespace-nowrap">
+                                {v.plaque}
+                              </td>
                               <td className="py-1.5 px-3 text-emerald-600 dark:text-emerald-300 font-bold">{v.driverName || 'ثبت نشده'}</td>
                               <td className="py-1.5 px-3 text-amber-600 dark:text-amber-300 font-bold">{v.company || 'ثبت نشده'}</td>
                               <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300">
@@ -1947,7 +2009,7 @@ export default function ReportsView({
                 {/* ۶. گزارش رانندگان */}
                 {selectedModule === 'drivers' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
                         <TableColumnHeader colKey="name" title="نام راننده / پرسنل" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['name']} onOpenFilter={handleOpenFilterMenu} />
@@ -1967,7 +2029,7 @@ export default function ReportsView({
                         (reportData as any[]).map(([drv, stats]: [string, any], idx: number) => (
                           <tr key={drv} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
                             <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">
-                              {toPersianDigits((currentPage - 1) * pageSize + idx + 1)}
+                              {toPersianDigits(idx + 1)}
                             </td>
                             <td className="py-1.5 px-3 font-bold text-slate-900 dark:text-white">{drv}</td>
                             <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300">{stats.vehicles.join(', ') || '---'}</td>
@@ -1983,7 +2045,7 @@ export default function ReportsView({
                 {/* ۷. گزارش شرکت‌ها و پروژه‌ها */}
                 {selectedModule === 'companies' && (
                   <table className="w-full text-right text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
                       <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                         <th className="py-2 px-3 text-center w-12 text-xs font-mono font-bold">ردیف</th>
                         <TableColumnHeader colKey="name" title="نام شرکت / پروژه" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} isFiltered={!!columnFilters['name']} onOpenFilter={handleOpenFilterMenu} />
@@ -2004,7 +2066,7 @@ export default function ReportsView({
                         (reportData as any[]).map(([comp, stats]: [string, any], idx: number) => (
                           <tr key={comp} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
                             <td className="py-1.5 px-3 text-slate-500 text-center font-bold font-mono text-[10px]">
-                              {toPersianDigits((currentPage - 1) * pageSize + idx + 1)}
+                              {toPersianDigits(idx + 1)}
                             </td>
                             <td className="py-1.5 px-3 font-bold text-slate-900 dark:text-white">{comp}</td>
                             <td className="py-1.5 px-3 text-slate-700 dark:text-slate-300">{stats.vehicles.join(', ') || '---'}</td>
@@ -2018,14 +2080,6 @@ export default function ReportsView({
                   </table>
                 )}
               </div>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={sortedReportData.length}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={setPageSize}
-              />
             </div>
           )}
         </div>

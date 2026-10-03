@@ -61,24 +61,27 @@ const defaultDb = {
     { id: 8, serviceType: 'بازدید و تعویض لاستیک‌ها', intervalKm: 50000, warningKm: 1000, notes: 'بالانس و تعویض لاستیک‌ها', createdAt: new Date().toISOString() }
   ],
   failureCategories: [
-    { id: 1, name: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'سیستم‌های انتقال قدرت، موتور، کلاچ و ترمز', createdAt: new Date().toISOString() },
-    { id: 2, name: 'برقی و سیستم الکترونیک', description: 'باتری، دینام، استارت، سیم‌کشی و روشنایی', createdAt: new Date().toISOString() },
-    { id: 3, name: 'جلوبندی، لاستیک و تعلیق', description: 'کمک‌فنرها، طبق، سیبک، جعبه فرمان و لاستیک', createdAt: new Date().toISOString() },
-    { id: 4, name: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'رادیاتور، واترپمپ، ترموستات، پمپ بنزین و انژکتور', createdAt: new Date().toISOString() },
-    { id: 5, name: 'بدنه، صافکاری و نقاشی', description: 'سپر، درها، شیشه‌ها، قفل و تزئینات داخلی/خارجی', createdAt: new Date().toISOString() },
-    { id: 6, name: 'سایر و سرویس‌های تخصصی', description: 'سایر عیوب فنی و نیازمندی‌های تعمیرگاهی متفرقه', createdAt: new Date().toISOString() }
+    { id: 1, name: 'سیستم ترمز', description: 'لنت، دیسک، بوستر، پمپ ترمز و سیستم ABS', createdAt: new Date().toISOString() },
+    { id: 2, name: 'موتور و قوای محرکه', description: 'سرسیلندر، پیستون، تسمه تایم، روغن‌سوزی و واشر سرسیلندر', createdAt: new Date().toISOString() },
+    { id: 3, name: 'گیربکس و کلاچ', description: 'دیسک و صفحه، دنده‌ها، دیفرانسیل و پلوس', createdAt: new Date().toISOString() },
+    { id: 4, name: 'برقی و سیستم الکترونیک', description: 'باتری، دینام، استارت، سیم‌کشی و روشنایی', createdAt: new Date().toISOString() },
+    { id: 5, name: 'جلوبندی و سیستم تعلیق', description: 'کمک‌فنرها، طبق، سیبک، جعبه فرمان و هیدرولیک', createdAt: new Date().toISOString() },
+    { id: 6, name: 'لاستیک و چرخ', description: 'لاستیک، رینگ، بالانس و تنظیم باد', createdAt: new Date().toISOString() },
+    { id: 7, name: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'رادیاتور، واترپمپ، ترموستات، پمپ بنزین و انژکتور', createdAt: new Date().toISOString() },
+    { id: 8, name: 'بدنه، صافکاری و نقاشی', description: 'سپر، درها، شیشه‌ها، قفل و تزئینات داخلی/خارجی', createdAt: new Date().toISOString() },
+    { id: 9, name: 'سایر و سرویس‌های تخصصی', description: 'سایر عیوب فنی و نیازمندی‌های تعمیرگاهی متفرقه', createdAt: new Date().toISOString() }
   ],
   failureDefinitions: [
-    { id: 1, failureType: 'سوختن واشر سرسیلندر', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'کم کردن آب رادیاتور و اختلاط آب و روغن', createdAt: new Date().toISOString() },
-    { id: 2, failureType: 'خرابی دیسک و صفحه کلاچ', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'بکسوات کلاچ و افت شتاب خودرو', createdAt: new Date().toISOString() },
-    { id: 3, failureType: 'روغن‌ریزی هیدرولیک فرمان', category: 'جلوبندی، لاستیک و تعلیق', description: 'کاهش سطح روغن هیدرولیک و سفتی فرمان', createdAt: new Date().toISOString() },
-    { id: 4, failureType: 'ضعف و سوت کشیدن لنت ترمز', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'ساییدگی لنت و صدای ناهنجار در ترمزگیری', createdAt: new Date().toISOString() },
+    { id: 1, failureType: 'سوختن واشر سرسیلندر', category: 'موتور و قوای محرکه', description: 'کم کردن آب رادیاتور و اختلاط آب و روغن', createdAt: new Date().toISOString() },
+    { id: 2, failureType: 'خرابی دیسک و صفحه کلاچ', category: 'گیربکس و کلاچ', description: 'بکسوات کلاچ و افت شتاب خودرو', createdAt: new Date().toISOString() },
+    { id: 3, failureType: 'روغن‌ریزی هیدرولیک فرمان', category: 'جلوبندی و سیستم تعلیق', description: 'کاهش سطح روغن هیدرولیک و سفتی فرمان', createdAt: new Date().toISOString() },
+    { id: 4, failureType: 'ضعف و سوت کشیدن لنت ترمز', category: 'سیستم ترمز', description: 'ساییدگی لنت و صدای ناهنجار در ترمزگیری', createdAt: new Date().toISOString() },
     { id: 5, failureType: 'خرابی دینام و عدم شارژ باتری', category: 'برقی و سیستم الکترونیک', description: 'روشن ماندن چراغ دینام و تخلیه باتری', createdAt: new Date().toISOString() },
     { id: 6, failureType: 'استارت نخوردن و خرابی اتوماتیک استارت', category: 'برقی و سیستم الکترونیک', description: 'عدم چرخش موتور هنگام استارت', createdAt: new Date().toISOString() },
-    { id: 7, failureType: 'لرزش فرمان و گیجی جلوبندی', category: 'جلوبندی، لاستیک و تعلیق', description: 'خرابی سیبک‌ها یا عدم بالانس چرخ‌ها', createdAt: new Date().toISOString() },
+    { id: 7, failureType: 'لرزش فرمان و گیجی جلوبندی', category: 'جلوبندی و سیستم تعلیق', description: 'خرابی سیبک‌ها یا عدم بالانس چرخ‌ها', createdAt: new Date().toISOString() },
     { id: 8, failureType: 'سوراخ شدن رادیاتور و نشت مایع خنک‌کننده', category: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'جوش آوردن موتور و افت سطح آب', createdAt: new Date().toISOString() },
     { id: 9, failureType: 'خرابی پمپ بنزین', category: 'سیستم خنک‌کننده و سوخت‌رسانی', description: 'ریپ زدن و خاموش شدن ناگهانی خودرو', createdAt: new Date().toISOString() },
-    { id: 10, failureType: 'پاره شدن تسمه دینام و هیدرولیک', category: 'مکانیکی (موتور / گیربکس / ترمز)', description: 'قطع برق دینام و از کار افتادن پمپ هیدرولیک', createdAt: new Date().toISOString() }
+    { id: 10, failureType: 'پاره شدن تسمه دینام و هیدرولیک', category: 'موتور و قوای محرکه', description: 'قطع برق دینام و از کار افتادن پمپ هیدرولیک', createdAt: new Date().toISOString() }
   ],
   odometerLogs: [],
   smsInboundLogs: [],
@@ -2839,11 +2842,15 @@ async function startServer() {
       if (!db.failureCategories) db.failureCategories = [];
       if (!db.mechanics) db.mechanics = [];
       if (!db.suppliers) db.suppliers = [];
+      if (!db.periodicServices) db.periodicServices = [];
+      if (!db.vehicleFailures) db.vehicleFailures = [];
 
       const { entityType, items = [], multiData, options = {} } = req.body;
       const updateDuplicates = options.updateDuplicates !== false;
 
       const summary: Record<string, { imported: number; updated: number; skipped: number; total: number }> = {
+        services: { imported: 0, updated: 0, skipped: 0, total: 0 },
+        failures: { imported: 0, updated: 0, skipped: 0, total: 0 },
         vehicles: { imported: 0, updated: 0, skipped: 0, total: 0 },
         persons: { imported: 0, updated: 0, skipped: 0, total: 0 },
         companies: { imported: 0, updated: 0, skipped: 0, total: 0 },
@@ -2870,6 +2877,9 @@ async function startServer() {
               db.vehicles[existingIdx] = {
                 ...db.vehicles[existingIdx],
                 ...item,
+                code: item.code !== undefined && item.code !== null ? String(item.code).trim() : db.vehicles[existingIdx].code,
+                plaque: item.plaque !== undefined && item.plaque !== null ? String(item.plaque).trim() : db.vehicles[existingIdx].plaque,
+                name: item.name !== undefined && item.name !== null ? String(item.name).trim() : db.vehicles[existingIdx].name,
                 id: db.vehicles[existingIdx].id
               };
               summary.vehicles.updated++;
@@ -2879,15 +2889,13 @@ async function startServer() {
           } else {
             const nextId = db.vehicles.length > 0 ? Math.max(...db.vehicles.map((v: any) => Number(v.id) || 0)) + 1 : 1;
             const newV = {
-              code: item.code || `V-${nextId}`,
-              company: item.company || 'ثبت نشده',
+              company: item.company ? String(item.company).trim() : 'ثبت نشده',
               project: item.project || '-',
               department: item.department || '-',
               location: item.location || '-',
-              driverName: item.driverName || 'ثبت نشده',
-              driverPhone: item.driverPhone || '',
-              plaque: item.plaque || 'ثبت نشده',
-              name: item.name || 'خودرو بدون نام',
+              driverName: item.driverName ? String(item.driverName).trim() : 'ثبت نشده',
+              driverPhone: item.driverPhone ? String(item.driverPhone).trim() : '',
+              name: item.name ? String(item.name).trim() : 'خودرو بدون نام',
               brand: item.brand || '',
               model: item.model || '',
               productionYear: Number(item.productionYear) || 1400,
@@ -2898,6 +2906,8 @@ async function startServer() {
               status: item.status || 'active',
               currentKm: Number(item.currentKm) || 0,
               ...item,
+              code: item.code !== undefined && item.code !== null ? String(item.code).trim() : `V-${nextId}`,
+              plaque: item.plaque !== undefined && item.plaque !== null ? String(item.plaque).trim() : 'ثبت نشده',
               id: nextId,
               createdAt: new Date().toISOString()
             };
@@ -3175,8 +3185,351 @@ async function startServer() {
         });
       };
 
+      // تابع پردازش پذیرش سرویس‌های دوره‌ای
+      const processServices = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          if (!item.serviceType && !item.name && !item.title) return;
+          summary.services = summary.services || { imported: 0, updated: 0, skipped: 0, total: 0 };
+          summary.services.total++;
+
+          const itemCode = (item.code || '').trim();
+          const itemPlaque = (item.plaque || '').trim();
+          const itemName = (item.vehicleName || item.vehicle || item.name || '').trim();
+
+          let matchedVehicle = db.vehicles.find((v: any) => 
+            (itemCode && String(v.code).trim().toLowerCase() === itemCode.toLowerCase()) ||
+            (itemPlaque && String(v.plaque).trim() === itemPlaque) ||
+            (itemName && String(v.name).trim().toLowerCase() === itemName.toLowerCase())
+          );
+
+          if (!matchedVehicle && (itemCode || itemPlaque || itemName)) {
+            matchedVehicle = db.vehicles.find((v: any) => 
+              (itemPlaque && String(v.plaque).includes(itemPlaque)) ||
+              (itemCode && String(v.code).includes(itemCode)) ||
+              (itemName && String(v.name).includes(itemName))
+            );
+          }
+
+          // اگر خودرو هنوز در سامانه تعریف نشده، به صورت خودکار با اطلاعات واردشده تعریف می‌شود
+          if (!matchedVehicle && (itemPlaque || itemCode || itemName)) {
+            const nextVehicleId = db.vehicles.length > 0 ? Math.max(...db.vehicles.map((v: any) => Number(v.id) || 0)) + 1 : 1;
+            matchedVehicle = {
+              id: nextVehicleId,
+              code: itemCode || `V-${nextVehicleId}`,
+              name: itemName || (itemPlaque ? `خودرو ${itemPlaque}` : `خودرو ${nextVehicleId}`),
+              plaque: itemPlaque || 'ثبت نشده',
+              driverName: item.driverName ? String(item.driverName).trim() : 'ثبت نشده',
+              company: item.company ? String(item.company).trim() : 'ثبت نشده',
+              currentKm: Number(item.currentKm || item.km || item.odometer) || 0,
+              productionYear: 1400,
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            db.vehicles.push(matchedVehicle);
+            summary.vehicles.imported++;
+          }
+
+          const nextId = db.periodicServices.length > 0 ? Math.max(...db.periodicServices.map((s: any) => Number(s.id) || 0)) + 1 : 1;
+          const sDate = item.serviceDate || item.date || getTodayJalaliString();
+          const sKm = Number(item.currentKm || item.km || item.odometer) || (matchedVehicle?.currentKm || 0);
+          const sType = (item.serviceType || item.title || item.name || 'سرویس عمومی').trim();
+
+          const sQuantity = Number(item.quantity || 1) || 1;
+          const sUnitPrice = Number(item.unitPrice || 0) || 0;
+          const sPartsCost = Number(item.partsCost || 0) || (sUnitPrice * sQuantity);
+          const sWages = Number(item.wages || 0) || 0;
+          let sCost = Number(item.cost || item.totalCost || item.price || item.amount || 0) || 0;
+          if (sCost === 0 && (sPartsCost > 0 || sWages > 0)) {
+            sCost = sPartsCost + sWages;
+          }
+
+          let pSource: 'warehouse' | 'supplier' | 'none' = 'none';
+          const srcStr = String(item.partSource || '').trim().toLowerCase();
+          if (srcStr.includes('انبار') || srcStr.includes('warehouse')) {
+            pSource = 'warehouse';
+          } else if (srcStr.includes('تامین') || srcStr.includes('بازار') || srcStr.includes('فروشگاه') || srcStr.includes('بیرون') || srcStr.includes('خرید') || srcStr.includes('supplier') || item.supplierName) {
+            pSource = 'supplier';
+          } else if (item.partName) {
+            pSource = 'warehouse';
+          }
+
+          const sInvoiceNo = String(item.invoiceNumber || item.factorNumber || '').trim();
+          let sNotes = (item.notes || item.description || '').trim();
+          if (sInvoiceNo && !sNotes.includes(sInvoiceNo)) {
+            sNotes = sNotes ? `شماره فاکتور: ${sInvoiceNo} | ${sNotes}` : `شماره فاکتور: ${sInvoiceNo}`;
+          }
+
+          const supName = (item.supplierName || item.supplier || '').trim();
+          if (supName && !db.suppliers.some((s: any) => s.name && s.name.trim().toLowerCase() === supName.toLowerCase())) {
+            const nextSupId = db.suppliers.length > 0 ? Math.max(...db.suppliers.map((s: any) => Number(s.id) || 0)) + 1 : 1;
+            db.suppliers.push({
+              id: nextSupId,
+              code: `S-${nextSupId}`,
+              name: supName,
+              status: 'active',
+              category: 'قطعات یدکی',
+              createdAt: new Date().toISOString()
+            });
+            summary.suppliers.imported++;
+          }
+
+          const mechName = (item.mechanicName || item.repairShopName || '').trim();
+          if (mechName && !db.mechanics.some((m: any) => (m.name && m.name.trim().toLowerCase() === mechName.toLowerCase()) || (m.shopName && m.shopName.trim().toLowerCase() === mechName.toLowerCase()))) {
+            const nextMechId = db.mechanics.length > 0 ? Math.max(...db.mechanics.map((m: any) => Number(m.id) || 0)) + 1 : 1;
+            db.mechanics.push({
+              id: nextMechId,
+              name: mechName,
+              shopName: mechName,
+              specialty: 'سرویس‌کار و مکانیک',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            });
+            summary.mechanics.imported++;
+          }
+
+          const sNextKm = Number(item.nextKm) || (sKm + 5000);
+
+          const newService = {
+            id: nextId,
+            vehicleId: matchedVehicle ? matchedVehicle.id : (Number(item.vehicleId) || 0),
+            code: itemCode || matchedVehicle?.code || '',
+            vehicleName: itemName || matchedVehicle?.name || '',
+            driverName: item.driverName || matchedVehicle?.driverName || 'ثبت نشده',
+            company: item.company || matchedVehicle?.company || 'ثبت نشده',
+            plaque: matchedVehicle ? matchedVehicle.plaque : (itemPlaque || 'ثبت نشده'),
+            serviceType: sType,
+            serviceDate: sDate,
+            currentKm: sKm,
+            nextKm: sNextKm,
+            nextDate: '',
+            cost: sCost,
+            partsCost: sPartsCost,
+            partName: item.partName || '',
+            partSource: pSource,
+            quantity: sQuantity,
+            unitPrice: sUnitPrice,
+            wages: sWages,
+            invoiceNumber: sInvoiceNo,
+            mechanicName: mechName,
+            repairShopName: item.repairShopName || mechName,
+            supplierName: supName,
+            status: (item.status === 'in_progress' || item.status === 'در حال انجام') ? 'in_progress' : 'completed',
+            notes: sNotes,
+            createdAt: new Date().toISOString()
+          };
+
+          db.periodicServices.push(newService);
+          summary.services.imported++;
+
+          if (matchedVehicle && sKm > (matchedVehicle.currentKm || 0)) {
+            matchedVehicle.currentKm = sKm;
+          }
+        });
+      };
+
+      // تابع پردازش پذیرش خرابی‌ها و عیوب
+      const processFailures = (list: any[]) => {
+        if (!Array.isArray(list)) return;
+        list.forEach((item) => {
+          if (!item.failureType && !item.description && !item.name) return;
+          summary.failures = summary.failures || { imported: 0, updated: 0, skipped: 0, total: 0 };
+          summary.failures.total++;
+
+          const itemCode = (item.code || '').trim();
+          const itemPlaque = (item.plaque || '').trim();
+          const itemName = (item.vehicleName || item.vehicle || item.name || '').trim();
+
+          let matchedVehicle = db.vehicles.find((v: any) => 
+            (itemCode && String(v.code).trim().toLowerCase() === itemCode.toLowerCase()) ||
+            (itemPlaque && String(v.plaque).trim() === itemPlaque) ||
+            (itemName && String(v.name).trim().toLowerCase() === itemName.toLowerCase())
+          );
+
+          if (!matchedVehicle && (itemCode || itemPlaque || itemName)) {
+            matchedVehicle = db.vehicles.find((v: any) => 
+              (itemPlaque && String(v.plaque).includes(itemPlaque)) ||
+              (itemCode && String(v.code).includes(itemCode)) ||
+              (itemName && String(v.name).includes(itemName))
+            );
+          }
+
+          // اگر خودرو هنوز در سامانه تعریف نشده، به صورت خودکار با اطلاعات واردشده تعریف می‌شود
+          if (!matchedVehicle && (itemPlaque || itemCode || itemName)) {
+            const nextVehicleId = db.vehicles.length > 0 ? Math.max(...db.vehicles.map((v: any) => Number(v.id) || 0)) + 1 : 1;
+            matchedVehicle = {
+              id: nextVehicleId,
+              code: itemCode || `V-${nextVehicleId}`,
+              name: itemName || (itemPlaque ? `خودرو ${itemPlaque}` : `خودرو ${nextVehicleId}`),
+              plaque: itemPlaque || 'ثبت نشده',
+              driverName: item.driverName ? String(item.driverName).trim() : 'ثبت نشده',
+              company: item.company ? String(item.company).trim() : 'ثبت نشده',
+              currentKm: Number(item.odometer || item.currentKm || item.km) || 0,
+              productionYear: 1400,
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            db.vehicles.push(matchedVehicle);
+            summary.vehicles.imported++;
+          }
+
+          const nextId = db.vehicleFailures.length > 0 ? Math.max(...db.vehicleFailures.map((f: any) => Number(f.id) || 0)) + 1 : 1;
+          const fDate = item.failureDate || item.startDate || item.referralDate || item.date || getTodayJalaliString();
+          const dDate = item.dischargeDate || item.endDate || '';
+          const fKm = Number(item.odometer || item.currentKm || item.km) || (matchedVehicle?.currentKm || 0);
+          const fType = (item.failureType || item.description || 'عیب فنی').trim();
+
+          const fQuantity = Number(item.quantity || 1) || 1;
+          const fUnitPrice = Number(item.unitPrice || 0) || 0;
+          const fPartsCost = Number(item.partsCost || 0) || (fUnitPrice * fQuantity);
+          const fWages = Number(item.wages || 0) || 0;
+          let fCost = Number(item.totalCost || item.cost || item.amount || item.price || 0) || 0;
+          if (fCost === 0 && (fPartsCost > 0 || fWages > 0)) {
+            fCost = fPartsCost + fWages;
+          }
+
+          let fSource = 'shop';
+          const fSrcStr = String(item.partSource || '').trim().toLowerCase();
+          if (fSrcStr.includes('انبار') || fSrcStr.includes('warehouse')) {
+            fSource = 'warehouse';
+          } else if (fSrcStr.includes('تامین') || fSrcStr.includes('بازار') || fSrcStr.includes('فروشگاه') || fSrcStr.includes('بیرون') || fSrcStr.includes('خرید') || fSrcStr.includes('supplier')) {
+            fSource = 'supplier';
+          } else if (fSrcStr.includes('تعمیر') || fSrcStr.includes('shop')) {
+            fSource = 'shop';
+          } else if (item.supplierName) {
+            fSource = 'supplier';
+          }
+
+          const fInvoiceNo = String(item.invoiceNumber || item.factorNumber || '').trim();
+          let fDesc = (item.description || fType).trim();
+          if (fInvoiceNo && !fDesc.includes(fInvoiceNo)) {
+            fDesc = fDesc ? `شماره فاکتور: ${fInvoiceNo} | ${fDesc}` : `شماره فاکتور: ${fInvoiceNo}`;
+          }
+
+          const fCategory = (item.category || 'عمومی').trim();
+          if (fCategory && !db.failureCategories.some((c: any) => c.name && c.name.trim() === fCategory)) {
+            const nextCatId = db.failureCategories.length > 0 ? Math.max(...db.failureCategories.map((c: any) => Number(c.id) || 0)) + 1 : 1;
+            db.failureCategories.push({
+              id: nextCatId,
+              name: fCategory,
+              description: 'ایجاد شده خودکار از ورود اکسل خرابی‌ها',
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          const fSupName = (item.supplierName || item.supplier || '').trim();
+          if (fSupName && !db.suppliers.some((s: any) => s.name && s.name.trim().toLowerCase() === fSupName.toLowerCase())) {
+            const nextSupId = db.suppliers.length > 0 ? Math.max(...db.suppliers.map((s: any) => Number(s.id) || 0)) + 1 : 1;
+            db.suppliers.push({
+              id: nextSupId,
+              code: `S-${nextSupId}`,
+              name: fSupName,
+              status: 'active',
+              category: 'قطعات یدکی',
+              createdAt: new Date().toISOString()
+            });
+            summary.suppliers.imported++;
+          }
+
+          const fMechShop = (item.repairShopName || item.mechanicName || '').trim();
+          if (fMechShop && !db.mechanics.some((m: any) => (m.name && m.name.trim().toLowerCase() === fMechShop.toLowerCase()) || (m.shopName && m.shopName.trim().toLowerCase() === fMechShop.toLowerCase()))) {
+            const nextMechId = db.mechanics.length > 0 ? Math.max(...db.mechanics.map((m: any) => Number(m.id) || 0)) + 1 : 1;
+            db.mechanics.push({
+              id: nextMechId,
+              name: fMechShop,
+              shopName: fMechShop,
+              specialty: fCategory || 'مکانیک عمومی',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            });
+            summary.mechanics.imported++;
+          }
+
+          const isCompleted = item.status === 'completed' || item.status === 'ترخیص شده' || item.status === 'ترخیص' || Boolean(dDate);
+
+          const newFailure = {
+            id: nextId,
+            vehicleId: matchedVehicle ? matchedVehicle.id : (Number(item.vehicleId) || 0),
+            code: itemCode || matchedVehicle?.code || '',
+            vehicleName: itemName || matchedVehicle?.name || '',
+            driverName: item.driverName || matchedVehicle?.driverName || 'ثبت نشده',
+            company: item.company || matchedVehicle?.company || 'ثبت نشده',
+            plaque: matchedVehicle ? matchedVehicle.plaque : (itemPlaque || 'ثبت نشده'),
+            failureDate: fDate,
+            startDate: fDate,
+            dischargeDate: dDate,
+            endDate: dDate || (isCompleted ? fDate : ''),
+            failureTime: '12:00',
+            odometer: fKm,
+            description: fDesc,
+            failureType: fType,
+            category: fCategory,
+            priority: item.priority || 'medium',
+            status: isCompleted ? 'completed' : 'in_repair',
+            repairShopName: fMechShop,
+            mechanicName: fMechShop,
+            supplierName: fSupName,
+            partName: item.partName || '',
+            partSource: fSource,
+            quantity: fQuantity,
+            unitPrice: fUnitPrice,
+            partsCost: fPartsCost,
+            wages: fWages,
+            totalCost: fCost,
+            invoiceNumber: fInvoiceNo,
+            createdAt: new Date().toISOString()
+          };
+
+          db.vehicleFailures.push(newFailure);
+          summary.failures.imported++;
+
+          if (matchedVehicle) {
+            if (fKm > (matchedVehicle.currentKm || 0)) {
+              matchedVehicle.currentKm = fKm;
+            }
+            if (!isCompleted) {
+              matchedVehicle.status = 'in_repair';
+            }
+          }
+
+          // ایجاد خودکار رکورد گردش تعمیر مرتبط در صورت عدم وجود
+          if (!db.repairWorkflows) db.repairWorkflows = [];
+          const existingWorkflow = db.repairWorkflows.find((w: any) => w.failureId === newFailure.id);
+          if (!existingWorkflow) {
+            const nextWfId = db.repairWorkflows.length > 0 ? Math.max(...db.repairWorkflows.map((w: any) => Number(w.id) || 0)) + 1 : 1;
+            
+            const shopParts = item.partName ? [{
+              name: item.partName,
+              quantity: fQuantity,
+              unitPrice: fUnitPrice,
+              totalPrice: fPartsCost || (fUnitPrice > 0 ? fUnitPrice * fQuantity : Math.max(0, fCost - fWages)),
+              source: fSource,
+              supplierName: fSupName
+            }] : [];
+
+            db.repairWorkflows.push({
+              id: nextWfId,
+              failureId: newFailure.id,
+              technicianId: undefined,
+              repairShopName: fMechShop,
+              partsUsed: fSource === 'warehouse' && item.partName ? { [item.partName]: fQuantity } : {},
+              shopPartsUsed: shopParts,
+              wages: fWages,
+              totalCost: fCost,
+              startDate: fDate,
+              endDate: dDate || (isCompleted ? fDate : ''),
+              isDelivered: isCompleted,
+              isApprovedByManager: isCompleted,
+              createdAt: new Date().toISOString()
+            });
+          }
+        });
+      };
+
       // بررسی نوع و هدایت
       if (multiData) {
+        if (multiData.services) processServices(multiData.services);
+        if (multiData.failures) processFailures(multiData.failures);
         if (multiData.vehicles) processVehicles(multiData.vehicles);
         if (multiData.persons) processPersons(multiData.persons);
         if (multiData.companies) processCompanies(multiData.companies);
@@ -3185,7 +3538,9 @@ async function startServer() {
         if (multiData.mechanics) processMechanics(multiData.mechanics);
         if (multiData.suppliers) processSuppliers(multiData.suppliers);
       } else {
-        if (entityType === 'vehicles') processVehicles(items);
+        if (entityType === 'services') processServices(items);
+        else if (entityType === 'failures') processFailures(items);
+        else if (entityType === 'vehicles') processVehicles(items);
         else if (entityType === 'persons') processPersons(items);
         else if (entityType === 'companies') processCompanies(items);
         else if (entityType === 'service_definitions') processServiceDefinitions(items);
@@ -3215,7 +3570,10 @@ async function startServer() {
           failureDefinitions: db.failureDefinitions,
           failureCategories: db.failureCategories,
           mechanics: db.mechanics,
-          suppliers: db.suppliers
+          suppliers: db.suppliers,
+          periodicServices: db.periodicServices,
+          vehicleFailures: db.vehicleFailures,
+          repairWorkflows: db.repairWorkflows
         }
       });
     } catch (err: any) {
@@ -3494,9 +3852,10 @@ async function startServer() {
 
       for (const v of db.vehicles) {
         // الف) کد خودرو (مانند VEH-101 یا V-101)
-        if (v.code) {
-          const codeNorm = normalizePersianText(v.code);
-          const codeDigits = v.code.replace(/[^0-9]/g, '');
+        if (v.code !== undefined && v.code !== null && v.code !== '') {
+          const codeStr = String(v.code);
+          const codeNorm = normalizePersianText(codeStr);
+          const codeDigits = codeStr.replace(/[^0-9]/g, '');
           if (codeNorm && rawTextNorm.includes(codeNorm)) {
             return v;
           }
@@ -3507,7 +3866,7 @@ async function startServer() {
 
         // ب) پلاک خودرو (ارقام پلاک)
         if (v.plaque || v.plate) {
-          const plaqueStr = (v.plaque || v.plate || '');
+          const plaqueStr = String(v.plaque || v.plate || '');
           const plaqueDigits = plaqueStr.replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()).replace(/[^0-9]/g, '');
           if (plaqueDigits && plaqueDigits.length >= 4 && rawTextDigitsOnly.includes(plaqueDigits)) {
             return v;
@@ -3516,7 +3875,7 @@ async function startServer() {
 
         // ج) نام راننده در متن پیامک
         if (v.driverName) {
-          const driverNorm = normalizePersianText(v.driverName);
+          const driverNorm = normalizePersianText(String(v.driverName));
           if (driverNorm && driverNorm.length >= 3 && rawTextNorm.includes(driverNorm)) {
             return v;
           }
@@ -3524,7 +3883,7 @@ async function startServer() {
 
         // د) نام خودرو در متن پیامک (مانند پراید، پژو، بنز)
         if (v.name) {
-          const vNameNorm = normalizePersianText(v.name);
+          const vNameNorm = normalizePersianText(String(v.name));
           if (vNameNorm && vNameNorm.length >= 3 && rawTextNorm.includes(vNameNorm)) {
             return v;
           }
@@ -4433,6 +4792,108 @@ async function startServer() {
       logs: sentLogs
     });
   });
+
+  // اندپوینت جامع کران‌جاب (قابل اجرا توسط Cron Job در هاست اشتراکی نظیر cPanel و DirectAdmin یا سرویس‌های دوره‌ای)
+  // پشتیبانی از هر دو متد GET و POST
+  const handleSystemCron = async (req: express.Request, res: express.Response) => {
+    const startTime = Date.now();
+    const result: any = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      jalaliDate: getTodayJalaliString(),
+      inboundSms: { newCount: 0, messages: [] },
+      overdueRemindersSent: 0,
+      dailyRemindersSent: 0
+    };
+
+    // ۱. استعلام و دریافت پیامک‌های جدید رانندگان از درگاه پیامک
+    try {
+      const syncResult = await syncInboundSmsFromGateway();
+      result.inboundSms = syncResult;
+    } catch (e: any) {
+      result.inboundSmsError = e?.message || String(e);
+    }
+
+    // ۲. بررسی و ارسال خودکار پیامک یادآوری کارکرد رانندگان در صورت فعال بودن
+    try {
+      const db = readDb();
+      const settings = getSmsSettings(db);
+      if (settings.autoSendEnabled) {
+        const overdueList = getOverdueDriversList(db);
+        const eligibleList = overdueList.filter((o: any) => !o.smsAlreadySentRecently && o.driverPhone && o.driverPhone.trim().length >= 7);
+        let sent = 0;
+        eligibleList.forEach((item: any) => {
+          try {
+            sendReminderSmsToDriver(db, item.vehicleId, undefined, 'automatic');
+            sent++;
+          } catch {}
+        });
+        if (sent > 0) {
+          writeDb(db);
+        }
+        result.overdueRemindersSent = sent;
+      }
+    } catch (e: any) {
+      result.overdueRemindersError = e?.message || String(e);
+    }
+
+    // ۳. بررسی و ارسال یادآوری‌های سررسید شده امروز سامانه
+    try {
+      const db = readDb();
+      if (db.reminders && Array.isArray(db.reminders)) {
+        const todayJalali = getTodayJalaliString();
+        const dueReminders = db.reminders.filter((r: any) =>
+          (r.status === 'pending' || r.status === 'reminded') &&
+          r.reminderDate === todayJalali
+        );
+        let smsSentCount = 0;
+        for (const r of dueReminders) {
+          if (r.sendSms && !r.smsSent && r.targetPhone && r.targetPhone.length >= 10) {
+            const message = `یادآوری سامانه ترابری: ${r.title}\nتاریخ: ${r.reminderDate}${r.reminderTime ? ` ساعت ${r.reminderTime}` : ''}\n${r.description ? `توضیحات: ${r.description}\n` : ''}${r.vehicleName ? `خودرو: ${r.vehicleName}\n` : ''}واحد ترابری`;
+            try {
+              const smsRes = await sendSmsViaGateway(r.targetPhone, message);
+              if (smsRes.success) {
+                r.smsSent = true;
+                r.smsSentAt = new Date().toISOString();
+                r.smsResponse = smsRes.info;
+                r.status = 'reminded';
+                smsSentCount++;
+
+                if (!db.smsOutboundLogs) db.smsOutboundLogs = [];
+                db.smsOutboundLogs.unshift({
+                  id: db.smsOutboundLogs.length > 0 ? Math.max(...db.smsOutboundLogs.map((o: any) => o.id)) + 1 : 1,
+                  vehicleId: r.vehicleId || 0,
+                  vehicleName: r.vehicleName || 'عمومی / سیستم',
+                  plaque: '',
+                  driverName: r.targetName || 'کاربر',
+                  driverPhone: r.targetPhone,
+                  messageText: message,
+                  sentAt: new Date().toISOString(),
+                  status: 'sent',
+                  type: 'reminder',
+                  triggerMode: 'automatic',
+                  responseInfo: smsRes.info
+                });
+              }
+            } catch {}
+          }
+        }
+        if (smsSentCount > 0) {
+          writeDb(db);
+        }
+        result.dailyRemindersSent = smsSentCount;
+      }
+    } catch (e: any) {
+      result.dailyRemindersError = e?.message || String(e);
+    }
+
+    result.durationMs = Date.now() - startTime;
+    res.json(result);
+  };
+
+  app.all('/api/cron', handleSystemCron);
+  app.all('/api/cron/run', handleSystemCron);
+  app.all('/api/sms/cron', handleSystemCron);
 
   // تاریخچه پیامک‌های ارسالی یادآوری
   app.get('/api/sms/outbound-logs', (req, res) => {

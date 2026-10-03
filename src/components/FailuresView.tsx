@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, Search, Wrench, Calendar, Clock, List,
   ChevronRight, CheckCircle2, X, ClipboardList,
   UserCheck, MapPin, Package, Settings, BadgeDollarSign, Truck, ShieldCheck,
   ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Check, Trash2, Eye, Receipt, DollarSign,
-  AlertCircle, History, FileText, CheckCircle, RefreshCw, Edit2, FileSpreadsheet, Printer, Tag
+  AlertCircle, History, FileText, CheckCircle, RefreshCw, Edit2, FileSpreadsheet, Printer, Tag, Upload
 } from 'lucide-react';
+import DefinitionsExcelImportModal from './DefinitionsExcelImportModal';
 import { Vehicle, VehicleFailure, RepairWorkflow, FailurePriority, FailureType, SatisfactionLevel, PartInventory, User, Mechanic, ServiceDefinition, Supplier, Person, FailureDefinition, FailureCategory, FailureItem } from '../types';
 import { toJalaliDate, getCurrentJalaliDate, toJalaliStandardString } from '../utils/date';
 import { JalaliDatePicker } from './JalaliDatePicker';
@@ -112,6 +113,7 @@ interface FailuresViewProps {
   onDeleteFailure?: (id: number) => Promise<void>;
   onUpdateWorkflow: (id: number, workflow: Partial<RepairWorkflow> & { markReady?: boolean }) => Promise<void>;
   onNavigate?: (view: string) => void;
+  onBulkImportSuccess?: (summary: any, data: any) => void;
 }
 
 type MainTabType = 'in_repair' | 'completed';
@@ -166,10 +168,12 @@ export default function FailuresView({
   onUpdateFailure,
   onDeleteFailure,
   onUpdateWorkflow,
-  onNavigate
+  onNavigate,
+  onBulkImportSuccess
 }: FailuresViewProps) {
   // کلا دو بخش اصلی: در حال تعمیر و آماده شده
   const [activeTab, setActiveTab] = useState<MainTabType>('in_repair');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -244,10 +248,99 @@ export default function FailuresView({
     });
   };
 
+  // تابع کمکی بررسی دقیق تعلق یک تعریف خرابی به دسته انتخاب‌شده
+  const isDefinitionInCategory = useCallback((def: FailureDefinition, categoryVal?: string): boolean => {
+    if (!categoryVal || !categoryVal.trim()) return true;
+    if (!def) return false;
+
+    const normCat = categoryVal.trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+    const defCategory = (def.category || '').trim();
+    const defTitle = (def.failureType || '').trim();
+    const normDefCat = defCategory.toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+    const normDefTitle = defTitle.toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+
+    // ۱. تطابق ۱۰۰٪ مستقیم نام دسته‌بندی
+    if (normCat === normDefCat) return true;
+
+    // ۲. تعریف حوزه‌های تخصصی فنی برای تفکیک دقیق زیرمجموعه‌ها (ترمز، موتور، گیربکس، برق، جلوبندی، لاستیک و ...)
+    const domainKeywords: Record<string, { catKeywords: string[]; titleKeywords: string[] }> = {
+      brake: {
+        catKeywords: ['ترمز', 'brake', 'لنت'],
+        titleKeywords: ['ترمز', 'لنت', 'دیسک چرخ', 'دیسک ترمز', 'بوستر', 'کالیپر', 'سیلندر ترمز', 'ترمز دستی', 'abs', 'ای بی اس']
+      },
+      engine: {
+        catKeywords: ['موتور', 'engine', 'قوای محرکه', 'سرسیلندر'],
+        titleKeywords: ['موتور', 'سرسیلندر', 'سیلندر', 'پیستون', 'یاتاقان', 'میل لنگ', 'میل‌لنگ', 'سوپاپ', 'واشر سرسیلندر', 'تسمه تایم', 'شاتون', 'دود آبی', 'روغن سوزی', 'کمپرس']
+      },
+      gearbox: {
+        catKeywords: ['گیربکس', 'gearbox', 'transmission', 'کلاچ', 'انتقال قدرت'],
+        titleKeywords: ['گیربکس', 'کلاچ', 'دیسک و صفحه', 'صفحه کلاچ', 'دنده', 'دیفرانسیل', 'پلوس', 'واسکازین', 'سیم کلاچ', 'بلبرینگ کلاچ']
+      },
+      electrical: {
+        catKeywords: ['برق', 'الکترونیک', 'electrical', 'الکتریک'],
+        titleKeywords: ['برق', 'الکترونیک', 'دینام', 'استارت', 'باتری', 'باطری', 'سیم کشی', 'سیم‌کشی', 'فیوز', 'شمع', 'وایر', 'چراغ', 'کوئل', 'ecu', 'ایسیو', 'بوق', 'برف پاک کن']
+      },
+      suspension: {
+        catKeywords: ['جلوبندی', 'تعلیق', 'suspension', 'فرمان'],
+        titleKeywords: ['جلوبندی', 'تعلیق', 'کمک فنر', 'کمک‌فنر', 'سیبک', 'طبق', 'جعبه فرمان', 'هیدرولیک فرمان', 'میزان فرمان', 'بوش', 'میل تعادل', 'بلبرینگ چرخ', 'توپی']
+      },
+      tires: {
+        catKeywords: ['لاستیک', 'تایر', 'tires', 'tire', 'چرخ'],
+        titleKeywords: ['لاستیک', 'تایر', 'پنچری', 'بالانس', 'رینگ', 'ساییدگی لاستیک', 'تیوبلس']
+      },
+      cooling_fuel: {
+        catKeywords: ['خنک', 'سوخت', 'cooling', 'fuel', 'رادیاتور'],
+        titleKeywords: ['رادیاتور', 'واترپمپ', 'ترموستات', 'جوش آوردن', 'مایع خنک', 'ضدیخ', 'پمپ بنزین', 'انژکتور', 'باک', 'صافی بنزین', 'کاربراتور']
+      },
+      body: {
+        catKeywords: ['بدنه', 'صافکاری', 'نقاشی', 'body'],
+        titleKeywords: ['بدنه', 'صافکاری', 'نقاشی', 'سپر', 'شیشه', 'قفل', 'درب', 'آینه', 'گلگیر', 'کاپوت', 'صندوق']
+      }
+    };
+
+    // بررسی انطباق بر اساس دامنه تخصصی انتخاب‌شده
+    for (const [, config] of Object.entries(domainKeywords)) {
+      const isSelectedCatInDomain = config.catKeywords.some(k => normCat.includes(k));
+      if (isSelectedCatInDomain) {
+        const isDefCatInDomain = config.catKeywords.some(k => normDefCat.includes(k));
+        const isDefTitleInDomain = config.titleKeywords.some(k => normDefTitle.includes(k));
+
+        // اگر دسته تعریف یک دسته تجمیعی پیش‌فرض بود (مانند مکانیکی (موتور / گیربکس / ترمز)):
+        if (normDefCat.includes('مکانیکی') && (normDefCat.includes('موتور') || normDefCat.includes('ترمز') || normDefCat.includes('گیربکس'))) {
+          return isDefTitleInDomain;
+        }
+
+        if (isDefCatInDomain || isDefTitleInDomain) {
+          return true;
+        }
+
+        return false;
+      }
+    }
+
+    // اگر دسته‌بندی کاربر جزو حوزه‌های کلیدواژه‌ای بالا نبود:
+    if (normDefCat && (normDefCat === normCat || normDefCat.includes(normCat) || normCat.includes(normDefCat))) {
+      return true;
+    }
+
+    return false;
+  }, []);
+
   const handleUpdateFailureRow = (id: string, updates: Partial<FailureItemRow>) => {
     setFailureRows(prev => prev.map(r => {
       if (r.id !== id) return r;
       const merged = { ...r, ...updates };
+
+      // اگر دسته‌بندی تغییر کرد و تعریف قبلی متعلق به این دسته نبود، انتخاب نوع خرابی پاک شود
+      if (updates.category !== undefined) {
+        if (updates.category && merged.definitionId) {
+          const currentDef = failureDefinitions.find(d => d.id.toString() === merged.definitionId);
+          if (currentDef && !isDefinitionInCategory(currentDef, updates.category)) {
+            merged.definitionId = '';
+            merged.failureType = '';
+          }
+        }
+      }
 
       // اگر عنوان تعریف خرابی تغییر کرد، دسته‌بندی و شرح خودکار پر شوند
       if (updates.definitionId !== undefined) {
@@ -273,11 +366,15 @@ export default function FailuresView({
   // لیست دسته‌بندی‌های نقص فنی با پشتیبانی از localStorage و قابلیت افزودن دسته جدید
   const [failureCategories, setFailureCategories] = useState<{ value: string; label: string }[]>(() => {
     const defaults = [
-      { value: 'mechanical', label: 'مکانیکی (موتور / گیربکس / ترمز)' },
-      { value: 'electrical', label: 'برقی و سیستم الکترونیک' },
-      { value: 'body', label: 'بدنه، نقاشی و صافکاری' },
-      { value: 'tires', label: 'لاستیک، جلوبندی و سیستم تعلیق' },
-      { value: 'other', label: 'سایر موارد و سرویس‌های تخصصی' }
+      { value: 'موتور و قوای محرکه', label: 'موتور و قوای محرکه' },
+      { value: 'گیربکس و کلاچ', label: 'گیربکس و کلاچ' },
+      { value: 'سیستم ترمز', label: 'سیستم ترمز' },
+      { value: 'برقی و سیستم الکترونیک', label: 'برقی و سیستم الکترونیک' },
+      { value: 'جلوبندی و سیستم تعلیق', label: 'جلوبندی و سیستم تعلیق' },
+      { value: 'لاستیک و چرخ', label: 'لاستیک و چرخ' },
+      { value: 'سیستم خنک‌کننده و سوخت‌رسانی', label: 'سیستم خنک‌کننده و سوخت‌رسانی' },
+      { value: 'بدنه، نقاشی و صافکاری', label: 'بدنه، نقاشی و صافکاری' },
+      { value: 'سایر موارد و عمومی', label: 'سایر موارد و عمومی' }
     ];
     try {
       const saved = localStorage.getItem('fleet_failure_categories');
@@ -393,6 +490,17 @@ export default function FailuresView({
         if (r.id !== id) return r;
         const merged = { ...r, ...updates };
 
+        // اگر دسته‌بندی تغییر کرد و تعریف قبلی متعلق به این دسته نبود، انتخاب نوع خرابی پاک شود
+        if (updates.category !== undefined) {
+          if (updates.category && merged.definitionId) {
+            const currentDef = failureDefinitions.find(d => d.id.toString() === merged.definitionId);
+            if (currentDef && !isDefinitionInCategory(currentDef, updates.category)) {
+              merged.definitionId = '';
+              merged.failureType = '';
+            }
+          }
+        }
+
         if (updates.definitionId !== undefined) {
           if (!updates.definitionId) {
             merged.failureType = '';
@@ -460,6 +568,17 @@ export default function FailuresView({
         if (r.id !== id) return r;
         const merged = { ...r, ...updates };
 
+        // اگر دسته‌بندی تغییر کرد و تعریف قبلی متعلق به این دسته نبود، انتخاب نوع خرابی پاک شود
+        if (updates.category !== undefined) {
+          if (updates.category && merged.definitionId) {
+            const currentDef = failureDefinitions.find(d => d.id.toString() === merged.definitionId);
+            if (currentDef && !isDefinitionInCategory(currentDef, updates.category)) {
+              merged.definitionId = '';
+              merged.failureType = '';
+            }
+          }
+        }
+
         if (updates.definitionId !== undefined) {
           if (!updates.definitionId) {
             merged.failureType = '';
@@ -498,21 +617,44 @@ export default function FailuresView({
 
   // گزینه‌های دسته‌بندی به همراه پوشش مقادیر پیشین یا خاص
   const activeFailureCategoryOptions = useMemo(() => {
-    const base = [...failureCategories];
+    const map = new Map<string, { value: string; label: string }>();
+
+    // ۱. دسته‌بندی‌های رسمی تعریف‌شده در سیستم
+    (propFailureCategories || []).forEach(c => {
+      if (c && c.name) {
+        map.set(c.name, { value: c.name, label: c.name });
+      }
+    });
+
+    // ۲. دسته‌بندی‌های موجود در تعاریف خرابی
+    (failureDefinitions || []).forEach(d => {
+      if (d && d.category && !map.has(d.category)) {
+        map.set(d.category, { value: d.category, label: d.category });
+      }
+    });
+
+    // ۳. دسته‌بندی‌های پیش‌فرض و استیت
+    (failureCategories || []).forEach(c => {
+      if (c && c.value && !map.has(c.value) && !map.has(c.label)) {
+        map.set(c.value, c);
+      }
+    });
+
     const ensureValue = (val?: string) => {
       if (!val) return;
-      if (!base.some(c => c.value === val)) {
+      if (!map.has(val)) {
         if (val === 'engine') {
-          base.push({ value: 'engine', label: 'موتور و قوای محرکه' });
+          map.set('engine', { value: 'engine', label: 'موتور و قوای محرکه' });
         } else {
-          base.push({ value: val, label: val });
+          map.set(val, { value: val, label: val });
         }
       }
     };
     ensureValue(failureType);
     ensureValue(editFailureType);
-    return base;
-  }, [failureCategories, failureType, editFailureType]);
+
+    return Array.from(map.values());
+  }, [failureCategories, propFailureCategories, failureDefinitions, failureType, editFailureType]);
 
   const calculateEditTotalCost = (rows: InvoicePartRowItem[], wages: number) => {
     const partsSum = rows.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
@@ -1736,16 +1878,6 @@ export default function FailuresView({
     },
   });
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, priorityFilter, vehicleFilter, startDate, endDate, activeTab]);
-
-  const totalPages = Math.ceil(sortedFailures.length / pageSize) || 1;
-  const paginatedFailures = sortedFailures.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
   const getPriorityBadge = (p: FailurePriority) => {
     switch (p) {
       case 'high':
@@ -1796,8 +1928,8 @@ export default function FailuresView({
 
       const headers = [
         'ردیف',
-        'تاریخ شروع تعمیر',
-        'تاریخ اتمام / ترخیص',
+        'تاریخ ارجاع',
+        'تاریخ ترخیص',
         'کد خودرو',
         'نام خودرو',
         'پلاک خودرو',
@@ -1806,9 +1938,14 @@ export default function FailuresView({
         'وضعیت',
         'سطح فوریت',
         'تعمیرگاه / مکانیک',
+        'نام قطعه مصرفی',
+        'محل تأمین قطعه',
+        'فروشگاه / تامین‌کننده قطعه',
+        'تعداد قطعه',
+        'اجرت و دستمزد (ریال)',
+        'هزینه فاکتور (ریال)',
         'شماره فاکتور',
-        'شرح خرابی / اقدامات',
-        'هزینه فاکتور (ریال)'
+        'شرح خرابی / اقدامات'
       ];
 
       const rows = itemsToExport.map((f, idx) => {
@@ -1817,7 +1954,7 @@ export default function FailuresView({
         const shopName = getFailureMechanicsDisplay(f, wf);
 
         let statusLabel = 'در حال تعمیر';
-        if (f.status === 'completed' || f.status === 'approved') statusLabel = 'آماده شده / تسویه';
+        if (f.status === 'completed' || f.status === 'approved') statusLabel = 'ترخیص شده / تسویه';
         else if (f.status === 'assigned') statusLabel = 'ارجاع به تعمیرگاه';
 
         let priorityLabel = 'جزیی';
@@ -1827,22 +1964,53 @@ export default function FailuresView({
         const failureDriver = f.driverName || v?.driverName || '—';
         const failureCompany = f.company || v?.company || '—';
         const failurePlaque = f.plaque || v?.plaque || '—';
+        const failureCode = v?.code || (f as any).code || '—';
+        const failureVehicleName = v?.name || (f as any).vehicleName || '—';
+
+        // استخراج تفکیک‌شده اطلاعات قطعات مصرفی و منبع تأمین
+        let partNames = (f as any).partName || '';
+        let partSources = (f as any).partSource === 'warehouse' ? 'انبار شرکت' : ((f as any).partSource === 'supplier' ? 'تامین‌کننده / فروشگاه' : ((f as any).partSource === 'shop' ? 'تعمیرگاه' : ''));
+        let supplierNames = (f as any).supplierName || '';
+        let partQty = (f as any).quantity || 1;
+
+        if (wf) {
+          if (wf.shopPartsUsed && wf.shopPartsUsed.length > 0) {
+            const extParts = wf.shopPartsUsed.map((p: any) => p.name).filter(Boolean);
+            if (extParts.length > 0) partNames = partNames ? `${partNames}، ${extParts.join('، ')}` : extParts.join('، ');
+            const sups = wf.shopPartsUsed.map((p: any) => p.supplierName).filter(Boolean);
+            if (sups.length > 0) supplierNames = supplierNames ? `${supplierNames}، ${sups.join('، ')}` : sups.join('، ');
+            if (!partSources) partSources = 'تامین‌کننده / فروشگاه';
+          }
+          if (wf.partsUsed && Object.keys(wf.partsUsed).length > 0) {
+            const whParts = Object.keys(wf.partsUsed);
+            partNames = partNames ? `${partNames}، ${whParts.join('، ')} (انبار)` : `${whParts.join('، ')} (انبار)`;
+            partSources = partSources ? `${partSources} و انبار شرکت` : 'انبار شرکت';
+          }
+        }
+
+        const referralDate = wf?.startDate || f.failureDate;
+        const dischargeDate = wf?.endDate || (f as any).dischargeDate;
 
         return [
           idx + 1,
-          toJalaliDate(wf?.startDate || f.failureDate),
-          wf?.endDate ? toJalaliDate(wf.endDate) : '—',
-          v?.code || '—',
-          v ? `${v.name} - پلاک [${toPersianDigits(v.plaque)}]` : (failurePlaque !== '—' ? `پلاک [${toPersianDigits(failurePlaque)}]` : '—'),
+          toJalaliDate(referralDate),
+          dischargeDate ? toJalaliDate(dischargeDate) : '—',
+          failureCode,
+          failureVehicleName,
           failurePlaque,
           failureDriver,
           failureCompany,
           statusLabel,
           priorityLabel,
           shopName,
-          wf?.id ? `#${wf.id}` : '—',
-          f.description || wf?.notes || '—',
-          wf?.totalCost || 0
+          partNames || '—',
+          partSources || '—',
+          supplierNames || '—',
+          partQty,
+          wf?.wages || (f as any).wages || 0,
+          wf?.totalCost || (f as any).totalCost || 0,
+          (f as any).invoiceNumber || (wf?.id ? `#${wf.id}` : '—'),
+          f.description || wf?.notes || '—'
         ];
       });
 
@@ -2003,8 +2171,8 @@ export default function FailuresView({
                   <thead>
                     <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                       <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
-                      <th className="py-2 px-2 min-w-[190px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[140px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[190px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[160px]">تعمیرکار</th>
                       <th className="py-2 px-2 min-w-[200px]">شرح خرابی</th>
                       <th className="py-2 px-2 text-center w-10">حذف</th>
@@ -2018,104 +2186,119 @@ export default function FailuresView({
                         </td>
                       </tr>
                     ) : (
-                      failureRows.map((row, index) => (
-                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                          {/* شماره ردیف */}
-                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
-                            {toPersianDigits(index + 1)}
-                          </td>
+                      failureRows.map((row, index) => {
+                        const rowCategoryDefs = row.category
+                          ? failureDefinitions.filter(def => isDefinitionInCategory(def, row.category))
+                          : failureDefinitions;
 
-                          {/* نوع خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-bold">
-                            <CustomSelect
-                              value={row.definitionId}
-                              onChange={(val) => handleUpdateFailureRow(row.id, { definitionId: String(val) })}
-                              placeholder="انتخاب نوع خرابی..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              quickAddType="failure"
-                              options={[
-                                { value: '', label: '-- بدون انتخاب --' },
-                                ...failureDefinitions.map(def => ({
-                                  value: def.id.toString(),
-                                  label: def.failureType
-                                }))
-                              ]}
-                            />
-                          </td>
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                            {/* شماره ردیف */}
+                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                              {toPersianDigits(index + 1)}
+                            </td>
 
-                          {/* دسته خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-medium">
-                            <CustomSelect
-                              value={row.category}
-                              onChange={(val) => handleUpdateFailureRow(row.id, { category: String(val) })}
-                              placeholder="انتخاب دسته..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              onAddNew={() => {
-                                setCategoryTargetRowId(row.id);
-                                setCategoryTargetForm('create');
-                                setIsAddCategoryModalOpen(true);
-                              }}
-                              addNewLabel="افزودن دسته‌بندی جدید..."
-                              options={[
-                                { value: '', label: 'انتخاب کنید...' },
-                                ...activeFailureCategoryOptions.map(cat => ({
-                                  value: cat.value,
-                                  label: cat.label
-                                }))
-                              ]}
-                            />
-                          </td>
+                            {/* ۱. اول دسته خرابی */}
+                            <td className="py-1.5 px-2 font-sans font-medium">
+                              <CustomSelect
+                                value={row.category}
+                                onChange={(val) => handleUpdateFailureRow(row.id, { category: String(val) })}
+                                placeholder="انتخاب دسته..."
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                onAddNew={() => {
+                                  setCategoryTargetRowId(row.id);
+                                  setCategoryTargetForm('create');
+                                  setIsAddCategoryModalOpen(true);
+                                }}
+                                addNewLabel="افزودن دسته‌بندی جدید..."
+                                options={[
+                                  { value: '', label: 'انتخاب کنید...' },
+                                  ...activeFailureCategoryOptions.map(cat => ({
+                                    value: cat.value,
+                                    label: cat.label
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* تعمیرکار */}
-                          <td className="py-1.5 px-2 font-sans font-medium">
-                            <CustomSelect
-                              value={row.mechanicId}
-                              onChange={(val) => handleUpdateFailureRow(row.id, { mechanicId: String(val) })}
-                              placeholder=""
-                              showEmptyAsBlank={true}
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              quickAddType="mechanic"
-                              options={[
-                                { value: '', label: '-- بدون تعمیرکار --' },
-                                ...mechanics.map(m => ({
-                                  value: m.id.toString(),
-                                  label: m.shopName ? `${m.name} (${m.shopName})` : m.name
-                                }))
-                              ]}
-                            />
-                          </td>
+                            {/* ۲. بعد نوع خرابی (فقط خرابی‌های متعلق به دسته انتخاب‌شده) */}
+                            <td className="py-1.5 px-2 font-sans font-bold">
+                              <CustomSelect
+                                value={row.definitionId}
+                                onChange={(val) => handleUpdateFailureRow(row.id, { definitionId: String(val) })}
+                                placeholder={
+                                  row.category
+                                    ? (rowCategoryDefs.length === 0 ? 'هیچ موردی در این دسته نیست' : 'انتخاب نوع خرابی...')
+                                    : 'انتخاب نوع خرابی (یا ابتدا دسته)...'
+                                }
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                quickAddType="failure"
+                                options={[
+                                  { 
+                                    value: '', 
+                                    label: row.category 
+                                      ? (rowCategoryDefs.length === 0 ? '-- موردی در این دسته ثبت نشده (افزودن +) --' : '-- انتخاب نوع خرابی --') 
+                                      : '-- انتخاب نوع خرابی --' 
+                                  },
+                                  ...rowCategoryDefs.map(def => ({
+                                    value: def.id.toString(),
+                                    label: row.category ? def.failureType : `${def.failureType}${def.category ? ` (${def.category})` : ''}`
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* شرح خرابی */}
-                          <td className="py-1.5 px-2">
-                            <input
-                              type="text"
-                              value={row.description}
-                              onChange={e => handleUpdateFailureRow(row.id, { description: e.target.value })}
-                              placeholder="علائم این خرابی..."
-                              className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans font-medium text-xs placeholder-slate-400 dark:placeholder-slate-600 shadow-2xs"
-                            />
-                          </td>
+                            {/* تعمیرکار */}
+                            <td className="py-1.5 px-2 font-sans font-medium">
+                              <CustomSelect
+                                value={row.mechanicId}
+                                onChange={(val) => handleUpdateFailureRow(row.id, { mechanicId: String(val) })}
+                                placeholder=""
+                                showEmptyAsBlank={true}
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                quickAddType="mechanic"
+                                options={[
+                                  { value: '', label: '-- بدون تعمیرکار --' },
+                                  ...mechanics.map(m => ({
+                                    value: m.id.toString(),
+                                    label: m.shopName ? `${m.name} (${m.shopName})` : m.name
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* دکمه حذف ردیف */}
-                          <td className="py-1.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFailureRow(row.id)}
-                              disabled={failureRows.length <= 1}
-                              className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
-                              title="حذف ردیف"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                            {/* شرح خرابی */}
+                            <td className="py-1.5 px-2">
+                              <input
+                                type="text"
+                                value={row.description}
+                                onChange={e => handleUpdateFailureRow(row.id, { description: e.target.value })}
+                                placeholder="علائم این خرابی..."
+                                className="w-full h-6 px-2 rounded border border-slate-300 dark:border-[#2d2d30] bg-white dark:bg-[#161619] text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-sans font-medium text-xs placeholder-slate-400 dark:placeholder-slate-600 shadow-2xs"
+                              />
+                            </td>
+
+                            {/* دکمه حذف ردیف */}
+                            <td className="py-1.5 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFailureRow(row.id)}
+                                disabled={failureRows.length <= 1}
+                                className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
+                                title="حذف ردیف"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2369,8 +2552,8 @@ export default function FailuresView({
                   <thead>
                     <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                       <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
-                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[130px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[140px]">تعمیرکار / تعمیرگاه</th>
                       <th className="py-2 px-2 text-center w-14">شرح</th>
                       <th className="py-2 px-2 text-left w-36 min-w-[120px]">اجرت (ریال)</th>
@@ -2386,57 +2569,71 @@ export default function FailuresView({
                         </td>
                       </tr>
                     ) : (
-                      invoiceFailureRows.map((row, index) => (
-                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                          {/* شماره ردیف */}
-                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
-                            {toPersianDigits(index + 1)}
-                          </td>
+                      invoiceFailureRows.map((row, index) => {
+                        const rowCategoryDefs = row.category
+                          ? failureDefinitions.filter(def => isDefinitionInCategory(def, row.category))
+                          : failureDefinitions;
 
-                          {/* نوع خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-bold">
-                            <CustomSelect
-                              value={row.definitionId}
-                              onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { definitionId: String(val) })}
-                              placeholder="انتخاب نوع خرابی..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              quickAddType="failure"
-                              options={[
-                                { value: '', label: '-- بدون انتخاب --' },
-                                ...failureDefinitions.map(def => ({
-                                  value: def.id.toString(),
-                                  label: def.failureType
-                                }))
-                              ]}
-                            />
-                          </td>
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                            {/* شماره ردیف */}
+                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                              {toPersianDigits(index + 1)}
+                            </td>
 
-                          {/* دسته خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-medium">
-                            <CustomSelect
-                              value={row.category}
-                              onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { category: String(val) })}
-                              placeholder="انتخاب دسته..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              onAddNew={() => {
-                                setCategoryTargetRowId(row.id);
-                                setCategoryTargetForm('invoice');
-                                setIsAddCategoryModalOpen(true);
-                              }}
-                              addNewLabel="افزودن دسته‌بندی جدید..."
-                              options={[
-                                { value: '', label: 'انتخاب کنید...' },
-                                ...activeFailureCategoryOptions.map(cat => ({
-                                  value: cat.value,
-                                  label: cat.label
-                                }))
-                              ]}
-                            />
-                          </td>
+                            {/* دسته خرابی */}
+                            <td className="py-1.5 px-2 font-sans font-medium">
+                              <CustomSelect
+                                value={row.category}
+                                onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { category: String(val) })}
+                                placeholder="انتخاب دسته..."
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                onAddNew={() => {
+                                  setCategoryTargetRowId(row.id);
+                                  setCategoryTargetForm('invoice');
+                                  setIsAddCategoryModalOpen(true);
+                                }}
+                                addNewLabel="افزودن دسته‌بندی جدید..."
+                                options={[
+                                  { value: '', label: 'انتخاب کنید...' },
+                                  ...activeFailureCategoryOptions.map(cat => ({
+                                    value: cat.value,
+                                    label: cat.label
+                                  }))
+                                ]}
+                              />
+                            </td>
+
+                            {/* نوع خرابی */}
+                            <td className="py-1.5 px-2 font-sans font-bold">
+                              <CustomSelect
+                                value={row.definitionId}
+                                onChange={(val) => handleInvoiceUpdateFailureRow(row.id, { definitionId: String(val) })}
+                                placeholder={
+                                  row.category 
+                                    ? (rowCategoryDefs.length === 0 ? 'هیچ موردی در این دسته نیست' : 'انتخاب نوع خرابی...')
+                                    : 'انتخاب نوع خرابی...'
+                                }
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                quickAddType="failure"
+                                options={[
+                                  { 
+                                    value: '', 
+                                    label: row.category 
+                                      ? (rowCategoryDefs.length === 0 ? '-- موردی در این دسته ثبت نشده --' : '-- بدون انتخاب --') 
+                                      : '-- بدون انتخاب --' 
+                                  },
+                                  ...rowCategoryDefs.map(def => ({
+                                    value: def.id.toString(),
+                                    label: row.category ? def.failureType : `${def.failureType}${def.category ? ` (${def.category})` : ''}`
+                                  }))
+                                ]}
+                              />
+                            </td>
 
                           {/* تعمیرکار */}
                           <td className="py-1.5 px-2 font-sans font-medium">
@@ -2523,12 +2720,13 @@ export default function FailuresView({
                             </button>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
 
-                {/* خلاصه اجرت ردیف‌های خرابی در مودال فاکتور */}
+              {/* خلاصه اجرت ردیف‌های خرابی در مودال فاکتور */}
                 <div className="p-2 bg-slate-50 dark:bg-[#161618] border-t border-slate-200 dark:border-[#2d2d30] flex flex-wrap items-center justify-between text-xs font-bold gap-2">
                   <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                     تعداد خرابی‌های ثبت‌شده: <strong className="text-slate-800 dark:text-slate-200 font-mono">{toPersianDigits(invoiceFailureRows.length)}</strong>
@@ -3132,8 +3330,8 @@ export default function FailuresView({
                   <thead>
                     <tr className="bg-slate-50 dark:bg-[#161618] border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-mono font-bold text-xs">
                       <th className="py-2 px-2 text-center w-8 text-xs font-mono font-bold">#</th>
-                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[130px]">دسته خرابی</th>
+                      <th className="py-2 px-2 min-w-[160px]">نوع خرابی <span className="text-rose-500">*</span></th>
                       <th className="py-2 px-2 min-w-[140px]">تعمیرکار</th>
                       <th className="py-2 px-2 text-center w-14">شرح</th>
                       <th className="py-2 px-2 text-center w-10">حذف</th>
@@ -3147,117 +3345,132 @@ export default function FailuresView({
                         </td>
                       </tr>
                     ) : (
-                      editFailureRows.map((row, index) => (
-                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
-                          {/* شماره ردیف */}
-                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
-                            {toPersianDigits(index + 1)}
-                          </td>
+                      editFailureRows.map((row, index) => {
+                        const rowCategoryDefs = row.category
+                          ? failureDefinitions.filter(def => isDefinitionInCategory(def, row.category))
+                          : failureDefinitions;
 
-                          {/* نوع خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-bold">
-                            <CustomSelect
-                              value={row.definitionId}
-                              onChange={(val) => handleEditUpdateFailureRow(row.id, { definitionId: String(val) })}
-                              placeholder="انتخاب نوع خرابی..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              quickAddType="failure"
-                              options={[
-                                { value: '', label: '-- بدون انتخاب --' },
-                                ...failureDefinitions.map(def => ({
-                                  value: def.id.toString(),
-                                  label: def.failureType
-                                }))
-                              ]}
-                            />
-                          </td>
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/40 transition-colors">
+                            {/* شماره ردیف */}
+                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-400 dark:text-slate-500 text-[10px]">
+                              {toPersianDigits(index + 1)}
+                            </td>
 
-                          {/* دسته خرابی */}
-                          <td className="py-1.5 px-2 font-sans font-medium">
-                            <CustomSelect
-                              value={row.category}
-                              onChange={(val) => handleEditUpdateFailureRow(row.id, { category: String(val) })}
-                              placeholder="انتخاب دسته..."
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              onAddNew={() => {
-                                setCategoryTargetRowId(row.id);
-                                setCategoryTargetForm('edit');
-                                setIsAddCategoryModalOpen(true);
-                              }}
-                              addNewLabel="افزودن دسته‌بندی جدید..."
-                              options={[
-                                { value: '', label: 'انتخاب کنید...' },
-                                ...activeFailureCategoryOptions.map(cat => ({
-                                  value: cat.value,
-                                  label: cat.label
-                                }))
-                              ]}
-                            />
-                          </td>
+                            {/* ۱. دسته خرابی */}
+                            <td className="py-1.5 px-2 font-sans font-medium">
+                              <CustomSelect
+                                value={row.category}
+                                onChange={(val) => handleEditUpdateFailureRow(row.id, { category: String(val) })}
+                                placeholder="انتخاب دسته..."
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                onAddNew={() => {
+                                  setCategoryTargetRowId(row.id);
+                                  setCategoryTargetForm('edit');
+                                  setIsAddCategoryModalOpen(true);
+                                }}
+                                addNewLabel="افزودن دسته‌بندی جدید..."
+                                options={[
+                                  { value: '', label: 'انتخاب کنید...' },
+                                  ...activeFailureCategoryOptions.map(cat => ({
+                                    value: cat.value,
+                                    label: cat.label
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* تعمیرکار */}
-                          <td className="py-1.5 px-2 font-sans font-medium">
-                            <CustomSelect
-                              value={row.mechanicId}
-                              onChange={(val) => handleEditUpdateFailureRow(row.id, { mechanicId: String(val) })}
-                              placeholder=""
-                              showEmptyAsBlank={true}
-                              searchable={true}
-                              size="xs"
-                              matchTriggerWidth={true}
-                              quickAddType="mechanic"
-                              options={[
-                                { value: '', label: '-- بدون تعمیرکار --' },
-                                ...mechanics.map(m => ({
-                                  value: m.id.toString(),
-                                  label: m.shopName ? `${m.name} (${m.shopName})` : m.name
-                                }))
-                              ]}
-                            />
-                          </td>
+                            {/* ۲. نوع خرابی (فیلتر بر اساس دسته انتخابی) */}
+                            <td className="py-1.5 px-2 font-sans font-bold">
+                              <CustomSelect
+                                value={row.definitionId}
+                                onChange={(val) => handleEditUpdateFailureRow(row.id, { definitionId: String(val) })}
+                                placeholder={
+                                  row.category 
+                                    ? (rowCategoryDefs.length === 0 ? 'هیچ موردی در این دسته نیست' : 'انتخاب نوع خرابی...')
+                                    : 'انتخاب نوع خرابی...'
+                                }
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                quickAddType="failure"
+                                options={[
+                                  { 
+                                    value: '', 
+                                    label: row.category 
+                                      ? (rowCategoryDefs.length === 0 ? '-- موردی در این دسته ثبت نشده --' : '-- بدون انتخاب --') 
+                                      : '-- بدون انتخاب --' 
+                                  },
+                                  ...rowCategoryDefs.map(def => ({
+                                    value: def.id.toString(),
+                                    label: row.category ? def.failureType : `${def.failureType}${def.category ? ` (${def.category})` : ''}`
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* دکمه مشاهده و ویرایش جزئیات شرح خرابی */}
-                          <td className="py-1.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedFailureDescModal({
-                                rowIndex: index,
-                                failureType: row.failureType || 'عیب فنی',
-                                description: row.description || '',
-                                isInvoiceForm: false
-                              })}
-                              className={`w-7 h-7 rounded border transition-colors flex items-center justify-center mx-auto cursor-pointer shadow-2xs relative ${
-                                row.description && row.description.trim()
-                                  ? 'border-slate-300 dark:border-[#38383c] bg-white dark:bg-[#1a1a1c] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528]'
-                                  : 'border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100'
-                              }`}
-                              title={row.description && row.description.trim() ? `شرح: ${row.description}` : 'ثبت شرح خرابی'}
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                              {row.description && row.description.trim() && (
-                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
-                              )}
-                            </button>
-                          </td>
+                            {/* تعمیرکار */}
+                            <td className="py-1.5 px-2 font-sans font-medium">
+                              <CustomSelect
+                                value={row.mechanicId}
+                                onChange={(val) => handleEditUpdateFailureRow(row.id, { mechanicId: String(val) })}
+                                placeholder=""
+                                showEmptyAsBlank={true}
+                                searchable={true}
+                                size="xs"
+                                matchTriggerWidth={true}
+                                quickAddType="mechanic"
+                                options={[
+                                  { value: '', label: '-- بدون تعمیرکار --' },
+                                  ...mechanics.map(m => ({
+                                    value: m.id.toString(),
+                                    label: m.shopName ? `${m.name} (${m.shopName})` : m.name
+                                  }))
+                                ]}
+                              />
+                            </td>
 
-                          {/* دکمه حذف ردیف */}
-                          <td className="py-1.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleEditRemoveFailureRow(row.id)}
-                              disabled={editFailureRows.length <= 1}
-                              className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
-                              title="حذف ردیف"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                            {/* دکمه مشاهده و ویرایش جزئیات شرح خرابی */}
+                            <td className="py-1.5 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedFailureDescModal({
+                                  rowIndex: index,
+                                  failureType: row.failureType || 'عیب فنی',
+                                  description: row.description || '',
+                                  isInvoiceForm: false
+                                })}
+                                className={`w-7 h-7 rounded border transition-colors flex items-center justify-center mx-auto cursor-pointer shadow-2xs relative ${
+                                  row.description && row.description.trim()
+                                    ? 'border-slate-300 dark:border-[#38383c] bg-white dark:bg-[#1a1a1c] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252528]'
+                                    : 'border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100'
+                                }`}
+                                title={row.description && row.description.trim() ? `شرح: ${row.description}` : 'ثبت شرح خرابی'}
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                {row.description && row.description.trim() && (
+                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
+                                )}
+                              </button>
+                            </td>
+
+                            {/* دکمه حذف ردیف */}
+                            <td className="py-1.5 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleEditRemoveFailureRow(row.id)}
+                                disabled={editFailureRows.length <= 1}
+                                className="w-6 h-6 inline-flex items-center justify-center bg-slate-100 dark:bg-[#1a1a1c] hover:bg-rose-50 dark:hover:bg-rose-600/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded border border-slate-200 dark:border-[#2d2d30] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mx-auto"
+                                title="حذف ردیف"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -3639,6 +3852,16 @@ export default function FailuresView({
           />
         </div>
 
+        {/* دکمه بارگذاری / ورود از اکسل */}
+        <button
+          type="button"
+          onClick={() => setIsImportModalOpen(true)}
+          className="h-[34px] w-[34px] min-w-[34px] flex items-center justify-center rounded-lg bg-white dark:bg-[#111113] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-300 dark:border-[#2d2d30] hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0 group self-center"
+          title="بارگذاری فایل اکسل و ثبت دسته‌جمعی پذیرش خرابی‌ها و تعمیرگاه"
+        >
+          <Upload className="w-4 h-4 transition-transform group-hover:scale-110" />
+        </button>
+
         {/* دکمه خروجی اکسل */}
         <button
           type="button"
@@ -3688,10 +3911,11 @@ export default function FailuresView({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* بدنه جدول با اسکرول عمودی و افقی مشابه قسمت حسابداری */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[620px] custom-scrollbar">
           <table className="w-full text-right text-[11px] text-slate-700 dark:text-slate-300 border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-[#2d2d30] bg-slate-50 dark:bg-[#161618] text-slate-600 dark:text-slate-400 font-medium text-xs">
+            <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161618]">
+              <tr className="border-b border-slate-200 dark:border-[#2d2d30] text-slate-600 dark:text-slate-400 font-medium text-xs">
                 <th className="py-2 px-3 text-center w-12 text-xs font-medium">ردیف</th>
                 
                 <TableColumnHeader
@@ -3752,14 +3976,14 @@ export default function FailuresView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-[#2d2d30]/60">
-              {paginatedFailures.length === 0 ? (
+              {sortedFailures.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-slate-500 text-[11px]">
                     {activeTab === 'in_repair' ? 'هیچ خودرویی در حال حاضر در حال تعمیر نیست.' : 'هیچ خودرویی در بخش آماده شده ثبت نشده است.'}
                   </td>
                 </tr>
               ) : (
-                paginatedFailures.map((f, index) => {
+                sortedFailures.map((f, index) => {
                   const v = vehicles.find(veh => String(veh.id) === String(f.vehicleId) || Number(veh.id) === Number(f.vehicleId));
                   const wf = workflows.find(w => w.failureId === f.id);
                   const mechsList = getFailureMechanicsList(f, wf);
@@ -3772,8 +3996,8 @@ export default function FailuresView({
                       className="group relative h-9 hover:bg-slate-50 dark:hover:bg-[#1a1a1c]/60 transition-colors cursor-pointer text-[11px]"
                       title="برای مشاهده و ویرایش این پرونده کلیک کنید"
                     >
-                      <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle">
-                        {toPersianDigits((currentPage - 1) * pageSize + index + 1)}
+                      <td className="py-1 px-3 text-center text-slate-500 text-[11px] align-middle font-mono">
+                        {toPersianDigits(index + 1)}
                       </td>
                       <td className="py-1 px-3 text-slate-700 dark:text-slate-300 text-[11px] align-middle">
                         {activeTab === 'in_repair' ? (
@@ -3887,15 +4111,6 @@ export default function FailuresView({
             </tbody>
           </table>
         </div>
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={sortedFailures.length}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
       </div>
         </motion.div>
       </AnimatePresence>
@@ -4321,6 +4536,15 @@ export default function FailuresView({
           </div>
         </div>
       )}
+
+      {/* پنجره پاپ‌آپ بارگذاری و ثبت دسته‌جمعی پذیرش خرابی‌ها از اکسل */}
+      <DefinitionsExcelImportModal
+        isOpen={isImportModalOpen}
+        initialType="failures"
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={onBulkImportSuccess}
+        onNavigate={onNavigate}
+      />
 
       {/* منوی فیلتر ستون سبک اکسل */}
       <ColumnFilterMenu
